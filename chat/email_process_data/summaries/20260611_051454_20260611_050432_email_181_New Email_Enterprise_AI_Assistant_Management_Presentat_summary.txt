@@ -1,0 +1,144 @@
+Processed Time: 2026-06-11 05:14:54
+Email Subject: New Email
+Email Sender: Abdul Al Mamun <mamun.it@burobd.org>
+Original Attachment File: 20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentation.pptx
+Extraction File: 20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentat_9487012be6d5.pdf
+Conversion Method: gotenberg_to_pdf
+Gotenberg URL: http://192.168.1.136:31164
+Converted PDF: 20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentat_9487012be6d5.pdf
+Attachment SHA256: 9487012be6d5e0c1c9f34f310748071267f80ec321882718c9f4430ac78359f7
+Ollama URL: http://192.168.1.144:31134
+Ollama Model: aya-23-8b:q5
+
+==================== CHARITY / AID VERIFICATION SUMMARY ====================
+
+AI assistant helps staff with access to relevant information.
+May 2026 5
+
+--- Page 6 ---
+CONFIDENTIAL - INTERNAL MANAGEMENT PRESENTATION Enterprise AI Assistant
+Solution architecture
+AI Chat Layer
+User interface for internal staff,
+with role-based access control and
+audit trail
+Enterprise AI Core
+Knowledge, data, models, and workflows
+that power the chat layer
+Auto Router
+Intelligent router that determines
+module and intent of user query
+RAG Retrieval
+Real-time search over relevant
+documents and data
+Agentic Workflows
+AI assistant triggers live workflows
+for data retrieval or action
+LLM Explanation
+AI assistant explains LLM output to
+users in plain language
+Audit & Admin
+Admin interface for access control,
+audit trail, and system management
+Knowledge
+Central repository of policies, notices,
+circulars, website, and manuals
+Enterprise Data
+Data from Oracle DW/Core via NiFi
+APIs
+External Models
+Zypl scoring integration and logs
+May 2026 6
+
+--- Page 7 ---
+CONFIDENTIAL - INTERNAL MANAGEMENT PRESENTATION Enterprise AI Assistant
+Solution architecture (continued)
+AI Chat Layer
+User interface for internal staff,
+with role-based access control and
+audit trail
+Enterprise AI Core
+Knowledge, data, models, and workflows
+that power the chat layer
+Auto Router
+Intelligent router that determines
+module and intent of user query
+RAG Retrieval
+Real-time search over relevant
+documents and data
+Agentic Workflows
+AI assistant triggers live workflows
+for data retrieval or action
+LLM Explanation
+AI assistant explains LLM output to
+users in plain language
+Audit & Admin
+Admin interface for access control,
+audit trail, and system management
+Knowledge
+Central repository of policies, notices,
+circulars, website, and manuals
+Enterprise Data
+Data from Oracle DW/Core via NiFi
+APIs
+External Models
+Zypl scoring integration and logs
+May 2026 7
+
+--- Page 8 ---
+CONFIDENTIAL - INTERNAL MANAGEMENT PRESENTATION Enterprise AI Assistant
+Solution architecture (continued)
+AI Chat Layer
+User interface for internal staff,
+with role-based access control and
+audit trail
+Enterprise AI Core
+Knowledge, data, models, and workflows
+that power the chat layer
+Auto Router
+Intelligent router that determines
+module and intent of user query
+RAG Retrieval
+Real-time search over relevant
+documents and data
+Agentic Workflows
+AI assistant triggers live workflows
+for data retrieval or action
+LLM Explanation
+AI assistant explains LLM output to
+users in plain language
+Audit & Admin
+Admin interface for access control,
+audit trail, and system management
+Knowledge
+Central repository of policies, notices,
+circulars, website, and manuals
+Enterprise Data
+Data from Oracle DW/Core via NiFi
+APIs
+External Models
+Zypl scoring integration and logs
+May 2026 8
+
+--- Page 9 ---
+CONFIDENTIAL - INTERNAL MANAGEMENT PRESENTATION Enterprise AI Assistant
+Solution architecture (continued)
+AI Chat Layer
+User interface for internal staff,
+with role-based access control and
+audit trail
+Enterprise AI Core
+Knowledge, data, models, and workflows
+that power the chat layer
+Auto Router
+Intelligent router that determines
+module and intent of user query
+RAG Retrieval
+Real-time search over relevant
+documents and data
+Agentic Workflows
+AI assistant triggers live workflows
+for data retrieval or action
+LLM Explanation
+AI assistant explains LLM output to
+users in plain language

@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>BURO Private AI Assistant — Login</title>
+
+  <style>
+    :root{
+      --bg0:#06080c;
+      --bg1:#0b0f14;
+      --panel: rgba(16, 24, 35, 0.72);
+      --panel2: rgba(10, 14, 20, 0.60);
+      --border: rgba(148, 163, 184, 0.16);
+      --border2: rgba(148, 163, 184, 0.22);
+      --text:#e6edf3;
+      --muted:#9fb0c3;
+
+      --blue:#0b5cff;
+      --blue2:#1d4ed8;
+      --cyan:#22d3ee;
+      --violet:#a78bfa;
+      --ok:#22c55e;
+      --danger:#ef4444;
+
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --shadow2: 0 10px 30px rgba(0,0,0,.35);
+      --r: 22px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue";
+      color:var(--text);
+      background: radial-gradient(1100px 700px at 15% 10%, rgba(34,211,238,.18), transparent 60%),
+                  radial-gradient(900px 700px at 85% 20%, rgba(167,139,250,.16), transparent 65%),
+                  radial-gradient(800px 600px at 55% 95%, rgba(11,92,255,.14), transparent 60%),
+                  linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow-x:hidden;
+    }
+
+    /* Animated subtle grid */
+    .grid{
+      position:fixed; inset:0;
+      background-image:
+        linear-gradient(to right, rgba(148,163,184,.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148,163,184,.05) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse at 50% 35%, rgba(0,0,0,.9), transparent 70%);
+      pointer-events:none;
+      opacity:.55;
+      transform: translateZ(0);
+    }
+
+    .wrap{
+      min-height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 22px;
+      position:relative;
+      z-index:2;
+    }
+
+    .shell{
+      width:min(1120px, 96vw);
+      display:grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+      align-items:stretch;
+    }
+
+    .card{
+      border:1px solid var(--border);
+      border-radius: var(--r);
+      background: linear-gradient(180deg, rgba(17,24,39,.70), rgba(15,23,42,.50));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* Glow edges */
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      background: radial-gradient(700px 260px at 15% 10%, rgba(34,211,238,.22), transparent 60%),
+                  radial-gradient(700px 280px at 85% 15%, rgba(167,139,250,.18), transparent 60%),
+                  radial-gradient(700px 280px at 55% 95%, rgba(11,92,255,.16), transparent 60%);
+      filter: blur(12px);
+      opacity:.9;
+      pointer-events:none;
+    }
+    .card > .inner{
+      position:relative;
+      z-index:2;
+      padding: 18px;
+    }
+
+    /* Left panel */
+    .brandRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 10px;
+    }
+
+    .brand{
+      display:flex; align-items:center; gap:12px;
+    }
+    .logo{
+      width:44px; height:44px; border-radius:14px;
+      background:
+        radial-gradient(16px 16px at 30% 30%, rgba(34,211,238,.85), transparent 70%),
+        radial-gradient(18px 18px at 70% 30%, rgba(167,139,250,.75), transparent 70%),
+        radial-gradient(18px 18px at 55% 80%, rgba(11,92,255,.80), transparent 70%),
+        linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+      border:1px solid var(--border2);
+      box-shadow: var(--shadow2);
+      display:flex; align-items:center; justify-content:center;
+      position:relative;
+      overflow:hidden;
+    }
+    .logo::after{
+      content:"";
+      position:absolute; inset:-30%;
+      background: conic-gradient(from 180deg, rgba(34,211,238,.0), rgba(34,211,238,.25), rgba(167,139,250,.22), rgba(11,92,255,.22), rgba(34,211,238,.0));
+      animation: spin 6s linear infinite;
+      filter: blur(6px);
+      opacity:.65;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .logo svg{
+      width:22px; height:22px;
+      fill: rgba(230,237,243,.92);
+      position:relative; z-index:2;
+      opacity:.9;
+    }
+
+    h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing:.2px;
+      line-height:1.25;
+    }
+    .sub{
+      margin-top:6px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 56ch;
+    }
+
+    .badges{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .badge{
+      border:1px solid var(--border);
+      background: rgba(11,15,20,.55);
+      color: var(--muted);
+      padding:7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      display:inline-block;
+      background: #3b4453;
+      border:1px solid var(--border);
+    }
+    .dot.ok{background: var(--ok); box-shadow:0 0 0 4px rgba(34,197,94,.14)}
+    .dot.sec{background: var(--cyan); box-shadow:0 0 0 4px rgba(34,211,238,.12)}
+    .dot.rbac{background: var(--violet); box-shadow:0 0 0 4px rgba(167,139,250,.12)}
+
+    .split{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .feature{
+      border:1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(11,15,20,.55), rgba(11,15,20,.35));
+      padding: 12px;
+      min-height: 104px;
+      position:relative;
+      overflow:hidden;
+    }
+    .feature::before{
+      content:"";
+      position:absolute; inset:-1px;
+      background: radial-gradient(320px 140px at 10% 0%, rgba(34,211,238,.14), transparent 60%),
+                  radial-gradient(340px 140px at 90% 0%, rgba(167,139,250,.12), transparent 60%);
+      opacity:.9;
+      pointer-events:none;
+    }
+    .feature .t{
+      position:relative;
+      z-index:2;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.2px;
+      margin-bottom:6px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .feature .d{
+      position:relative;
+      z-index:2;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.55;
+    }
+    .ico{
+      width:26px; height:26px;
+      border-radius:10px;
+      border:1px solid var(--border2);
+      background: rgba(11,15,20,.65);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow: var(--shadow2);
+    }
+    .ico svg{width:16px; height:16px; fill: rgba(230,237,243,.92); opacity:.9}
+
+    .benefits{
+      margin-top: 12px;
+      border:1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(11,15,20,.42);
+      padding: 12px;
+    }
+    .benefits .head{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      margin-bottom: 8px;
+    }
+    .benefits .head .h{
+      font-size:13px; font-weight:900; letter-spacing:.2px;
+      display:flex; align-items:center; gap:8px;
+    }
+    .kpiRow{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+      margin-top: 10px;
+    }
+    .kpi{
+      border:1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(11,15,20,.55);
+      padding: 10px;
+    }
+    .kpi .n{
+      font-size:15px; font-weight:1000;
+      letter-spacing:.2px;
+    }
+    .kpi .s{
+      margin-top:4px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+
+    /* Right login */
+    .loginTop{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      margin-bottom: 10px;
+    }
+    .loginTitle{
+      font-size:13px;
+      color: var(--muted);
+      letter-spacing:.2px;
+      font-weight:900;
+    }
+    .helpLink{
+      color: var(--muted);
+      text-decoration:none;
+      border-bottom:1px dashed rgba(148,163,184,.25);
+      font-size:12px;
+    }
+    .helpLink:hover{color:var(--text); border-bottom-color:rgba(230,237,243,.45)}
+
+    label{
+      display:block;
+      margin:10px 0 6px;
+      color: var(--muted);
+      font-size:12px;
+      letter-spacing:.2px;
+      font-weight:800;
+    }
+
+    input{
+      width:100%;
+      padding: 11px 12px;
+      border-radius: 14px;
+      border:1px solid var(--border);
+      background: rgba(11,15,20,.65);
+      color: var(--text);
+      font-size:14px;
+      outline:none;
+      transition: border-color .15s ease, transform .08s ease;
+    }
+    input:focus{
+      border-color: rgba(34,211,238,.35);
+      box-shadow: 0 0 0 4px rgba(34,211,238,.10);
+    }
+
+    .btn{
+      width:100%;
+      margin-top: 14px;
+      padding: 11px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(11,92,255,.35);
+      background: linear-gradient(180deg, rgba(11,92,255,.95), rgba(29,78,216,.92));
+      color:#fff;
+      font-weight:1000;
+      font-size:14px;
+      cursor:pointer;
+      box-shadow: 0 16px 40px rgba(11,92,255,.20);
+      transition: transform .08s ease, filter .15s ease;
+      min-height: 46px;
+    }
+    .btn:hover{filter: brightness(1.08)}
+    .btn:active{transform: translateY(1px)}
+
+    .err{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(239,68,68,.10);
+      border:1px solid rgba(239,68,68,.22);
+      color: #fecaca;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .finePrint{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size:12px;
+      line-height:1.55;
+      border-top:1px solid rgba(148,163,184,.12);
+      padding-top: 12px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .miniPill{
+      border:1px solid rgba(148,163,184,.14);
+      background: rgba(11,15,20,.40);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      display:inline-flex; align-items:center; gap:8px;
+    }
+
+    .link{
+      color: var(--muted);
+      text-decoration:none;
+      border-bottom:1px dashed rgba(148,163,184,.25);
+      font-weight:800;
+      font-size:12px;
+    }
+    .link:hover{color:var(--text); border-bottom-color:rgba(230,237,243,.45)}
+
+    @media (max-width: 980px){
+      .shell{grid-template-columns:1fr}
+      .badges{justify-content:flex-start}
+      .kpiRow{grid-template-columns:1fr}
+      .split{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="grid"></div>
+
+  <div class="wrap">
+    <div class="shell">
+
+      <!-- LEFT: Product story -->
+      <section class="card">
+        <div class="inner">
+          <div class="brandRow">
+            <div class="brand">
+              <div class="logo" aria-hidden="true">
+                <!-- simple "spark" icon -->
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2zm8.5 9.5l.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7z"/>
+                </svg>
+              </div>
+              <div>
+                <h1>BURO Private AI Assistant</h1>
+                <div class="sub">
+                  Secure on-prem AI chat for <b>HR</b>, <b>Core</b> and <b>Policy</b> —
+                  answers from approved documents (RAG) and Oracle truth via NiFi.
+                </div>
+              </div>
+            </div>
+
+            <div class="badges">
+              <span class="badge"><span class="dot sec"></span> On-Prem Security</span>
+              <span class="badge"><span class="dot rbac"></span> RBAC</span>
+              <span class="badge"><span class="dot ok"></span> Oracle Truth</span>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="feature">
+              <div class="t">
+                <span class="ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7v2h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1V9a7 7 0 0 1 7-7zm-5 9h10V9a5 5 0 0 0-10 0v2z"/></svg>
+                </span>
+                Data stays inside
+              </div>
+              <div class="d">
+                No public cloud dependency. Sensitive HR/Core/Policy information remains within your infrastructure.
+              </div>
+            </div>
+
+            <div class="feature">
+              <div class="t">
+                <span class="ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M10 3h10v6H10V3zM4 15h6v6H4v-6zm0-12h6v10H4V3zm10 10h10v8H14v-8z"/></svg>
+                </span>
+                Department routing
+              </div>
+              <div class="d">
+                Users are routed by group: HR/Core/Policy (and Cashflow if enabled). Access is enforced server-side.
+              </div>
+            </div>
+
+            <div class="feature">
+              <div class="t">
+                <span class="ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 4h16v2H4V4zm0 6h10v2H4v-2zm0 6h16v2H4v-2zm12-6l4 3-4 3v-6z"/></svg>
+                </span>
+                Policy/Notice RAG
+              </div>
+              <div class="d">
+                Search approved documents with Qdrant. Answers are grounded and can show citations/snippets in UI.
+              </div>
+            </div>
+
+            <div class="feature">
+              <div class="t">
+                <span class="ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5a5 5 0 0 1-9.9 1h-2.1A7 7 0 0 0 19 13c0-3.87-3.13-7-7-7z"/></svg>
+                </span>
+                Reliable numbers
+              </div>
+              <div class="d">
+                For HR/Core facts, SQL runs via NiFi to Oracle. The LLM only explains results (no fabricated numbers).
+              </div>
+            </div>
+          </div>
+
+          <div class="benefits">
+            <div class="head">
+              <div class="h">
+                <span class="ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 2l2.5 7.5H22l-6 4.3L18.5 22 12 17.2 5.5 22 8 13.8 2 9.5h7.5L12 2z"/></svg>
+                </span>
+                Organizational impact
+              </div>
+              <span class="miniPill"><span class="dot ok"></span> Audit-friendly sessions</span>
+            </div>
+
+            <div class="kpiRow">
+              <div class="kpi">
+                <div class="n">Faster answers</div>
+                <div class="s">Policy and operational queries answered in seconds instead of searching PDFs/people.</div>
+              </div>
+              <div class="kpi">
+                <div class="n">Lower workload</div>
+                <div class="s">Reduces repetitive questions to HR/IT and improves consistency across branches.</div>
+              </div>
+              <div class="kpi">
+                <div class="n">Safer access</div>
+                <div class="s">RBAC prevents unauthorized visibility of HR/Core data while keeping usage simple.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- RIGHT: Login form -->
+      <section class="card">
+        <div class="inner">
+          <div class="loginTop">
+            <div>
+              <div class="loginTitle">Sign in</div>
+              <div class="sub" style="max-width:none;">
+                Use your organizational account. Access is enforced by your assigned group.
+              </div>
+            </div>
+            <a class="helpLink" href="/" rel="noopener">Back to chat</a>
+          </div>
+
+          {% if form.errors %}
+            <div class="err">Invalid username or password. Please try again.</div>
+          {% endif %}
+
+          <form method="post" autocomplete="on">
+            {% csrf_token %}
+
+            <label>Username</label>
+            {{ form.username }}
+
+            <label>Password</label>
+            {{ form.password }}
+
+            <button class="btn" type="submit">Login</button>
+          </form>
+
+          <div class="finePrint">
+            <span class="miniPill"><span class="dot sec"></span> On-prem</span>
+            <span class="miniPill"><span class="dot rbac"></span> RBAC</span>
+            <span class="miniPill"><span class="dot ok"></span> Oracle truth</span>
+            <span style="margin-left:auto;">
+              <a class="link" href="/admin/" rel="noopener">Admin</a>
+            </span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</body>
+</html>

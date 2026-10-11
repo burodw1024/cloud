@@ -1,0 +1,44 @@
+Processed Time: 2026-06-09 09:28:37
+Email Subject: msg
+Email Sender: kamrul ahasan <kkahasanburobd@gmail.com>
+Attachment File: 20260609_092609_email_177_msg_High Level Technical Specifications _1_.docx
+Attachment SHA256: 41af8fb4635cdbd154e20f683d26e59d1d809f1344b6179cf1b6dd06995e0f42
+Ollama URL: http://192.168.1.144:31134
+Ollama Model: aya-23-8b:q5
+
+==================== CHARITY / AID VERIFICATION SUMMARY ====================
+
+1 | Management: iLO advanced with OneView | 1 | Management: iLO advanced with OneView
+SAN Storage | 1 | Support: 3-year 24x7 Service | 1 | Support: 3-year 24x7 Service
+SAN Storage | 1 | OS: Red Hat Enterprise Linux (RHEL) | 1 | OS: RHEL
+SAN Storage | 1 | Hypervisor: VMware vSphere ESXi | 1 | Hypervisor: vSphere ESXi
+SAN Storage | 1 | Cloud Management Platform: VMware vRealize Operations Manager | 1 | Cloud Management Platform: vRealize Operations Manager
+SAN Storage | 1 | Backup: NetBackup | 1 | Backup: NetBackup
+SAN Storage | 1 | Monitoring: SolarWinds | 1 | Monitoring: SolarWinds
+SAN Storage | 1 | Security: FortiGate | 1 | Security: FortiGate
+SAN Storage | 1 | Virtualization: VMware vSphere ESXi | 1 | Virtualization: vSphere ESXi
+SAN Storage | 1 | Cloud Management Platform: VMware vRealize Operations Manager | 1 | Cloud Management Platform: vRealize Operations Manager
+SAN Storage | 1 | Backup: NetBackup | 1 | Backup: NetBackup
+SAN Storage | 1 | Monitoring: SolarWinds | 1 | Monitoring: SolarWinds
+SAN Storage | 1 | Security: FortiGate | 1 | Security: FortiGate
+SAN Storage | 1 | Virtualization: VMware vSphere ESXi | 1 | Virtualization: vSphere ESXi
+SAN Storage | 1 | Cloud Management Platform: VMware vRealize Operations Manager | 1 | Cloud Management Platform: vRealize Operations Manager
+SAN Storage | 1 | Backup: NetBackup | 1 | Backup: NetBackup
+SAN Storage | 1 | Monitoring: SolarWinds | 1 | Monitoring: SolarWinds
+SAN Storage | 1 | Security: FortiGate | 1 | Security: FortiGate
+SAN Storage | 1 | Virtualization: VMware vSphere ESXi | 1 | Virtualization: vSphere ESXi
+SAN Storage | 1 | Cloud Management Platform: VMware vRealize Operations Manager | 1 | Cloud Management Platform: vRealize Operations Manager
+SAN Storage | 1 | Backup: NetBackup | 1 | Backup: NetBackup
+SAN Storage | 1 | Monitoring: SolarWinds | 1 | Monitoring: SolarWinds
+SAN Storage | 1 | Security: FortiGate | 1 | Security: FortiGate
+SAN Storage | 1 | Virtualization: VMware vSphere ESXi | 1 | Virtualization: vSphere ESXi
+SAN Storage | 1 | Cloud Management Platform: VMware vRealize Operations Manager | 1 | Cloud Management Platform: vRealize Operations Manager
+SAN Storage | 1 | Backup: NetBackup | 1 | Backup: NetBackup
+SAN Storage | 1 | Monitoring: SolarWinds | 1 | Monitoring: SolarWinds
+SAN Storage | 1 | Security: FortiGate | 1 | Security: FortiGate
+SAN Storage | 1 | Virtualization: VMware vSphere ESXi | 1 | Virtualization: vSphere ESXi
+SAN Storage | 1 | Cloud Management Platform: VMware vRealize Operations Manager | 1 | Cloud Management Platform: vRealize Operations Manager
+SAN Storage | 1 | Backup: NetBackup | 1 | Backup: NetBackup
+SAN Storage | 1 | Monitoring: SolarWinds | 1 | Monitoring: SolarWinds
+SAN Storage | 1 | Security: FortiGate | 1 | Security: FortiGate
+SAN Storage | 1 | Virtualization: VMware vSphere ESXi | 1 | Virtualization: vSphere ESXi

@@ -1,0 +1,64 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Policy Topics (Qdrant: {{ collection }})</h1>
+
+<form method="get" style="margin-bottom: 12px;">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search topic id / bn / en" style="width: 420px; padding: 6px;" />
+  <input type="number" name="limit" value="{{ limit }}" min="10" max="200" style="width: 90px; padding: 6px;" />
+  {% if offset %}<input type="hidden" name="offset" value="{{ offset }}"/>{% endif %}
+  <button type="submit" class="button">Search</button>
+  <a class="button" href="{% url 'policy_topics_list' %}">Reset</a>
+</form>
+<a class="button" href="{% url 'policy_topic_new' %}">+ New Topic</a>
+<a class="button" href="{% url 'policy_topics_bulk_import' %}">Bulk Import JSONL</a>
+<table class="adminlist table" style="width:100%; border-collapse: collapse;">
+  <thead>
+    <tr>
+      <th>Topic ID</th>
+      <th>Topic (BN)</th>
+      <th>Topic (EN)</th>
+      <th>Clause</th>
+      <th>Source</th>
+      <th>Lang</th>
+      <th>Domain</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>
+  {% if r.topic_id %}
+    <a href="{% url 'policy_topic_edit' r.topic_id %}">{{ r.topic_id }}</a>
+  {% else %}
+    <span style="color:#999;">(missing topic_id)</span>
+  {% endif %}
+</td>
+      <td>{{ r.topic_bn }}</td>
+      <td>{{ r.topic_en }}</td>
+      <td>{{ r.clause_range }}</td>
+      <td>{{ r.source_file }}</td>
+      <td>{{ r.language }}</td>
+      <td>{{ r.domain }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7">No topics found (current page).</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div style="margin-top: 12px;">
+  {% if next_offset %}
+    <a class="button"
+       href="{% url 'policy_topics_list' %}?limit={{ limit }}&offset={{ next_offset }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+      Next page →
+    </a>
+  {% else %}
+    <span style="opacity:0.7;">No more pages.</span>
+  {% endif %}
+</div>
+
+<hr/>
+<p style="opacity:0.7;">
+  Qdrant: {{ qdrant_url }} | Collection: {{ collection }}
+</p>
+{% endblock %}

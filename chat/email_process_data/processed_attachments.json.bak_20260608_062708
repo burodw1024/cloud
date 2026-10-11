@@ -1,0 +1,12 @@
+{
+  "982e424ab157ce0484b47ba3a8c9338e8425026119bd85865402a3efa1c3470f": {
+    "processed_time": "2026-06-08 05:11:42",
+    "email_id": "169",
+    "email_subject": "attachment",
+    "email_sender": "mydw <burodw1024@gmail.com>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260608_050150_email_169_attachment_ছাগল সহায়তা পাওয়ার জন্য আবেদনকারীর তথ্য.docx",
+    "summary_file": "email_process_data/summaries/20260608_051142_20260608_050150_email_169_attachment_ছাগল সহায়তা পাওয়ার জন্য আবেদনকারীর তথ্য_summary.txt",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  }
+}

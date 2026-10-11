@@ -1,14 +1,128 @@
 
-.env*
-venv/
-.venv/
+# Python
+
 __pycache__/
+
 *.pyc
-*.sqlite3*
-*.tar.gz
-*.backup*
-*_backup_*
+
+*.pyo
+
+*.pyd
+
+*.sqlite3
+
+.env
+
+venv/
+
+.env/
+
+
+
+# Django
+
+staticfiles/
+
+media/
+
+
+
+# LLM / Model files
+
+qwen2.5-1.5b/
+
+models/
+
+*.gguf
+
+*.bin
+
+
+
+# Logs
+
+*.log
+
+
+
+# OS
+
+.DS_Store
+
+Thumbs.db
+
+
+
+# IDE
+
+.vscode/
+
+.idea/
+
+# Python virtual environment
+venv/
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django / local database
+db.sqlite3
+*.sqlite3
+
+# Logs
 logs/
+*.log
+
+# Uploaded/media files
 media/
 uploads/
-upload_private_git/
+
+# Backup / compressed files
+*.gz
+*.tar
+*.tar.gz
+*.zip
+*.bak
+*.backup
+
+# Shell scripts
+*.sh
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# MLflow / generated files
+mlruns/
+mlflow.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.so
+.Python
+# Virtual environments
+.venv/
+env/
+ENV/
+# Django secrets and local configuration
+!.env.example
+local_settings.py
+*.pem
+*.key
+# Django runtime data
+# Test and cache files
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+# IDE and operating system
+*~
+*.swp

@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: mlops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+      - name: mlflow
+        image: ghcr.io/mlflow/mlflow:latest
+        args:
+        - mlflow
+        - server
+        - --backend-store-uri=sqlite:///mlflow.db
+        - --default-artifact-root=s3://mlflow
+        - --host=0.0.0.0
+        - --port=5000
+        ports:
+        - containerPort: 5000
+        env:
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: "http://burocloud4.it:30901"
+        - name: AWS_ACCESS_KEY_ID
+          value: "minioadmin"        # change if needed
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "minioadmin123"        # change if needed

@@ -1,0 +1,19 @@
+# Paste this inside your main chat/agentic view in chat/views.py
+# Place it after you extract user_message/question, before other generic RAG routing.
+# If your variable is named question instead of user_message, replace user_message with question.
+
+from .zypl_cashflow_scoring_agent import try_handle_zypl_agent
+
+zypl_result = try_handle_zypl_agent(request, user_message)
+if zypl_result is not None:
+    return JsonResponse({
+        "ok": zypl_result.get("ok", True),
+        "answer": zypl_result.get("answer"),
+        "intent": "zypl_cashflow_scoring",
+        "tool": "zypl_cashflow_scoring_agent",
+        "status": zypl_result.get("status"),
+        "data": zypl_result,
+        "required_role": "cashflow",
+        "public": False,
+        "login_required": True,
+    }, json_dumps_params={"ensure_ascii": False})

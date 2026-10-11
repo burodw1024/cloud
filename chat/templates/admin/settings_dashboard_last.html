@@ -1,0 +1,80 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+
+<h1>System URL Settings Dashboard</h1>
+
+<p>
+    Manage Qdrant, Ollama, NiFi, and collection settings dynamically.
+</p>
+
+{% if messages %}
+    {% for message in messages %}
+        <div style="padding:10px; margin-bottom:12px; background:#e8fff0; border:1px solid #8fd19e;">
+            {{ message }}
+        </div>
+    {% endfor %}
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+
+    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+        <thead>
+            <tr>
+                <th style="width:220px;">Setting</th>
+                <th>Value</th>
+                <th style="width:120px;">Source</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>
+                        <strong>{{ row.label }}</strong><br>
+                        <code>{{ row.key }}</code>
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            name="{{ row.key }}"
+                            value="{{ row.value }}"
+                            style="width:100%; padding:6px;"
+                        >
+                    </td>
+
+                    <td>
+                        {{ row.source }}
+                    </td>
+
+                    <td>
+                        {{ row.description }}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="margin-top:16px;">
+        <button type="submit" style="padding:8px 16px;">
+            Save Settings
+        </button>
+    </p>
+</form>
+
+<hr>
+
+<h2>Usage in Code</h2>
+
+<pre style="background:#f7f7f7; padding:12px;">
+from chat.dynamic_config import get_qdrant_url, get_ollama_url, get_nifi_url
+
+qdrant_url = get_qdrant_url(check_health=True)
+ollama_url = get_ollama_url()
+nifi_url = get_nifi_url("NIFI_CORE_URL")
+</pre>
+
+{% endblock %}

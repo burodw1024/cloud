@@ -1,0 +1,3216 @@
+import json
+import os
+import re
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Set, Union
+
+import requests
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
+
+from .views_notice import notice_ask
+from .metrics import (
+    CHAT_REQUESTS_TOTAL,
+    CHAT_REQUEST_DURATION_SECONDS,
+    LLM_REQUEST_DURATION_SECONDS,
+    LLM_LOAD_DURATION_SECONDS,
+    LLM_PROMPT_TOKENS_TOTAL,
+    LLM_OUTPUT_TOKENS_TOTAL,
+    LLM_REQUESTS_TOTAL,
+    RAG_SEARCH_DURATION_SECONDS,
+    RAG_HITS_TOTAL,
+    NIFI_REQUEST_DURATION_SECONDS,
+    NIFI_REQUESTS_TOTAL,
+    ACTIVE_CHAT_REQUESTS,
+)
+
+from .models import ChatSession, ChatMessage
+from .memory_utils import get_short_memory
+from .qdrant_memory_store import search_long_memory, save_long_term_memory
+
+from .views_hr_router import hr_ask
+from .views_policy import policy_ask
+from .views_core import core_ask
+from .views_public import public_notice_search
+from .customer_support_handler import handle_customer_support
+from .zypl_cashflow_logs_agent import process_zypl_logs_agent, is_zypl_logs_intent, SESSION_KEY as ZYPL_LOGS_SESSION_KEY
+from .zypl_cashflow_scoring_agent import process_zypl_help_agent, is_zypl_help_intent
+from .zypl_cashflow_scoring_agent import process_zypl_agent, SESSION_KEY as ZYPL_CASHFLOW_SESSION_KEY
+
+from workflows.models import WorkflowSession
+from workflows.services.repository import get_active_definition, get_active_workflow
+from workflows.services.intent_detector import detect_intent
+from workflows.services.command_parser import (
+    parse_change_command,
+    is_resume_command,
+    is_cancel_command,
+    is_handoff_request,
+)
+from workflows.services.engine import WorkflowEngine
+from workflows.services.permissions import user_can_start_workflow
+
+from chat.dynamic_config import get_qdrant_url, get_ollama_url
+
+# Email attachment summary feature.
+# Imported safely so the whole chat app will not crash if helper/agent files
+# are not yet deployed. views.py remains the role/RBAC gatekeeper.
+try:
+    from .email_summary_chat_feature import (
+        handle_email_attachment_summary_intent,
+        get_latest_summaries,
+        make_summary_html,
+        make_summary_markdown,
+        make_empty_email_summary_answer,
+    )
+except Exception as EMAIL_SUMMARY_IMPORT_ERROR:  # pragma: no cover
+    handle_email_attachment_summary_intent = None
+    get_latest_summaries = None
+    make_summary_html = None
+    make_summary_markdown = None
+    make_empty_email_summary_answer = None
+
+try:
+    from .email_summary_agent import (
+        start_email_summary_agent,
+        get_email_summary_agent_status,
+    )
+except Exception as EMAIL_SUMMARY_AGENT_IMPORT_ERROR:  # pragma: no cover
+    start_email_summary_agent = None
+    get_email_summary_agent_status = None
+
+EMAIL_SUMMARY_ROUTE_PATCH_ACTIVE = True
+
+JsonT = Union[Dict[str, Any], List[Any]]
+
+
+# -------------------------
+# Environment helpers
+# -------------------------
+def _env(name: str, default: str = "") -> str:
+    return (os.getenv(name, default) or "").strip()
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(_env(name, str(default)))
+    except Exception:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(_env(name, str(default)))
+    except Exception:
+        return default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = _env(name, "1" if default else "0").lower()
+    return raw in ("1", "true", "yes", "y", "on")
+
+
+def _strip_url(url: str) -> str:
+    return (url or "").strip().rstrip("/")
+
+
+# -------------------------
+# Central runtime config
+# -------------------------
+@dataclass(frozen=True)
+class Cfg:
+    # Ollama / LLM
+    OLLAMA_URL: str = get_ollama_url()
+    GEN_MODEL: str = _env("GEN_MODEL", "aya-23-8b:q5")
+    SQL_MODEL: str = _env("SQL_MODEL", "sqlcoder-7b:q4km")
+    GEN_TIMEOUT: float = _env_float("GEN_TIMEOUT", 600.0)
+
+    LLM_TEMPERATURE: float = _env_float("LLM_TEMPERATURE", 0.2)
+    LLM_TOP_P: float = _env_float("LLM_TOP_P", 0.85)
+    LLM_REPEAT_PENALTY: float = _env_float("LLM_REPEAT_PENALTY", 1.2)
+    LLM_NUM_CTX: int = _env_int("LLM_NUM_CTX", 4096)
+    LLM_NUM_PREDICT: int = _env_int("LLM_NUM_PREDICT", 220)
+
+    # Qdrant
+    QDRANT_URL: str = get_qdrant_url(check_health=True)
+    QDRANT_API_KEY: str = _env("QDRANT_API_KEY", "")
+    QDRANT_TIMEOUT: float = _env_float("QDRANT_TIMEOUT", 30.0)
+
+    QDRANT_COLLECTION_POLICY: str = _env("QDRANT_COLLECTION_POLICY", "buro_policy")
+    QDRANT_COLLECTION_NOTICE: str = _env("QDRANT_COLLECTION_NOTICE", "hr_notices")
+    QDRANT_COLLECTION_CUSTOMER_SUPPORT: str = _env(
+        "QDRANT_COLLECTION_CUSTOMER_SUPPORT",
+        "customer_support_knowledge",
+    )
+    QDRANT_COLLECTION_LONG_MEMORY: str = _env(
+        "QDRANT_COLLECTION_LONG_MEMORY",
+        "user_long_memory",
+    )
+    QDRANT_COLLECTION_CASHFLOW: str = _env("QDRANT_COLLECTION_CASHFLOW", "dw_cashflow")
+
+    # NiFi
+    NIFI_BASE_URL: str = _strip_url(_env("NIFI_BASE_URL", "http://192.168.1.139:8888"))
+    NIFI_CUSTOMER_SUPPORT_URL: str = _strip_url(
+        _env("NIFI_CUSTOMER_SUPPORT_URL", "http://192.168.1.139:8888/core/query")
+    )
+    NIFI_HR_URL: str = _strip_url(
+        _env("NIFI_HR_URL", "http://192.168.1.139:8888/hr/query")
+    )
+    NIFI_CORE_URL: str = _strip_url(
+        _env("NIFI_CORE_URL", "http://192.168.1.139:8888/core/query")
+    )
+    NIFI_CASHFLOW_URL: str = _strip_url(
+        _env("NIFI_CASHFLOW_URL", "http://192.168.1.139:8888/cashflow/query")
+    )
+    NIFI_TIMEOUT: float = _env_float("NIFI_TIMEOUT", 60.0)
+
+    # Memory
+    STM_LIMIT: int = _env_int("STM_LIMIT", 10)
+    LTM_TOP_K: int = _env_int("LTM_TOP_K", 5)
+
+    # Access
+    ENFORCE_STAFF_ONLY: bool = _env_bool("ENFORCE_STAFF_ONLY", True)
+    ALLOW_ANON_CHAT: bool = _env_bool("ALLOW_ANON_CHAT", True)
+    ALLOW_ANON_PUBLIC: bool = _env_bool("ALLOW_ANON_PUBLIC", True)
+
+
+CFG = Cfg()
+
+
+# -------------------------
+# Route / permission config
+# -------------------------
+ROUTE_GROUPS: Set[str] = {
+    "general",
+    "cashflow",
+    "hr",
+    "core",
+    "policy",
+    "notice",
+    "customer_support",
+}
+
+ROUTE_PRIORITY: List[str] = [
+    "general",
+    "cashflow",
+    "core",
+    "hr",
+    "customer_support",
+    "policy",
+    "notice",
+]
+
+CUSTOMER_SUPPORT_GROUPS: Set[str] = {
+    "customer_support",
+    "branch_staff",
+    "support_staff",
+    "support_manager",
+    "admin",
+}
+
+PUBLIC_WEBSITE_MODULES: Set[str] = {
+    "website",
+    "website_rag",
+    "buro_website",
+    "public_website",
+    "public_website_rag",
+    "buro",
+    "burobd",
+}
+
+ENFORCE_STAFF_ONLY = CFG.ENFORCE_STAFF_ONLY
+ALLOW_ANON_CHAT = CFG.ALLOW_ANON_CHAT
+ALLOW_ANON_PUBLIC = CFG.ALLOW_ANON_PUBLIC
+
+# Email Summary RBAC
+# views.py is the permission gate. UI/templates only call these endpoints;
+# they do not decide who can run/read email summaries.
+EMAIL_SUMMARY_ALLOWED_GROUPS: Set[str] = {
+    "admin",
+    "super_admin",
+    "email_summary",
+    "email_summary_user",
+    "email_summary_admin",
+    "EMAIL_SUMMARY",
+    "EMAIL_SUMMARY_USER",
+    "EMAIL_SUMMARY_ADMIN",
+}
+
+EMAIL_SUMMARY_ALLOW_STAFF = _env_bool("EMAIL_SUMMARY_ALLOW_STAFF", True)
+
+
+SYSTEM_PROMPT_CHAT = _env(
+    "SYSTEM_PROMPT_CHAT",
+    """You are a helpful assistant.
+
+Rules:
+- Answer directly and clearly.
+- If unsure, say you are unsure.
+- Do not invent facts.
+""",
+)
+
+
+# -------------------------
+# Basic helpers
+# -------------------------
+def _user_group_names(user) -> Set[str]:
+    try:
+        if not user or not user.is_authenticated:
+            return set()
+        return set(user.groups.values_list("name", flat=True))
+    except Exception:
+        return set()
+
+
+def _has_group(user, group_name: str) -> bool:
+    try:
+        if not user or not user.is_authenticated:
+            return False
+        if getattr(user, "is_superuser", False):
+            return True
+        return user.groups.filter(name=group_name).exists()
+    except Exception:
+        return False
+
+
+def _has_any_group(user, group_names: Set[str]) -> bool:
+    try:
+        if not user or not user.is_authenticated:
+            return False
+        if getattr(user, "is_superuser", False):
+            return True
+        user_groups = _user_group_names(user)
+        return bool(user_groups.intersection(group_names))
+    except Exception:
+        return False
+
+
+def _has_customer_support_access(user) -> bool:
+    return _has_any_group(user, CUSTOMER_SUPPORT_GROUPS)
+
+
+def _has_email_summary_access(user) -> bool:
+    """
+    Email Summary is an internal/role-based capability.
+
+    - UI only sends request.
+    - views.py checks permission.
+    - email_summary_agent.py runs Gmail/Ollama backend job.
+    """
+    try:
+        if not user or not user.is_authenticated:
+            return False
+
+        if getattr(user, "is_superuser", False):
+            return True
+
+        if EMAIL_SUMMARY_ALLOW_STAFF and getattr(user, "is_staff", False):
+            return True
+
+        user_groups = _user_group_names(user)
+        return bool(user_groups.intersection(EMAIL_SUMMARY_ALLOWED_GROUPS))
+    except Exception:
+        return False
+
+
+def _deny_email_summary(request) -> JsonResponse:
+    user = getattr(request, "user", None)
+    is_logged_in = bool(user and getattr(user, "is_authenticated", False))
+
+    return JsonResponse(
+        {
+            "ok": False,
+            "status": "permission_denied",
+            "error": "Email Summary module access required.",
+            "answer": (
+                "Email Summary is role-based. Required group/role: "
+                "email_summary, email_summary_user, email_summary_admin, admin, or super_admin."
+            ),
+            "login_required": True,
+            "role_required": True,
+            "required_groups": sorted(EMAIL_SUMMARY_ALLOWED_GROUPS),
+        },
+        status=403 if is_logged_in else 401,
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+def _deny_group(group_name: str) -> JsonResponse:
+    return JsonResponse(
+        {"ok": False, "error": f"{group_name} group access required."},
+        status=403,
+    )
+
+
+def _deny_customer_support() -> JsonResponse:
+    return JsonResponse(
+        {
+            "ok": False,
+            "error": "Customer Support module access required.",
+            "hint": "Add the user to one of these groups: customer_support, branch_staff, support_staff, support_manager, admin.",
+        },
+        status=403,
+    )
+
+
+def _deny_auth(request) -> Optional[JsonResponse]:
+    user = getattr(request, "user", None)
+
+    if not user or not user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+    if getattr(user, "is_superuser", False):
+        return None
+
+    if ENFORCE_STAFF_ONLY and not getattr(user, "is_staff", False):
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Staff access required.",
+                "hint": "Set is_staff=True or set ENFORCE_STAFF_ONLY=0",
+            },
+            status=403,
+        )
+
+    return None
+
+
+def _first_route_group(user) -> Optional[str]:
+    if not user or not user.is_authenticated:
+        return None
+
+    if getattr(user, "is_superuser", False):
+        return ROUTE_PRIORITY[0] if ROUTE_PRIORITY else "general"
+
+    groups = _user_group_names(user)
+
+    for g in ROUTE_PRIORITY:
+        if g in groups:
+            return g
+
+    if groups.intersection(CUSTOMER_SUPPORT_GROUPS):
+        return "customer_support"
+
+    return None
+
+
+def _json_body(request) -> Dict[str, Any]:
+    try:
+        raw = (request.body or b"{}").decode("utf-8", errors="replace")
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _clean(v: Any) -> str:
+    return ("" if v is None else str(v)).strip()
+
+
+_BN_DIGIT_MAP = str.maketrans({
+    "০": "0",
+    "১": "1",
+    "২": "2",
+    "৩": "3",
+    "৪": "4",
+    "৫": "5",
+    "৬": "6",
+    "৭": "7",
+    "৮": "8",
+    "৯": "9",
+})
+
+
+def _normalize_digits_for_matching(value: str) -> str:
+    """Normalize Bangla digits to ASCII digits for routing checks."""
+    return (value or "").translate(_BN_DIGIT_MAP)
+
+
+# -------------------------
+# Policy retrieval aliasing
+# -------------------------
+def _expand_policy_question_for_retrieval(question: str) -> str:
+    """
+    Expand short/bilingual policy questions before calling views_policy.policy_ask.
+
+    Why this exists:
+    - The HR policy manual/chunks are mostly Bangla clause text.
+    - Users often ask short English questions such as "Tell about Leave".
+    - Vector search may not match "leave" strongly with Bangla-only chunks.
+
+    This function keeps the original question and appends Bangla/English aliases,
+    clause numbers, and common synonyms so Qdrant retrieves the right policy chunks.
+    It does not change permissions and it does not call website RAG.
+    """
+    original = (question or "").strip()
+    if not original:
+        return original
+
+    q_lower = original.lower()
+    q_digit = _normalize_digits_for_matching(q_lower)
+
+    expansions = []
+
+    def add(text: str) -> None:
+        text = (text or "").strip()
+        if text and text not in expansions:
+            expansions.append(text)
+
+    # Generic leave / ছুটি aliases.
+    if any(k in q_lower for k in [
+        "leave", "casual leave", "earned leave", "sick leave",
+        "maternity leave", "paternity leave", "festival leave",
+        "annual leave", "holiday leave",
+    ]) or any(k in original for k in [
+        "ছুটি", "নৈমিত্তিক", "অর্জিত", "অসুস্থতাজনিত",
+        "মাতৃত্ব", "পিতৃত্ব", "উৎসবকালীন",
+    ]) or re.search(r"(^|[^0-9])5\.2([^0-9]|$)", q_digit) or re.search(r"(^|[^0-9])5\.3([^0-9]|$)", q_digit):
+        add(
+            "৫.২ ছুটির প্রকারভেদ ছুটি নীতিমালা নৈমিত্তিক ছুটি অর্জিত ছুটি "
+            "অসুস্থতাজনিত ছুটি মাতৃত্বজনিত ছুটি পিতৃত্বজনিত ছুটি উৎসবকালীন ছুটি "
+            "leave policy casual leave earned leave sick leave maternity leave paternity leave festival leave"
+        )
+        add("৫.৩ ছুটি অনুমোদনকারী কর্তৃপক্ষ leave approval authority")
+
+    # Grade / post classification aliases.
+    if any(k in q_lower for k in ["grade", "post classification", "designation structure", "grade structure"]) or any(k in original for k in ["গ্রেড", "পদবিন্যাস", "পদ বিন্যাস"]) or re.search(r"(^|[^0-9])1\.3\.1([^0-9]|$)", q_digit):
+        add("১.৩.১ গ্রেড ও পদবিন্যাস grade post classification grade structure designation structure")
+
+    # Transfer aliases.
+    if any(k in q_lower for k in ["transfer", "posting", " বদলি "]) or any(k in original for k in ["বদলি", "বদলী"]):
+        add("১.৮ বদলি বদলী transfer posting transfer policy")
+
+    # Disciplinary action aliases.
+    if any(k in q_lower for k in [
+        "disciplinary", "disciplinary action", "punishment", "penalty", "misconduct",
+        "show cause", "warning", "suspension", "dismissal", "termination", "appeal",
+    ]) or any(k in original for k in [
+        "শাস্তিমূলক", "শৃঙ্খলা", "শৃঙ্খলামূলক", "অসদাচরণ", "শাস্তি",
+        "দণ্ড", "সতর্কীকরণ", "কারণ দর্শানো", "সাময়িক বরখাস্ত", "বরখাস্ত", "আপিল",
+    ]) or re.search(r"(^|[^0-9])3\.4([^0-9]|$)", q_digit):
+        add(
+            "৩.৪ শাস্তিমূলক ব্যবস্থা শৃঙ্খলামূলক ব্যবস্থা অসদাচরণ শাস্তি দণ্ড "
+            "disciplinary action punishment penalty misconduct"
+        )
+        add("৩.৫ কারণ দর্শানো সতর্কীকরণ পত্র show cause warning letter")
+        add("৩.৬ আপিল appeal")
+
+    # Recruitment / probation aliases.
+    if any(k in q_lower for k in ["recruitment", "appointment", "probation", "confirmation"]) or any(k in original for k in ["নিয়োগ", "শিক্ষানবিশ", "স্থায়ীকরণ"]):
+        add("১.৫ নিয়োগ recruitment appointment")
+        add("১.১২ শিক্ষানবিশকাল probation")
+        add("১.১২ স্থায়ীকরণ confirmation")
+
+    # Attendance / office time aliases.
+    if any(k in q_lower for k in ["attendance", "office time", "absence", "late"]) or any(k in original for k in ["হাজিরা", "অনুপস্থিতি", "অফিস সময়", "অফিস টাইম"]):
+        add("১.১০ অফিস সময় office time")
+        add("১.১১ হাজিরা attendance absence late attendance")
+
+    # Separation aliases.
+    if any(k in q_lower for k in ["resignation", "retirement", "separation", "termination"]) or any(k in original for k in ["পদত্যাগ", "অবসর", "অব্যাহতি", "চাকুরীচ্যুতি", "চাকরিচ্যুতি"]):
+        add("৪.১ কর্ম-বিচ্ছেদ পদত্যাগ অবসর অব্যাহতি resignation retirement separation termination")
+
+    # Benefits / fund / tax aliases.
+    if any(k in q_lower for k in ["provident", "gratuity", "income tax", "tax", "allowance", "overtime"]) or any(k in original for k in ["প্রভিডেন্ট", "গ্র্যাচুইটি", "আয়কর", "ভাতা", "অধিকাল"]):
+        add("প্রভিডেন্ট ফান্ড provident fund গ্র্যাচুইটি gratuity আয়কর income tax")
+        add("দূরত্ব ভাতা অধিকাল ভাতা allowance overtime allowance")
+
+    if not expansions:
+        return original
+
+    return original + "\n\nPolicy search aliases:\n" + "\n".join(f"- {x}" for x in expansions)
+
+
+def _looks_like_policy_clause_reference(q: str) -> bool:
+    """
+    Detect HR policy manual clause references such as:
+        ১.৩.১ গ্রেড ও পদবিন্যাস
+        ৩.৪ শাস্তিমূলক ব্যবস্থা
+        5.2 leave types
+
+    This intentionally runs before public website fallback so policy chapter/section
+    numbers do not get answered from buro_website.
+    """
+    qn = _normalize_digits_for_matching(q or "").lower().strip()
+    if not qn:
+        return False
+
+    # HR policy chapters commonly use numeric clauses like 1.3.1, 3.4, 5.2 etc.
+    # Keep it broad enough for policy but narrow enough to avoid ordinary numbers.
+    clause_match = re.search(r"(^|[^0-9])([1-8])\.(\d{1,2})(?:\.(\d{1,2}))?([^0-9]|$)", qn)
+    if not clause_match:
+        return False
+
+    # If a user explicitly asks public website/about/service, let website route handle it.
+    website_words = [
+        "website", "buro website", "burobd", "about buro", "service",
+        "সেবা", "ওয়েবসাইট", "ওয়েবসাইট", "বুরো সম্পর্কে",
+    ]
+    if any(w in qn for w in website_words):
+        return False
+
+    return True
+
+
+def _set_json_body(request, payload: Dict[str, Any]) -> None:
+    request._body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request.META["CONTENT_TYPE"] = "application/json"
+
+
+def _contains_bangla(text: str) -> bool:
+    return any("\u0980" <= ch <= "\u09FF" for ch in (text or ""))
+
+
+def _safe_int(value: Any, default: int = 5) -> int:
+    try:
+        v = int(value)
+        if v < 1:
+            return default
+        if v > 10:
+            return 10
+        return v
+    except Exception:
+        return default
+
+
+def index(request):
+    return render(request, "chat/index.html")
+
+
+# -------------------------
+# Email attachment summary helper - ROLE BASED + CHAT UI COMMAND SUPPORTED
+# -------------------------
+EMAIL_ATTACHMENT_SUMMARY_HINTS = (
+    # Technical commands
+    "email_attachment_summary",
+    "email-attachment-summary",
+    "email summary",
+    "email_summary",
+    "attachment_summary",
+    "attachment-summary",
+    "mail-attachment-summary",
+    "mail_attachment_summary",
+    "mail attachment summary",
+    "gmail summary",
+    "gmail attachment summary",
+
+    # Natural English commands
+    "summary my email attachment",
+    "summarize my email attachment",
+    "summarise my email attachment",
+    "email attachment summary",
+    "latest email summary",
+    "show email summary",
+    "show latest email attachment summary",
+    "my email attachment",
+    "attachment summary",
+    "summary attachment",
+    "summarize attachment",
+    "process new email attachment summary",
+    "run email attachment summary",
+    "run email summary",
+    "start email summary",
+    "check email summary",
+    "email summary status",
+    "check email summary status",
+    "email attachment",
+
+    # Bangla commands
+    "ইমেইল সংযুক্তির সারাংশ",
+    "ইমেইল এটাচমেন্ট সারাংশ",
+    "ইমেইল অ্যাটাচমেন্ট সারাংশ",
+    "সংযুক্তি সারাংশ",
+    "সর্বশেষ ইমেইল সারাংশ",
+    "ইমেইলের সংযুক্তির সারাংশ",
+    "ইমেইল সারাংশ",
+    "ইমেইল সারাংশ দেখাও",
+    "ইমেইল সারাংশ রান",
+    "ইমেইল সারাংশ রান করো",
+    "ইমেইল সারাংশ চালাও",
+    "ইমেইল সারাংশ স্ট্যাটাস",
+    "জিমেইল সারাংশ",
+)
+
+EMAIL_SUMMARY_RUN_HINTS = (
+    # Exact or partial run/refresh hints
+    "run",
+    "start",
+    "refresh",
+    "check new",
+    "process new",
+    "process",
+    "fetch new",
+    "update email",
+    "start email",
+    "run email",
+    "run summary",
+    "run email summary",
+    "start email summary",
+    "run email attachment summary",
+    "process email summary",
+    "process new email attachment summary",
+    "check new email attachment",
+    "refresh email summary",
+    "update email summary",
+
+    # Bangla
+    "চালাও",
+    "চালান",
+    "রান",
+    "রান করো",
+    "রান করুন",
+    "চেক করো",
+    "চেক করুন",
+    "আপডেট",
+    "প্রসেস",
+    "নতুন",
+)
+
+EMAIL_SUMMARY_STATUS_HINTS = (
+    "status",
+    "state",
+    "check status",
+    "email summary status",
+    "email attachment status",
+    "check email summary status",
+    "mail attachment summary status",
+    "স্ট্যাটাস",
+    "ইমেইল সারাংশ স্ট্যাটাস",
+    "ইমেইল স্ট্যাটাস",
+)
+
+
+def _normalize_email_summary_command(value: str) -> str:
+    value = (value or "").strip().lower()
+    value = value.replace("_", " ").replace("-", " ")
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def _is_email_attachment_summary_question(question: str) -> bool:
+    """
+    Detect local email-attachment summary requests before website RAG.
+
+    This route is internal/role-based:
+    - viewer commands show latest processed summary
+    - run commands start email_summary_agent.py through views.py
+    - frontend/UI never bypasses RBAC
+    """
+    q_raw = (question or "").strip().lower()
+    q = _normalize_email_summary_command(q_raw)
+
+    if not q:
+        return False
+
+    exact_commands = {
+        "email attachment summary",
+        "email summary",
+        "attachment summary",
+        "mail attachment summary",
+        "gmail summary",
+        "gmail attachment summary",
+        "run email summary",
+        "start email summary",
+        "email summary status",
+    }
+
+    if q in exact_commands:
+        return True
+
+    for hint in EMAIL_ATTACHMENT_SUMMARY_HINTS:
+        h_raw = hint.lower().strip()
+        h = _normalize_email_summary_command(h_raw)
+        if h_raw in q_raw or h in q:
+            return True
+
+    return False
+
+
+def _is_email_summary_run_request(question: str) -> bool:
+    """
+    Detect chat UI command to run backend Gmail/Ollama email summary agent.
+
+    Examples:
+        run email summary
+        run email attachment summary
+        ইমেইল সারাংশ রান করো
+    """
+    q_raw = (question or "").strip().lower()
+    q = _normalize_email_summary_command(q_raw)
+
+    if not q:
+        return False
+
+    if not _is_email_attachment_summary_question(question):
+        return False
+
+    exact_run_commands = {
+        "run email summary",
+        "start email summary",
+        "run email attachment summary",
+        "process email summary",
+        "process new email attachment summary",
+        "check new email attachment",
+        "refresh email summary",
+        "update email summary",
+        "ইমেইল সারাংশ রান করো",
+        "ইমেইল সারাংশ চালাও",
+        "নতুন ইমেইল চেক করো",
+    }
+
+    if q in {_normalize_email_summary_command(x) for x in exact_run_commands}:
+        return True
+
+    return any(
+        h in q_raw or _normalize_email_summary_command(h) in q
+        for h in EMAIL_SUMMARY_RUN_HINTS
+    )
+
+
+def _is_email_summary_status_request(question: str) -> bool:
+    """
+    Detect chat UI command to check agent status.
+    """
+    q_raw = (question or "").strip().lower()
+    q = _normalize_email_summary_command(q_raw)
+
+    if not q:
+        return False
+
+    if not _is_email_attachment_summary_question(question):
+        return False
+
+    return any(
+        h in q_raw or _normalize_email_summary_command(h) in q
+        for h in EMAIL_SUMMARY_STATUS_HINTS
+    )
+
+
+def _email_summary_feature_missing_response() -> JsonResponse:
+    return JsonResponse(
+        {
+            "ok": False,
+            "intent": "email_attachment_summary",
+            "answer": (
+                "ইমেইল সংযুক্তির সারাংশ ফিচারটি সক্রিয় হয়নি। "
+                "chat/email_summary_chat_feature.py ফাইলটি chat app folder-এ আছে কি না দেখুন, "
+                "তারপর Django/Gunicorn restart করুন।"
+            ),
+            "error": "email_summary_chat_feature.py import failed or helper is missing.",
+            "import_error": str(globals().get("EMAIL_SUMMARY_IMPORT_ERROR", "")),
+            "login_required": True,
+            "role_required": True,
+        },
+        status=500,
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+def _email_summary_agent_missing_response() -> JsonResponse:
+    return JsonResponse(
+        {
+            "ok": False,
+            "intent": "email_attachment_summary",
+            "answer": (
+                "Email Summary Agent সক্রিয় হয়নি। "
+                "chat/email_summary_agent.py ফাইলটি তৈরি করুন এবং Django/Gunicorn restart করুন।"
+            ),
+            "error": "email_summary_agent.py import failed or helper is missing.",
+            "import_error": str(globals().get("EMAIL_SUMMARY_AGENT_IMPORT_ERROR", "")),
+            "login_required": True,
+            "role_required": True,
+        },
+        status=500,
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+def _email_summary_sources(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "title": r.get("attachment_file_name", "Email attachment"),
+            "email_subject": r.get("email_subject", ""),
+            "sender": r.get("email_sender", ""),
+            "processed_time": r.get("processed_time", ""),
+            "summary_file": r.get("summary_file", ""),
+            "summary_json_file": r.get("summary_json_file", ""),
+        }
+        for r in records
+    ]
+
+
+def _email_summary_empty_payload(
+    agent_result: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    if make_empty_email_summary_answer is not None:
+        payload = make_empty_email_summary_answer()
+    else:
+        payload = {
+            "ok": True,
+            "intent": "email_attachment_summary",
+            "answer": "এখনো কোনো ইমেইল সংযুক্তির সারাংশ পাওয়া যায়নি।",
+            "answer_type": "text",
+            "sources": [],
+        }
+
+    payload["login_required"] = True
+    payload["role_required"] = True
+    payload["required_groups"] = sorted(EMAIL_SUMMARY_ALLOWED_GROUPS)
+
+    if agent_result is not None:
+        payload["agent_result"] = agent_result
+        payload["refresh_result"] = agent_result
+        # For chat UI, put the agent message in answer so user can see it immediately.
+        if agent_result.get("message"):
+            payload["answer"] = agent_result.get("message")
+            payload["answer_type"] = "text"
+
+    return payload
+
+
+def _email_summary_records_payload(
+    records: List[Dict[str, Any]],
+    agent_result: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    answer = make_summary_html(records) if make_summary_html is not None else ""
+    answer_markdown = (
+        make_summary_markdown(records)
+        if make_summary_markdown is not None
+        else ""
+    )
+
+    payload = {
+        "ok": True,
+        "intent": "email_attachment_summary",
+        "tool": "email_attachment_llm_summarizer",
+        "answer": answer,
+        "answer_markdown": answer_markdown,
+        "answer_type": "html",
+        "sources": _email_summary_sources(records),
+        "login_required": True,
+        "role_required": True,
+        "required_groups": sorted(EMAIL_SUMMARY_ALLOWED_GROUPS),
+    }
+
+    if agent_result is not None:
+        payload["agent_result"] = agent_result
+        payload["refresh_result"] = agent_result
+        if agent_result.get("message"):
+            payload["agent_message"] = agent_result.get("message")
+
+    return payload
+
+
+def _start_email_summary_agent_from_views() -> Dict[str, Any]:
+    if start_email_summary_agent is None:
+        return {
+            "ok": False,
+            "status": "agent_missing",
+            "message": "email_summary_agent.py is missing or could not be imported.",
+            "import_error": str(globals().get("EMAIL_SUMMARY_AGENT_IMPORT_ERROR", "")),
+        }
+
+    return start_email_summary_agent()
+
+
+def _email_summary_status_payload() -> Dict[str, Any]:
+    if get_email_summary_agent_status is None:
+        return {
+            "ok": False,
+            "status": "agent_missing",
+            "message": "email_summary_agent.py is missing or could not be imported.",
+            "import_error": str(globals().get("EMAIL_SUMMARY_AGENT_IMPORT_ERROR", "")),
+            "login_required": True,
+            "role_required": True,
+            "required_groups": sorted(EMAIL_SUMMARY_ALLOWED_GROUPS),
+        }
+
+    result = get_email_summary_agent_status()
+
+    latest_count = 0
+    if get_latest_summaries is not None:
+        try:
+            latest_count = len(get_latest_summaries(limit=3))
+        except Exception:
+            latest_count = 0
+
+    result["latest_count"] = latest_count
+    result["login_required"] = True
+    result["role_required"] = True
+    result["required_groups"] = sorted(EMAIL_SUMMARY_ALLOWED_GROUPS)
+
+    if result.get("message"):
+        result["answer"] = result.get("message")
+
+    return result
+
+
+def _latest_email_summary_payload(limit: int = 3) -> Dict[str, Any]:
+    if get_latest_summaries is None or make_summary_html is None:
+        return {
+            "ok": False,
+            "intent": "email_attachment_summary",
+            "answer": "ইমেইল সংযুক্তির সারাংশ ফিচারটি সক্রিয় হয়নি।",
+            "error": "email_summary_chat_feature.py import failed or helper is missing.",
+            "login_required": True,
+            "role_required": True,
+            "required_groups": sorted(EMAIL_SUMMARY_ALLOWED_GROUPS),
+        }
+
+    records = get_latest_summaries(limit=limit)
+
+    if not records:
+        return _email_summary_empty_payload()
+
+    return _email_summary_records_payload(records)
+
+
+def _try_email_attachment_summary_response(request, question: str) -> Optional[JsonResponse]:
+    """
+    Handles Email Attachment Summary commands from normal chat UI.
+
+    Supported chat commands:
+        mail-attachment-summary
+        email summary
+        run email summary
+        email summary status
+        ইমেইল সারাংশ দেখাও
+        ইমেইল সারাংশ রান করো
+
+    Role-based behavior:
+        - views.py checks authentication and group/role
+        - For run/status commands, views.py calls email_summary_agent.py
+        - email_summary_chat_feature.py only formats/reads summaries
+    """
+    if not _is_email_attachment_summary_question(question):
+        return None
+
+    if not _has_email_summary_access(getattr(request, "user", None)):
+        return _deny_email_summary(request)
+
+    if handle_email_attachment_summary_intent is None:
+        return _email_summary_feature_missing_response()
+
+    try:
+        # Chat command: status
+        if _is_email_summary_status_request(question):
+            payload = _email_summary_status_payload()
+            payload["intent"] = "email_attachment_summary"
+            payload["tool"] = "email_summary_agent"
+            return JsonResponse(payload, safe=False, json_dumps_params={"ensure_ascii": False})
+
+        # Chat command: run
+        if _is_email_summary_run_request(question):
+            agent_result = _start_email_summary_agent_from_views()
+
+            status_code = 200
+            if not agent_result.get("ok"):
+                if agent_result.get("status") == "running":
+                    status_code = 409
+                elif agent_result.get("status") in {"missing_script", "agent_missing"}:
+                    status_code = 404
+                else:
+                    status_code = 500
+
+            # Return immediate run response. Do not hide it behind "no summary found".
+            agent_result["intent"] = "email_attachment_summary"
+            agent_result["tool"] = "email_summary_agent"
+            agent_result["answer"] = agent_result.get("message", "")
+            agent_result["login_required"] = True
+            agent_result["role_required"] = True
+            agent_result["required_groups"] = sorted(EMAIL_SUMMARY_ALLOWED_GROUPS)
+
+            return JsonResponse(
+                agent_result,
+                safe=False,
+                status=status_code,
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+        # Chat command: show latest summary
+        payload = _latest_email_summary_payload(limit=3)
+        return JsonResponse(payload, safe=False, json_dumps_params={"ensure_ascii": False})
+
+    except Exception as e:
+        return JsonResponse(
+            {
+                "ok": False,
+                "intent": "email_attachment_summary",
+                "answer": f"ইমেইল সংযুক্তির সারাংশ পড়তে/চালাতে সমস্যা হয়েছে: {e}",
+                "error": str(e),
+                "login_required": True,
+                "role_required": True,
+                "required_groups": sorted(EMAIL_SUMMARY_ALLOWED_GROUPS),
+            },
+            status=500,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+
+@csrf_exempt
+def email_attachment_summary_api(request):
+    """
+    Role-based direct endpoint for Email Attachment Summary.
+
+    URL:
+        /api/email-attachment-summary
+
+    GET:
+        latest summary
+
+    POST JSON:
+        {"action": "latest"}
+        {"action": "run"}
+        {"action": "status"}
+    """
+    if request.method not in {"GET", "POST"}:
+        return JsonResponse(
+            {"ok": False, "error": "GET or POST required."},
+            status=405,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    if not _has_email_summary_access(getattr(request, "user", None)):
+        return _deny_email_summary(request)
+
+    if request.method == "GET":
+        return JsonResponse(
+            _latest_email_summary_payload(limit=3),
+            safe=False,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    body = _json_body(request)
+    action = _clean(body.get("action") or body.get("command") or "latest").lower()
+    action = action.replace("-", "_")
+    limit = _safe_int(body.get("limit"), default=3)
+
+    if action in {"run", "start", "process", "refresh", "check_new", "checknew"}:
+        agent_result = _start_email_summary_agent_from_views()
+
+        status_code = 200
+        if not agent_result.get("ok"):
+            if agent_result.get("status") == "running":
+                status_code = 409
+            elif agent_result.get("status") in {"missing_script", "agent_missing"}:
+                status_code = 404
+            else:
+                status_code = 500
+
+        agent_result["intent"] = "email_attachment_summary"
+        agent_result["tool"] = "email_summary_agent"
+        agent_result["answer"] = agent_result.get("message", "")
+        agent_result["login_required"] = True
+        agent_result["role_required"] = True
+        agent_result["required_groups"] = sorted(EMAIL_SUMMARY_ALLOWED_GROUPS)
+
+        return JsonResponse(
+            agent_result,
+            safe=False,
+            status=status_code,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    if action in {"status", "state"}:
+        payload = _email_summary_status_payload()
+        payload["intent"] = "email_attachment_summary"
+        payload["tool"] = "email_summary_agent"
+        return JsonResponse(payload, safe=False, json_dumps_params={"ensure_ascii": False})
+
+    if action in {"latest", "show", "summary", "view"}:
+        return JsonResponse(
+            _latest_email_summary_payload(limit=limit),
+            safe=False,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    return JsonResponse(
+        {
+            "ok": False,
+            "intent": "email_attachment_summary",
+            "error": f"Unknown action: {action}",
+            "allowed_actions": ["run", "status", "latest"],
+            "login_required": True,
+            "role_required": True,
+            "required_groups": sorted(EMAIL_SUMMARY_ALLOWED_GROUPS),
+        },
+        status=400,
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+@login_required
+@require_POST
+def run_email_summary_from_ui(request):
+    """
+    POST /email-summary/run/
+
+    Optional old endpoint kept for compatibility.
+    Preferred endpoint:
+        POST /api/email-attachment-summary
+        {"action": "run"}
+    """
+    if not _has_email_summary_access(request.user):
+        return _deny_email_summary(request)
+
+    agent_result = _start_email_summary_agent_from_views()
+
+    status_code = 200
+    if not agent_result.get("ok"):
+        if agent_result.get("status") == "running":
+            status_code = 409
+        elif agent_result.get("status") in {"missing_script", "agent_missing"}:
+            status_code = 404
+        else:
+            status_code = 500
+
+    agent_result["intent"] = "email_attachment_summary"
+    agent_result["tool"] = "email_summary_agent"
+    agent_result["answer"] = agent_result.get("message", "")
+    agent_result["login_required"] = True
+    agent_result["role_required"] = True
+    agent_result["required_groups"] = sorted(EMAIL_SUMMARY_ALLOWED_GROUPS)
+
+    return JsonResponse(
+        agent_result,
+        status=status_code,
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+@login_required
+@require_GET
+def email_summary_run_status(request):
+    """
+    GET /email-summary/status/
+
+    Optional old endpoint kept for compatibility.
+    Preferred endpoint:
+        POST /api/email-attachment-summary
+        {"action": "status"}
+    """
+    if not _has_email_summary_access(request.user):
+        return _deny_email_summary(request)
+
+    payload = _email_summary_status_payload()
+    payload["intent"] = "email_attachment_summary"
+    payload["tool"] = "email_summary_agent"
+
+    return JsonResponse(payload, json_dumps_params={"ensure_ascii": False})
+
+
+@login_required
+@require_GET
+def latest_email_summary_json(request):
+    """
+    GET /email-summary/latest/
+
+    Optional old endpoint kept for compatibility.
+    Preferred endpoint:
+        GET /api/email-attachment-summary
+    """
+    if not _has_email_summary_access(request.user):
+        return _deny_email_summary(request)
+
+    return JsonResponse(
+        _latest_email_summary_payload(limit=3),
+        safe=False,
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+
+# -------------------------
+# HTTP / LLM helpers
+# -------------------------
+def _http_json(
+    method: str,
+    url: str,
+    *,
+    timeout: float,
+    json_body: Optional[dict] = None,
+) -> JsonT:
+    r = requests.request(
+        method,
+        url,
+        json=json_body,
+        timeout=timeout,
+        headers={"Accept": "application/json"},
+    )
+
+    if not r.ok:
+        raise RuntimeError("HTTP %s from %s: %s" % (r.status_code, url, (r.text or "")[:600]))
+
+    try:
+        return r.json()
+    except Exception as e:
+        raise RuntimeError("Invalid JSON from %s: %s. Body=%s" % (url, e, (r.text or "")[:600]))
+
+
+def ns_to_seconds(value: Any) -> float:
+    if value is None:
+        return 0.0
+    try:
+        return float(value) / 1_000_000_000.0
+    except Exception:
+        return 0.0
+
+
+def _ollama_chat_messages(messages: List[Dict[str, str]], model: str) -> Dict[str, Any]:
+    data = _http_json(
+        "POST",
+        f"{CFG.OLLAMA_URL}/api/chat",
+        timeout=CFG.GEN_TIMEOUT,
+        json_body={
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "keep_alive": "30m",
+            "options": {
+                "temperature": CFG.LLM_TEMPERATURE,
+                "top_p": CFG.LLM_TOP_P,
+                "repeat_penalty": CFG.LLM_REPEAT_PENALTY,
+                "num_ctx": CFG.LLM_NUM_CTX,
+                "num_predict": CFG.LLM_NUM_PREDICT,
+            },
+        },
+    )
+
+    if not isinstance(data, dict):
+        return {}
+
+    return data
+
+
+def _should_save_long_memory(text: str) -> bool:
+    if not text:
+        return False
+
+    t = text.lower()
+
+    block_terms = [
+        "salary",
+        "tk",
+        "taka",
+        "amount",
+        "balance",
+        "loan",
+        "nid",
+        "passport",
+        "employee id",
+        "pin",
+        "otp",
+    ]
+
+    if any(b in t for b in block_terms):
+        return False
+
+    triggers = [
+        "remember",
+        "from now on",
+        "i prefer",
+        "always",
+        "important",
+        "call me",
+        "my name is",
+    ]
+
+    return any(k in t for k in triggers)
+
+
+# -------------------------
+# Workflow helper
+# -------------------------
+def _try_workflow(request, session_obj, msg: str) -> Optional[Dict[str, Any]]:
+    user = getattr(request, "user", None)
+
+    if not user or not user.is_authenticated:
+        return None
+
+    if not session_obj:
+        return None
+
+    session_id_str = str(session_obj.id)
+    active = get_active_workflow(user, session_id_str)
+
+    if active:
+        engine = WorkflowEngine(active)
+
+        if is_resume_command(msg):
+            return {
+                "handled": True,
+                "answer": engine.resume(),
+                "workflow_active": True,
+                "workflow_intent": active.intent_name,
+            }
+
+        if is_cancel_command(msg):
+            return {
+                "handled": True,
+                "answer": engine.cancel(),
+                "workflow_active": False,
+                "workflow_intent": active.intent_name,
+            }
+
+        if is_handoff_request(msg):
+            return {
+                "handled": True,
+                "answer": engine.request_handoff(msg),
+                "workflow_active": False,
+                "workflow_intent": active.intent_name,
+                "handoff": True,
+            }
+
+        change_field = parse_change_command(msg)
+        if change_field:
+            return {
+                "handled": True,
+                "answer": engine.change_answer(change_field),
+                "workflow_active": True,
+                "workflow_intent": active.intent_name,
+            }
+
+        result = engine.process_text(msg)
+
+        return {
+            "handled": True,
+            "answer": result.get("reply", ""),
+            "workflow_active": not bool(result.get("completed", False)),
+            "workflow_intent": active.intent_name,
+        }
+
+    intent = detect_intent(msg)
+    if not intent:
+        return None
+
+    definition = get_active_definition(intent)
+
+    if not definition:
+        return {
+            "handled": True,
+            "answer": f"Workflow intent '{intent}' was detected, but no active workflow definition was found.",
+            "workflow_active": False,
+            "workflow_intent": intent,
+        }
+
+    if not user_can_start_workflow(user, definition):
+        return {
+            "handled": True,
+            "answer": "You do not have permission to use this service.",
+            "workflow_active": False,
+            "workflow_intent": intent,
+        }
+
+    wf = WorkflowSession.objects.create(
+        user=user,
+        session_id=session_id_str,
+        intent_name=intent,
+        definition=definition,
+        status="active",
+        collected_data={},
+    )
+
+    engine = WorkflowEngine(wf)
+
+    return {
+        "handled": True,
+        "answer": engine.start(),
+        "workflow_active": True,
+        "workflow_intent": intent,
+    }
+
+
+# -------------------------
+# General chat endpoint
+# -------------------------
+@csrf_exempt
+@require_POST
+def api_chat(request):
+    endpoint = "/api/chat"
+    mode = "general"
+    model = CFG.GEN_MODEL
+    chat_start = time.perf_counter()
+
+    ACTIVE_CHAT_REQUESTS.inc()
+
+    user = getattr(request, "user", None)
+    is_auth = bool(user and user.is_authenticated)
+
+    try:
+        body = _json_body(request)
+
+        msg = _clean(body.get("message") or body.get("question"))
+
+        # Email attachment summary router.
+        # Role-based email summary router. It must run before the generic api_chat auth gate.
+        email_summary_response = _try_email_attachment_summary_response(request, msg)
+        if email_summary_response is not None:
+            return email_summary_response
+
+        if (not is_auth) and not ALLOW_ANON_CHAT:
+            CHAT_REQUESTS_TOTAL.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+                status="auth_required",
+            ).inc()
+            CHAT_REQUEST_DURATION_SECONDS.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+            ).observe(time.perf_counter() - chat_start)
+
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        # Zypl Bengali scoring router: run before workflow/RAG routing.
+        from .zypl_cashflow_scoring_agent import is_zypl_intent
+        if request.session.get(ZYPL_CASHFLOW_SESSION_KEY) or is_zypl_intent(msg):
+            zypl_result = process_zypl_agent(request, {"message": msg})
+            return JsonResponse({
+                "ok": zypl_result.get("ok", True),
+                "answer": zypl_result.get("answer"),
+                "intent": "zypl_cashflow_scoring",
+                "tool": "zypl_cashflow_scoring_agent",
+                "status": zypl_result.get("status"),
+                "data": zypl_result,
+                "required_role": "cashflow",
+                "public": False,
+                "login_required": True,
+            }, json_dumps_params={"ensure_ascii": False})
+
+
+        # Zypl Help router: run before logs/scoring routing.
+        if is_zypl_help_intent(msg):
+            zypl_help_result = process_zypl_help_agent(request, {"message": msg})
+            return JsonResponse({
+                "ok": zypl_help_result.get("ok", True),
+                "answer": zypl_help_result.get("answer"),
+                "intent": "zypl_cashflow_help",
+                "tool": "zypl_cashflow_help",
+                "status": zypl_help_result.get("status"),
+                "data": zypl_help_result,
+                "required_role": "cashflow",
+                "public": False,
+                "login_required": True,
+            }, json_dumps_params={"ensure_ascii": False})
+
+        # Zypl Scoring Logs router: must run before Zypl scoring router.
+        if request.session.get(ZYPL_LOGS_SESSION_KEY) or is_zypl_logs_intent(msg):
+            zypl_logs_result = process_zypl_logs_agent(request, {"message": msg})
+            return JsonResponse({
+                "ok": zypl_logs_result.get("ok", True),
+                "answer": zypl_logs_result.get("answer"),
+                "intent": "zypl_cashflow_scoring_logs",
+                "tool": "zypl_cashflow_logs_agent",
+                "status": zypl_logs_result.get("status"),
+                "data": zypl_logs_result,
+                "required_role": "cashflow",
+                "public": False,
+                "login_required": True,
+            }, json_dumps_params={"ensure_ascii": False})
+
+        # Zypl FORCE router: must run before workflow/RAG/customer-support routing.
+        msg_l = (msg or "").strip().lower()
+        zypl_force_words = (
+            "zypl",
+            "ypl",
+            "zyp",
+            "e-step",
+            "estep",
+            "cashflow score",
+            "cashflow scoring",
+            "credit scoring",
+            "credit risk",
+            "risk score",
+            "loan score",
+            "score client",
+            "client score",
+            "ক্লায়েন্ট স্কোর",
+            "ঋণ স্কোর",
+            "ঝুঁকি স্কোর",
+            "ক্রেডিট স্কোর",
+        )
+
+        if request.session.get(ZYPL_CASHFLOW_SESSION_KEY) or any(w in msg_l for w in zypl_force_words):
+            zypl_result = process_zypl_agent(request, {"message": msg})
+            return JsonResponse({
+                "ok": zypl_result.get("ok", True),
+                "answer": zypl_result.get("answer"),
+                "intent": "zypl_cashflow_scoring",
+                "tool": "zypl_cashflow_scoring_agent",
+                "status": zypl_result.get("status"),
+                "data": zypl_result,
+                "required_role": "cashflow",
+                "public": False,
+                "login_required": True,
+            }, json_dumps_params={"ensure_ascii": False})
+
+
+        # Zypl Cashflow Scoring Agent must run before generic workflow/RAG/customer-support routing.
+        zypl_result = try_handle_zypl_agent(request, msg)
+        if zypl_result is not None:
+            return JsonResponse({
+                "ok": zypl_result.get("ok", True),
+                "answer": zypl_result.get("answer"),
+                "intent": "zypl_cashflow_scoring",
+                "tool": "zypl_cashflow_scoring_agent",
+                "status": zypl_result.get("status"),
+                "data": zypl_result,
+                "required_role": "cashflow",
+                "public": False,
+                "login_required": True,
+            }, json_dumps_params={"ensure_ascii": False})
+
+
+    
+
+        zypl_result = try_handle_zypl_agent(request, msg)
+        if zypl_result is not None:
+            return JsonResponse({
+                "ok": zypl_result.get("ok", True),
+                "answer": zypl_result.get("answer"),
+                "intent": "zypl_cashflow_scoring",
+                "tool": "zypl_cashflow_scoring_agent",
+                "status": zypl_result.get("status"),
+                "data": zypl_result,
+                "required_role": "cashflow",
+                "public": False,
+                "login_required": True,
+                    }, json_dumps_params={"ensure_ascii": False})
+
+        mode = _clean(body.get("mode")) or "general"
+        model = _clean(body.get("model")) or CFG.GEN_MODEL
+
+        if not msg:
+            CHAT_REQUESTS_TOTAL.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+                status="bad_request",
+            ).inc()
+            CHAT_REQUEST_DURATION_SECONDS.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+            ).observe(time.perf_counter() - chat_start)
+
+            return JsonResponse({"ok": False, "error": "message is required"}, status=400)
+
+        session = None
+        session_id = body.get("session_id")
+
+        if is_auth:
+            if session_id is not None:
+                session = ChatSession.objects.filter(id=session_id, user=user).first()
+
+            if not session:
+                session = ChatSession.objects.create(user=user, title="Chat")
+
+            workflow_result = _try_workflow(request, session, msg)
+
+            if workflow_result and workflow_result.get("handled"):
+                try:
+                    ChatMessage.objects.create(session=session, role="user", content=msg)
+                    ChatMessage.objects.create(session=session, role="assistant", content=workflow_result["answer"])
+                except Exception:
+                    pass
+
+                CHAT_REQUESTS_TOTAL.labels(
+                    endpoint=endpoint,
+                    mode="workflow",
+                    model="workflow_engine",
+                    status="success",
+                ).inc()
+                CHAT_REQUEST_DURATION_SECONDS.labels(
+                    endpoint=endpoint,
+                    mode="workflow",
+                    model="workflow_engine",
+                ).observe(time.perf_counter() - chat_start)
+
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "answer": workflow_result["answer"],
+                        "session_id": session.id,
+                        "workflow_active": workflow_result.get("workflow_active", False),
+                        "workflow_intent": workflow_result.get("workflow_intent"),
+                        "handoff": workflow_result.get("handoff", False),
+                    }
+                )
+
+        ltm: List[str] = []
+        stm_msgs: List[Dict[str, str]] = []
+
+        if is_auth and session:
+            rag_start = time.perf_counter()
+
+            try:
+                ltm = search_long_memory(user.id, msg, limit=CFG.LTM_TOP_K) or []
+                RAG_HITS_TOTAL.labels(collection="long_memory").inc(len(ltm))
+                RAG_SEARCH_DURATION_SECONDS.labels(
+                    collection="long_memory",
+                    result="success",
+                ).observe(time.perf_counter() - rag_start)
+            except Exception:
+                ltm = []
+                RAG_SEARCH_DURATION_SECONDS.labels(
+                    collection="long_memory",
+                    result="error",
+                ).observe(time.perf_counter() - rag_start)
+
+            try:
+                stm_msgs = get_short_memory(session, limit=CFG.STM_LIMIT) or []
+            except Exception:
+                stm_msgs = []
+
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": SYSTEM_PROMPT_CHAT}
+        ]
+
+        for m in ltm:
+            if m:
+                messages.append({"role": "system", "content": f"FACT: {m}"})
+
+        for m in stm_msgs:
+            role = _clean(m.get("role"))
+            content = _clean(m.get("content"))
+
+            if role in ("user", "assistant", "system") and content:
+                messages.append({"role": role, "content": content})
+
+        messages.append({"role": "user", "content": msg})
+
+        try:
+            llm_start = time.perf_counter()
+            ollama_json = _ollama_chat_messages(messages, model)
+            llm_elapsed = time.perf_counter() - llm_start
+
+            LLM_REQUEST_DURATION_SECONDS.labels(model=model).observe(llm_elapsed)
+            LLM_REQUESTS_TOTAL.labels(model=model, result="success").inc()
+
+            total_duration = ns_to_seconds(ollama_json.get("total_duration"))
+            load_duration = ns_to_seconds(ollama_json.get("load_duration"))
+            prompt_eval_count = int(ollama_json.get("prompt_eval_count") or 0)
+            eval_count = int(ollama_json.get("eval_count") or 0)
+
+            if total_duration > 0:
+                LLM_REQUEST_DURATION_SECONDS.labels(model=model).observe(total_duration)
+
+            if load_duration > 0:
+                LLM_LOAD_DURATION_SECONDS.labels(model=model).observe(load_duration)
+
+            if prompt_eval_count > 0:
+                LLM_PROMPT_TOKENS_TOTAL.labels(model=model).inc(prompt_eval_count)
+
+            if eval_count > 0:
+                LLM_OUTPUT_TOKENS_TOTAL.labels(model=model).inc(eval_count)
+
+            answer = _clean((ollama_json.get("message") or {}).get("content"))
+
+            if not answer:
+                answer = _clean(ollama_json.get("response"))
+
+            if is_auth and session:
+                ChatMessage.objects.create(session=session, role="user", content=msg)
+                ChatMessage.objects.create(session=session, role="assistant", content=answer)
+
+                if _should_save_long_memory(msg):
+                    try:
+                        save_long_term_memory(user.id, msg)
+                    except Exception:
+                        pass
+
+                CHAT_REQUESTS_TOTAL.labels(
+                    endpoint=endpoint,
+                    mode=mode,
+                    model=model,
+                    status="success",
+                ).inc()
+                CHAT_REQUEST_DURATION_SECONDS.labels(
+                    endpoint=endpoint,
+                    mode=mode,
+                    model=model,
+                ).observe(time.perf_counter() - chat_start)
+
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "answer": answer,
+                        "session_id": session.id,
+                    }
+                )
+
+            CHAT_REQUESTS_TOTAL.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+                status="success",
+            ).inc()
+            CHAT_REQUEST_DURATION_SECONDS.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+            ).observe(time.perf_counter() - chat_start)
+
+            return JsonResponse({"ok": True, "answer": answer})
+
+        except Exception as e:
+            LLM_REQUESTS_TOTAL.labels(model=model, result="error").inc()
+            CHAT_REQUESTS_TOTAL.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+                status="error",
+            ).inc()
+            CHAT_REQUEST_DURATION_SECONDS.labels(
+                endpoint=endpoint,
+                mode=mode,
+                model=model,
+            ).observe(time.perf_counter() - chat_start)
+
+            return JsonResponse({"ok": False, "error": f"Chat backend error: {e}"}, status=502)
+
+    finally:
+        ACTIVE_CHAT_REQUESTS.dec()
+
+
+# -------------------------
+# Router hints
+# -------------------------
+GREETINGS = [
+    "hi",
+    "hello",
+    "hey",
+    "assalamualaikum",
+    "as-salamu alaykum",
+    "হ্যালো",
+    "সালাম",
+    "আসসালামু আলাইকুম",
+]
+
+NOTICE_HINTS = [
+    "notice",
+    "circular",
+    "memo",
+    "বিজ্ঞপ্তি",
+    "নোটিশ",
+    "সার্কুলার",
+    "মেমো",
+]
+
+CUSTOMER_SUPPORT_HINTS = [
+    "customer",
+    "customer support",
+    "customer care",
+    "client",
+    "member id",
+    "member no",
+    "customer id",
+    "account no",
+    "loan status",
+    "loan pending",
+    "installment",
+    "installment problem",
+    "payment not updated",
+    "savings balance",
+    "complaint",
+    "ticket",
+    "ticket status",
+    "branch contact",
+    "account close",
+    "account closing",
+    "new member",
+    "member admission",
+    "গ্রাহক",
+    "কাস্টমার",
+    "সদস্য",
+    "সদস্য নং",
+    "সদস্য আইডি",
+    "গ্রাহক আইডি",
+    "ঋণের অবস্থা",
+    "লোন স্ট্যাটাস",
+    "কিস্তি",
+    "কিস্তি আপডেট",
+    "জমা হয়নি",
+    "সঞ্চয় ব্যালেন্স",
+    "ব্যালেন্স",
+    "অভিযোগ",
+    "টিকেট",
+    "শাখার যোগাযোগ",
+    "হিসাব বন্ধ",
+    "নতুন সদস্য",
+    "ভর্তি",
+    "loaneeno",
+    "loan summary",
+    "loan summaries",
+    "loan information",
+    "loan details",
+    "loan balance",
+    "loan outstanding",
+    "loan installment",
+    "loan repayment",
+    "ঋণের সারাংশ",
+    "ঋণের তথ্য",
+    "লোন সামারি",
+    "loanee list",
+    "loanee no by branch",
+    "loaneeno by branch",
+    "branch wise loaneeno",
+    "লোন তথ্য",
+]
+
+TOPIC_LIST_HINTS = [
+    "list of topic",
+    "list topics",
+    "list of topics",
+    "show topics",
+    "show all topics",
+    "what topics can you answer",
+    "which topics can you answer",
+    "what can i ask",
+    "topic list",
+    "sub topic list",
+    "subtopic list",
+    "all topics",
+    "all subtopics",
+    "কোন কোন টপিক",
+    "কোন কোন বিষয়",
+    "কি কি টপিক",
+    "কি কি বিষয়",
+    "সব টপিক",
+    "সব বিষয়",
+    "টপিক লিস্ট",
+    "সাব টপিক লিস্ট",
+    "উপবিষয় তালিকা",
+    "কী কী প্রশ্ন করতে পারি",
+    "আমি কী কী জিজ্ঞেস করতে পারি",
+    "কোন কোন প্রশ্ন করতে পারি",
+]
+
+
+def _is_smalltalk(q: str) -> bool:
+    qn = (q or "").strip().lower()
+
+    if not qn:
+        return False
+
+    if qn in GREETINGS:
+        return True
+
+    if any(qn.startswith(g + " ") for g in GREETINGS):
+        return True
+
+    if qn in {"thanks", "thank you", "ok", "okay", "tq", "ধন্যবাদ"}:
+        return True
+
+    return False
+
+
+
+
+
+def _try_zypl_help_response(request, question):
+    q = (question or "").strip()
+
+    if is_zypl_help_intent(q):
+        zypl_help_result = process_zypl_help_agent(request, {"message": q})
+        return JsonResponse({
+            "ok": zypl_help_result.get("ok", True),
+            "answer": zypl_help_result.get("answer"),
+            "intent": "zypl_cashflow_help",
+            "tool": "zypl_cashflow_help",
+            "status": zypl_help_result.get("status"),
+            "data": zypl_help_result,
+            "required_role": "cashflow",
+            "public": False,
+            "login_required": True,
+        }, json_dumps_params={"ensure_ascii": False})
+
+    return None
+
+
+def _try_zypl_cashflow_logs_response(request, question):
+    q = (question or "").strip()
+
+    if request.session.get(ZYPL_LOGS_SESSION_KEY) or is_zypl_logs_intent(q):
+        zypl_logs_result = process_zypl_logs_agent(request, {"message": q})
+        return JsonResponse({
+            "ok": zypl_logs_result.get("ok", True),
+            "answer": zypl_logs_result.get("answer"),
+            "intent": "zypl_cashflow_scoring_logs",
+            "tool": "zypl_cashflow_logs_agent",
+            "status": zypl_logs_result.get("status"),
+            "data": zypl_logs_result,
+            "required_role": "cashflow",
+            "public": False,
+            "login_required": True,
+        }, json_dumps_params={"ensure_ascii": False})
+
+    return None
+
+
+def _try_zypl_cashflow_response(request, question):
+    """
+    Zypl Cashflow Scoring must run before generic customer-support routing,
+    because terms like 'client' can otherwise trigger customer support.
+    """
+    q = (question or "").strip()
+    ql = q.lower()
+
+    zypl_words = (
+        "zypl",
+        "ypl",
+        "zyp",
+        "e-step",
+        "estep",
+        "cashflow score",
+        "cashflow scoring",
+        "credit scoring",
+        "credit risk",
+        "risk score",
+        "loan score",
+        "score client",
+        "client score",
+        "scoring client",
+        "ক্লায়েন্ট স্কোর",
+        "ঋণ স্কোর",
+        "ঝুঁকি স্কোর",
+        "ক্রেডিট স্কোর",
+    )
+
+    if request.session.get(ZYPL_CASHFLOW_SESSION_KEY) or any(w in ql for w in zypl_words):
+        zypl_result = process_zypl_agent(request, {"message": q})
+        return JsonResponse({
+            "ok": zypl_result.get("ok", True),
+            "answer": zypl_result.get("answer"),
+            "intent": "zypl_cashflow_scoring",
+            "tool": "zypl_cashflow_scoring_agent",
+            "status": zypl_result.get("status"),
+            "data": zypl_result,
+            "required_role": "cashflow",
+            "public": False,
+            "login_required": True,
+        }, json_dumps_params={"ensure_ascii": False})
+
+    return None
+
+
+def _is_notice(q: str) -> bool:
+    ql = (q or "").lower()
+    return any(k in ql for k in NOTICE_HINTS)
+
+
+def _is_customer_support_question(q: str) -> bool:
+    ql = (q or "").lower()
+    return any(k in ql for k in CUSTOMER_SUPPORT_HINTS)
+
+
+def _is_policy_topic_list_request(q: str) -> bool:
+    ql = (q or "").lower()
+    return any(k in ql for k in TOPIC_LIST_HINTS)
+
+
+def _looks_like_policy_question(q: str) -> bool:
+    ql = (q or "").lower().strip()
+
+    if not ql:
+        return False
+
+    # Clause references like "৩.৪ শাস্তিমূলক ব্যবস্থা" must route to policy.
+    if _looks_like_policy_clause_reference(ql):
+        return True
+
+    policy_hints = [
+        "policy",
+        "hr policy",
+        "service rule",
+        "service rules",
+        "promotion",
+        "promotion eligibility",
+        "grade",
+        "leave",
+        "casual leave",
+        "earned leave",
+        "maternity leave",
+        "paternity leave",
+        "festival leave",
+        "sick leave",
+        "probation",
+        "confirmation",
+        "seniority",
+        "transfer",
+        "distance allowance",
+        "overtime allowance",
+        "gratuity",
+        "provident fund",
+        "income tax",
+        "resignation",
+        "retirement",
+        "termination",
+        "show cause",
+        "warning letter",
+        "disciplinary",
+        "disciplinary action",
+        "punishment",
+        "penalty",
+        "misconduct",
+        "dismissal",
+        "suspension",
+        "investigation",
+        "appeal",
+        "attendance",
+        "absence",
+        "sexual harassment",
+        "sexual harasment",
+        "joining rules",
+        "recruitment",
+        "grade structure",
+        "staff type",
+        "staff classification",
+        "project staff",
+        "project employee",
+        "vehicle loan",
+        "car loan",
+        "house loan",
+        "flat loan",
+        "নীতিমালা",
+        "পলিসি",
+        "সার্ভিস রুল",
+        "সার্ভিস রুলস",
+        "পদোন্নতি",
+        "পদোন্নতির যোগ্যতা",
+        "গ্রেড",
+        "পদবিন্যাস",
+        "ছুটি",
+        "নৈমিত্তিক ছুটি",
+        "অর্জিত ছুটি",
+        "মাতৃত্বজনিত ছুটি",
+        "পিতৃত্বজনিত ছুটি",
+        "উৎসবকালীন ছুটি",
+        "অসুস্থতাজনিত ছুটি",
+        "শিক্ষানবিশকাল",
+        "স্থায়ীকরণ",
+        "জ্যেষ্ঠতা",
+        "বদলি",
+        "দূরত্ব ভাতা",
+        "অধিকাল ভাতা",
+        "গ্র্যাচুইটি",
+        "প্রভিডেন্ট ফান্ড",
+        "আয়কর",
+        "পদত্যাগ",
+        "অবসর",
+        "অব্যাহতি",
+        "কারণ দর্শানো",
+        "সতর্কীকরণ পত্র",
+        "শাস্তিমূলক",
+        "শাস্তিমূলক ব্যবস্থা",
+        "শৃঙ্খলা",
+        "শৃঙ্খলামূলক",
+        "অসদাচরণ",
+        "দণ্ড",
+        "শাস্তি",
+        "বরখাস্ত",
+        "সাময়িক বরখাস্ত",
+        "চাকুরীচ্যুতি",
+        "চাকরিচ্যুতি",
+        "তদন্ত",
+        "আপিল",
+        "হাজিরা",
+        "অনুপস্থিতি",
+        "যৌন হয়রানি",
+        "যোগদান বিধি",
+        "নিয়োগ",
+        "গ্রেড কাঠামো",
+        "কর্মীদের শ্রেণী বিভাগ",
+        # Do not use bare "ঋণ" as a policy hint; it also appears in core/customer loan-data questions.
+        "গাড়ী ঋণ",
+        "গাড়ি ঋণ",
+        "গৃহ ঋণ",
+        "ফ্ল্যাট ঋণ",
+    ]
+
+    return _is_policy_topic_list_request(q) or any(k in ql for k in policy_hints)
+
+def _looks_like_core_data_question(q: str) -> bool:
+    ql = (q or "").lower().strip()
+    if not ql:
+        return False
+
+    workflow_words = [
+        "apply",
+        "application",
+        "loan application",
+        "apply for loan",
+        "create loan",
+        "new loan application",
+        "open account",
+        "account opening",
+        "new account",
+        "আবেদন",
+        "ঋণের আবেদন",
+        "নতুন ঋণ",
+        "লোন আবেদন",
+        "একাউন্ট খুল",
+        "হিসাব খুল",
+        "নতুন হিসাব",
+    ]
+
+    if any(w in ql for w in workflow_words):
+        return False
+
+    core_data_words = [
+        "show",
+        "list",
+        "find",
+        "get",
+        "display",
+        "give",
+        "top",
+        "summary",
+        "details",
+        "information",
+        "report",
+        "outstanding",
+        "balance",
+        "due",
+        "paid",
+        "collection",
+        "installment",
+        "repayment",
+        "loaneeno",
+        "loanee no",
+        "loan no",
+        "loanno",
+        "branch code",
+        "branchcode",
+        "branch wise",
+        "member",
+        "member no",
+        "member id",
+        "phone",
+        "mobile",
+        "name",
+        "savings",
+        "saving",
+        "deposit",
+        "withdrawal",
+        "দেখাও",
+        "দেখান",
+        "তালিকা",
+        "লিস্ট",
+        "তথ্য",
+        "সারাংশ",
+        "রিপোর্ট",
+        "ব্যালেন্স",
+        "বকেয়া",
+        "ডিউ",
+        "পরিশোধ",
+        "কিস্তি",
+        "শাখা",
+        "সদস্য",
+        "লোন তথ্য",
+        "ঋণের তথ্য",
+        "ঋণের সারাংশ",
+        "সঞ্চয়",
+        "জমা",
+        "উত্তোলন",
+    ]
+
+    loan_or_finance_words = [
+        "loan",
+        "loanee",
+        "loaneeno",
+        "loanno",
+        "outstanding",
+        "balance",
+        "due",
+        "installment",
+        "savings",
+        "saving",
+        "deposit",
+        "withdrawal",
+        "member",
+        "branch",
+        "ঋণ",
+        "লোন",
+        "সদস্য",
+        "শাখা",
+        "সঞ্চয়",
+        "ব্যালেন্স",
+        "কিস্তি",
+    ]
+
+    return any(w in ql for w in core_data_words) and any(w in ql for w in loan_or_finance_words)
+
+
+def _body_module(body: Dict[str, Any]) -> str:
+    return _clean(
+        body.get("module")
+        or body.get("route")
+        or body.get("mode")
+        or body.get("selected_module")
+    ).lower() or "auto"
+
+
+def _looks_like_public_website_question(q: str) -> bool:
+    ql = (q or "").lower().strip()
+
+    if not ql:
+        return False
+
+    public_website_hints = [
+        "buro bangladesh",
+        "burobd",
+        "buro bd",
+        "buro website",
+        "about buro",
+        "buro service",
+        "buro services",
+        "what services does buro",
+        "what service does buro",
+        "programs and services",
+        "buro loan service",
+        "buro saving scheme",
+        "buro membership",
+        "buro remittance",
+        "buro career",
+        "buro publication",
+        "buro location",
+        "list of question",
+        "list of questions",
+        "question list",
+        "what can i ask",
+        "which question",
+        "sample question",
+        "sample questions",
+        "list os question",
+        "list os questioin",
+        "বুরো",
+        "বুরো বাংলাদেশ",
+        "বুরো ওয়েবসাইট",
+        "বুরো ওয়েবসাইট",
+        "বুরো সম্পর্কে",
+        "বুরোর সেবা",
+        "বুরো কী",
+        "বুরো কি",
+        "কী কী সেবা প্রদান করে",
+        "কি কি সেবা প্রদান করে",
+        "সেবা প্রদান করে",
+        "সঞ্চয় স্কিম",
+        "সঞ্চয় স্কিম",
+        "সদস্যপদ",
+        "কি কি প্রশ্ন",
+        "কী কী প্রশ্ন",
+        "কোন প্রশ্ন",
+        "প্রশ্নের তালিকা",
+    ]
+
+    return any(h in ql for h in public_website_hints)
+
+
+
+# -------------------------
+# Capability List Helper
+# -------------------------
+def _is_capability_request(q: str) -> bool:
+    ql = (q or "").lower().strip()
+
+    if not ql:
+        return False
+
+    hints = [
+        "what is your current capability",
+        "what are your current capabilities",
+        "what can you do",
+        "what you can do",
+        "your capability",
+        "your capabilities",
+        "capability list",
+        "current capability",
+        "current capabilities",
+        "list your features",
+        "list of features",
+        "feature list",
+        "features",
+        "কি কি করতে পারো",
+        "কী কী করতে পারো",
+        "আপনি কি করতে পারেন",
+        "আপনি কী করতে পারেন",
+        "তুমি কি করতে পারো",
+        "তুমি কী করতে পারো",
+        "আপনার সক্ষমতা",
+        "তোমার সক্ষমতা",
+        "কি সুবিধা আছে",
+        "কী সুবিধা আছে",
+        "কি কি ফিচার",
+        "কী কী ফিচার",
+        "ফিচার লিস্ট",
+    ]
+
+    return any(h in ql for h in hints)
+
+
+def _handle_capability_request(request, question: str) -> JsonResponse:
+    """
+    Always return capability list in Bangla for both Bangla and English questions.
+    Example:
+    - what is your current capability
+    - what can you do
+    - আপনি কী কী করতে পারেন?
+    """
+    user = getattr(request, "user", None)
+    is_auth = bool(user and user.is_authenticated)
+
+    answer = """আমি BURO Enterprise AI Assistant। সহজভাবে বললে, আমার বর্তমান সক্ষমতাগুলো হলো:
+
+১. BURO ওয়েবসাইট সম্পর্কিত প্রশ্নের উত্তর দিতে পারি
+   - যেমন: BURO কী কী সেবা দেয়, ঋণ সেবা, সঞ্চয়, সদস্যপদ, remittance, অফিস/যোগাযোগ ইত্যাদি।
+   - এই অংশে লগইন ছাড়াই উত্তর পাওয়া যায়।
+
+২. HR Policy / নীতিমালা সম্পর্কে উত্তর দিতে পারি
+   - যেমন: বদলি, ছুটি, প্রভিডেন্ট ফান্ড, গ্রেড, নিয়োগ, ভাতা ইত্যাদি।
+   - এই অংশের জন্য অনুমোদিত লগইন প্রয়োজন।
+
+৩. Notice / Circular খুঁজে সারাংশ দিতে পারি
+   - HR notice, circular, NOC, memo ইত্যাদি।
+   - এই অংশের জন্য অনুমোদিত লগইন প্রয়োজন।
+
+৪. Core System / Loan Data সম্পর্কিত তথ্য বের করতে পারি
+   - যেমন: outstanding loan, branch-wise loan, loanee information, loan summary ইত্যাদি।
+   - এই অংশের জন্য অনুমোদিত লগইন প্রয়োজন।
+
+৫. Customer Support সহায়তা দিতে পারি
+   - customer complaint, installment problem, savings balance issue, ticket status ইত্যাদি।
+   - এই অংশের জন্য অনুমোদিত লগইন প্রয়োজন।
+
+৬. HR data / employee related query করতে পারি
+   - অনুমতি থাকলে HR system থেকে তথ্যভিত্তিক উত্তর দিতে পারি।
+
+৭. Cashflow / Analytics query করতে পারি
+   - branch-wise cashflow, collection trend, analytical summary ইত্যাদি।
+
+৮. Document/File ভিত্তিক প্রশ্নের উত্তর দিতে পারি
+   - আপলোড করা ফাইল/ডকুমেন্ট থেকে প্রশ্ন করলে উত্তর দিতে পারি।
+
+৯. BURO Website RAG sync করতে পারি
+   - admin/staff user চাইলে “sync buro website” লিখে ওয়েবসাইট knowledge আপডেট করতে পারবেন।
+   - এটি background-এ চলে এবং Qdrant vector database আপডেট করে।
+
+১০. ভবিষ্যৎ কেন্দ্রীয় AI প্ল্যাটফর্ম হিসেবে কাজ করতে পারব
+   - সময়ের সাথে সাথে এই AI Assistant একটি centralized enterprise AI platform হিসেবে আরও সমৃদ্ধ হবে।
+   - এটি employees, management, customers, field staff, support teams এবং অন্যান্য stakeholder-দের জন্য এক জায়গা থেকে তথ্য, সেবা, রিপোর্ট, policy, notice, HR, core system, customer support এবং analytics access করার intelligent solution হিসেবে কাজ করতে পারবে।
+
+সংক্ষেপে: Public website knowledge সবার জন্য উন্মুক্ত। আর internal policy, core, HR, notice, customer-support এবং analytics data অনুমোদিত user role অনুযায়ী কাজ করে।"""
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "answer": answer,
+            "intent": "capability_list",
+            "tool": "capability_response",
+            "login_required": False,
+            "authenticated": is_auth,
+            "language": "bn",
+        }
+    )
+
+def _is_website_sync_request(q: str) -> bool:
+    ql = re.sub(r"\s+", " ", (q or "").lower().strip())
+
+    if not ql:
+        return False
+
+    exact_commands = {
+        "sync website",
+        "syn website",
+        "website sync",
+        "sync web site",
+        "sync buro website",
+        "sync burobd website",
+        "sync buro bangladesh website",
+        "refresh website",
+        "refresh website rag",
+        "update website",
+        "update website rag",
+        "update buro website",
+        "crawl website",
+        "crawl buro website",
+        "resync website",
+        "re-sync website",
+        "sync with website",
+        "clean sync website",
+        "clean & sync website",
+        "clean and sync website",
+        "clean website sync",
+        "rebuild website",
+        "rebuild buro website",
+        "recreate website",
+        "fresh sync website",
+        "full sync website",
+        "ওয়েবসাইট sync",
+        "ওয়েবসাইট sync",
+        "ওয়েবসাইট আপডেট",
+        "ওয়েবসাইট আপডেট",
+        "বুরো ওয়েবসাইট sync",
+        "বুরো ওয়েবসাইট sync",
+        "বুরো ওয়েবসাইট আপডেট",
+        "বুরো ওয়েবসাইট আপডেট",
+    }
+
+    if ql in exact_commands:
+        return True
+
+    patterns = [
+        r"^(syn|sync)\s+(the\s+)?(buro\s+|burobd\s+|buro bangladesh\s+)?web\s?site(\s+\d+\s*pages?)?$",
+        r"^clean\s*(&|and)?\s*sync\s+(the\s+)?(buro\s+|burobd\s+|buro bangladesh\s+)?web\s?site(\s+\d+\s*pages?)?$",
+        r"^(rebuild|recreate|fresh sync|full sync|resync|re-sync)\s+(the\s+)?(buro\s+|burobd\s+|buro bangladesh\s+)?web\s?site(\s+\d+\s*pages?)?$",
+        r"^(update|refresh|crawl)\s+(the\s+)?(buro\s+|burobd\s+|buro bangladesh\s+)?web\s?site(\s+\d+\s*pages?)?$",
+    ]
+
+    return any(re.search(pattern, ql) for pattern in patterns)
+
+
+def _is_clean_website_sync_request(q: str) -> bool:
+    ql = re.sub(r"\s+", " ", (q or "").lower().strip())
+
+    return any(
+        word in ql
+        for word in [
+            "clean",
+            "rebuild",
+            "recreate",
+            "fresh sync",
+            "full sync",
+            "reset",
+        ]
+    )
+
+
+def _extract_website_sync_max_pages(q: str, default: int = 80) -> int:
+    ql = (q or "").lower()
+
+    patterns = [
+        r"max_pages\s*[:=]?\s*(\d+)",
+        r"max pages\s*[:=]?\s*(\d+)",
+        r"pages\s*[:=]?\s*(\d+)",
+        r"(\d+)\s*pages",
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, ql)
+        if m:
+            value = int(m.group(1))
+            return max(1, min(value, 300))
+
+    return default
+
+
+def _website_sync_user_roles(user) -> Set[str]:
+    roles = set()
+
+    try:
+        roles.update(str(g).lower() for g in _user_group_names(user))
+    except Exception:
+        pass
+
+    try:
+        role = getattr(user, "role", None)
+        if role:
+            roles.add(str(role).lower())
+    except Exception:
+        pass
+
+    try:
+        role_name = getattr(user, "role_name", None)
+        if role_name:
+            roles.add(str(role_name).lower())
+    except Exception:
+        pass
+
+    try:
+        profile = getattr(user, "profile", None)
+        role = getattr(profile, "role", None)
+        if role:
+            roles.add(str(getattr(role, "name", role)).lower())
+    except Exception:
+        pass
+
+    try:
+        profile = getattr(user, "profile", None)
+        role_name = getattr(profile, "role_name", None)
+        if role_name:
+            roles.add(str(role_name).lower())
+    except Exception:
+        pass
+
+    return roles
+
+
+def _can_run_website_sync(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+
+    if getattr(user, "is_superuser", False):
+        return True
+
+    allowed_roles = {
+        "admin",
+        "super_admin",
+        "support_manager",
+        "buro_website_sync_admin",
+    }
+
+    return bool(_website_sync_user_roles(user).intersection(allowed_roles))
+
+
+def _handle_website_sync_command(request) -> JsonResponse:
+    user = getattr(request, "user", None)
+
+    if not _can_run_website_sync(user):
+        is_logged_in = bool(user and getattr(user, "is_authenticated", False))
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Permission denied.",
+                "answer": (
+                    "Website sync is allowed only for authorized users. "
+                    "Required role/group: admin, super_admin, support_manager, or buro_website_sync_admin."
+                ),
+                "intent": "website_sync",
+                "tool": "website_rag_tool.sync_buro_website",
+                "login_required": True,
+            },
+            status=403 if is_logged_in else 401,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    try:
+        body = _json_body(request)
+        question = _clean(body.get("question") or body.get("message"))
+
+        recreate = _is_clean_website_sync_request(question)
+        max_pages = _extract_website_sync_max_pages(question, default=80)
+
+        started = time.perf_counter()
+
+        from agentic_ai.tools.website_rag_tool import sync_buro_website
+
+        result = sync_buro_website(
+            max_pages=max_pages,
+            recreate_collection=recreate,
+        )
+
+        elapsed = round(time.perf_counter() - started, 2)
+
+        if recreate:
+            mode = "clean_rebuild"
+            title = "✅ Clean Website Rebuild completed successfully."
+            explanation = "Old buro_website collection was recreated and clean website knowledge was synced."
+        else:
+            mode = "daily_sync"
+            title = "✅ Website sync completed successfully."
+            explanation = "BURO website content was synced/upserted into Qdrant without recreating the collection."
+
+        answer = (
+            f"{title}\n\n"
+            f"Mode: {mode}\n"
+            f"Collection: {result.get('collection')}\n"
+            f"Visited pages: {result.get('visited_pages')}\n"
+            f"Indexed pages: {result.get('indexed_pages')}\n"
+            f"Indexed chunks: {result.get('indexed_chunks')}\n"
+            f"Elapsed seconds: {elapsed}\n\n"
+            f"{explanation}"
+        )
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "answer": answer,
+                "intent": "website_sync",
+                "tool": "website_rag_tool.sync_buro_website",
+                "mode": mode,
+                "result": result,
+                "elapsed_seconds": elapsed,
+                "login_required": True,
+            },
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": f"Website sync failed: {e}",
+                "answer": f"Website sync failed: {e}",
+                "intent": "website_sync",
+                "tool": "website_rag_tool.sync_buro_website",
+            },
+            status=502,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+def _handle_public_website_rag(
+    request,
+    question: str,
+    body: Optional[Dict[str, Any]] = None,
+) -> JsonResponse:
+    """
+    Public BURO website RAG.
+
+    This route must be used for public website knowledge. It delegates to:
+        agentic_ai.tools.website_rag_tool.run()
+
+    Expected flow:
+        Django /api/auto/ask
+        -> _handle_public_website_rag()
+        -> website_rag_tool.run()
+        -> Qdrant collection: buro_website
+        -> Ollama final answer
+
+    The response always includes:
+        source_collection, sources, matches_count
+
+    Those fields help confirm whether the answer was grounded by vector DB.
+    """
+    body = body or {}
+
+    language = "bn" if _contains_bangla(question) else "en"
+
+    # Keep default retrieval smaller and cleaner.
+    # User can still override by sending top_k/limit in request JSON.
+    limit = _safe_int(body.get("top_k") or body.get("limit"), 3)
+
+    # Website answers were getting truncated with small generation limits.
+    # This value is passed to website_rag_tool; the tool should use it if supported.
+    num_predict = _safe_int(body.get("num_predict"), 350)
+    if num_predict < 100:
+        num_predict = 350
+
+    try:
+        from agentic_ai.tools.website_rag_tool import run as run_website_rag
+
+        result = run_website_rag(
+            user=None,
+            query=question,
+            language=language,
+            params={
+                "limit": limit,
+                "fast": False,
+                "num_predict": num_predict,
+                "same_language": True,
+                "public": True,
+            },
+        )
+
+        ok = bool(result.get("ok", False))
+        matches_count = int(result.get("matches_count") or 0)
+
+        return JsonResponse(
+            {
+                "ok": ok,
+                "answer": result.get("answer") or "",
+                "intent": "public_website_rag",
+                "tool": "website_rag_tool",
+                "source_collection": (
+                    result.get("source_collection")
+                    or result.get("source")
+                    or "buro_website"
+                ),
+                "sources": result.get("sources", []),
+                "matches_count": matches_count,
+                "public": True,
+                "login_required": False,
+                "language": language,
+            },
+            safe=False,
+            status=200 if ok else 502,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": f"Public website RAG error: {e}",
+                "answer": f"Public website RAG error: {e}",
+                "intent": "public_website_rag",
+                "tool": "website_rag_tool",
+                "source_collection": "buro_website",
+                "sources": [],
+                "matches_count": 0,
+                "public": True,
+                "login_required": False,
+                "language": language,
+            },
+            status=502,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+
+def _try_public_website_rag_fallback(
+    request,
+    question: str,
+    body: Optional[Dict[str, Any]] = None,
+    min_matches: int = 1,
+    min_score: float = 0.62,
+) -> Optional[JsonResponse]:
+    """
+    Try BURO website vector DB as a safe fallback.
+
+    Use this only after important internal routes have already had a chance:
+        notice, policy, core, HR, cashflow, customer support, workflow.
+
+    If Qdrant returns at least one source with acceptable score, return Website RAG.
+    Otherwise return None and allow normal routing to continue.
+    """
+    body = body or {}
+
+    response = _handle_public_website_rag(request, question, body)
+
+    try:
+        payload = json.loads(response.content.decode("utf-8"))
+    except Exception:
+        return None
+
+    if not payload.get("ok"):
+        return None
+
+    matches_count = int(payload.get("matches_count") or 0)
+    sources = payload.get("sources") or []
+
+    top_score = 0.0
+    for src in sources:
+        try:
+            top_score = max(top_score, float(src.get("score") or 0.0))
+        except Exception:
+            pass
+
+    if matches_count >= min_matches and sources and top_score >= min_score:
+        return response
+
+    return None
+
+
+# -------------------------
+# Main auto router
+# -------------------------
+@csrf_exempt
+@require_POST
+def auto_ask(request):
+    """
+    Central auto router for chat modules.
+
+    Important routing rule:
+    HR policy questions must be resolved before public website RAG/fallback.
+    Otherwise phrases such as "leave", "grade", "১.৩.১ গ্রেড" may get answered
+    from BURO public website sources instead of the HR policy collection.
+    """
+    body = _json_body(request)
+
+    question = _clean(body.get("question") or body.get("message"))
+    selected_module = _body_module(body)
+
+    if not question:
+        return JsonResponse({"ok": False, "error": "question is required"}, status=400)
+
+    # Email attachment summary router.
+    # Role-based email summary router. It must run before public website RAG.
+    email_summary_response = _try_email_attachment_summary_response(request, question)
+    if email_summary_response is not None:
+        return email_summary_response
+
+    user = getattr(request, "user", None)
+    is_auth = bool(user and user.is_authenticated)
+
+    def _route_policy_question() -> JsonResponse:
+        """
+        Route to HR Policy RAG and force the policy Qdrant collection.
+
+        Do not trust a generic incoming `collection` value here. Some UI flows can
+        carry `collection=buro_website`, which makes policy questions produce
+        public website answers. If an override is ever needed, send
+        `policy_collection`, not `collection`.
+        """
+        if not is_auth:
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        if not _has_group(request.user, "policy"):
+            return _deny_group("policy")
+
+        policy_question = _expand_policy_question_for_retrieval(question)
+
+        _set_json_body(
+            request,
+            {
+                "question": policy_question,
+                "original_question": question,
+                "top_k": body.get("top_k") or 8,
+                "collection": body.get("policy_collection") or CFG.QDRANT_COLLECTION_POLICY,
+                "module": "policy",
+                "route": "policy",
+                "routing_hint": "policy_alias_expanded",
+            },
+        )
+        return policy_ask(request)
+
+    def _route_notice_question() -> JsonResponse:
+        if not is_auth:
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        if not _has_group(request.user, "notice"):
+            return _deny_group("notice")
+
+        _set_json_body(
+            request,
+            {
+                "question": question,
+                "top_k": body.get("top_k"),
+                "module": "notice",
+                "route": "notice",
+            },
+        )
+        return notice_ask(request)
+
+    def _route_core_question() -> JsonResponse:
+        if not is_auth:
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        deny = _deny_auth(request)
+        if deny:
+            return deny
+
+        _set_json_body(
+            request,
+            {
+                "question": question,
+                "top_k": body.get("top_k"),
+                "limit": body.get("limit"),
+                "execute": body.get("execute", True),
+                "pretty": body.get("pretty", True),
+                "debug": body.get("debug", False),
+                "module": "core",
+                "route": "core",
+            },
+        )
+        return core_ask(request)
+
+    def _route_hr_question() -> JsonResponse:
+        if not is_auth:
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        deny = _deny_auth(request)
+        if deny:
+            return deny
+
+        _set_json_body(
+            request,
+            {
+                "question": question,
+                "explain": bool(body.get("explain", False)),
+                "module": "hr",
+                "route": "hr",
+            },
+        )
+        return hr_ask(request)
+
+    def _route_cashflow_question() -> JsonResponse:
+        if not is_auth:
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        deny = _deny_auth(request)
+        if deny:
+            return deny
+
+        from .views_cashflow_router import cashflow_query
+
+        _set_json_body(
+            request,
+            {
+                "q": question,
+                "module": "cashflow",
+                "route": "cashflow",
+            },
+        )
+        return cashflow_query(request)
+
+    def _route_customer_support_question() -> JsonResponse:
+        if not is_auth:
+            return JsonResponse({"ok": False, "error": "Authentication required."}, status=401)
+
+        deny = _deny_auth(request)
+        if deny:
+            return deny
+
+        if not _has_customer_support_access(request.user):
+            return _deny_customer_support()
+
+        return handle_customer_support(request, question)
+
+    # Protected manual website sync command.
+    # Must run before public website RAG because phrases like
+    # "sync buro website" also contain website keywords.
+    if _is_website_sync_request(question):
+        return _handle_website_sync_command(request)
+
+    # Capability list for non-IT users.
+    # No login required. It only explains available modules and permissions.
+    if _is_capability_request(question):
+        return _handle_capability_request(request, question)
+
+    # Explicit module routes. These should be deterministic.
+    if selected_module == "policy":
+        return _route_policy_question()
+
+    if selected_module == "notice":
+        return _route_notice_question()
+
+    if selected_module == "core":
+        return _route_core_question()
+
+    if selected_module == "hr":
+        return _route_hr_question()
+
+    if selected_module == "cashflow":
+        return _route_cashflow_question()
+
+    if selected_module in {"customer_support", "customer", "support", "customer-care", "customer_care"}:
+        return _route_customer_support_question()
+
+    # Cashflow/Zypl routes should still get priority over generic routing.
+    zypl_help_response = _try_zypl_help_response(request, question)
+    if zypl_help_response is not None:
+        return zypl_help_response
+
+    zypl_logs_response = _try_zypl_cashflow_logs_response(request, question)
+    if zypl_logs_response is not None:
+        return zypl_logs_response
+
+    zypl_response = _try_zypl_cashflow_response(request, question)
+    if zypl_response is not None:
+        return zypl_response
+
+    # HR Policy auto-detection MUST run before website RAG/fallback.
+    # This fixes cases like:
+    #   - Tell about leave
+    #   - ১.৩.১ গ্রেড ও পদবিন্যাস
+    #   - transfer policy
+    # which were incorrectly answered from BURO website context.
+    if _looks_like_policy_question(question):
+        return _route_policy_question()
+
+    # Public BURO website RAG.
+    # No login required. Only non-policy website questions should reach this branch.
+    if selected_module in PUBLIC_WEBSITE_MODULES or (
+        selected_module == "auto" and _looks_like_public_website_question(question)
+    ):
+        return _handle_public_website_rag(request, question, body)
+
+    # Auto-detect Customer Support.
+    if selected_module == "auto" and _is_customer_support_question(question):
+        return _route_customer_support_question()
+
+    # Core data questions must go to Core before workflow detection.
+    if selected_module == "auto" and _looks_like_core_data_question(question):
+        return _route_core_question()
+
+    # Workflow handling.
+    if is_auth:
+        session = None
+        session_id = body.get("session_id")
+
+        if session_id is not None:
+            session = ChatSession.objects.filter(id=session_id, user=user).first()
+
+        if not session:
+            session = ChatSession.objects.create(user=user, title="Chat")
+
+        workflow_result = _try_workflow(request, session, question)
+
+        if workflow_result and workflow_result.get("handled"):
+            try:
+                ChatMessage.objects.create(session=session, role="user", content=question)
+                ChatMessage.objects.create(session=session, role="assistant", content=workflow_result["answer"])
+            except Exception:
+                pass
+
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "answer": workflow_result["answer"],
+                    "session_id": session.id,
+                    "workflow_active": workflow_result.get("workflow_active", False),
+                    "workflow_intent": workflow_result.get("workflow_intent"),
+                    "handoff": workflow_result.get("handoff", False),
+                },
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+    # Smalltalk.
+    if _is_smalltalk(question):
+        _set_json_body(
+            request,
+            {
+                "message": question,
+                "session_id": body.get("session_id"),
+            },
+        )
+        return api_chat(request)
+
+    # Notice auto-detection.
+    if _is_notice(question):
+        return _route_notice_question()
+
+    # Public Website Vector fallback.
+    # Runs only after internal policy/notice/core/HR/cashflow/customer-support/workflow
+    # had a chance to route the question. It must never handle policy-looking questions.
+    # Public website fallback is disabled by default to avoid collisions with
+    # internal HR policy clauses such as "৩.৪ শাস্তিমূলক ব্যবস্থা".
+    # Enable only if you explicitly set ENABLE_PUBLIC_WEBSITE_FALLBACK=1.
+    if (
+        selected_module == "auto"
+        and ALLOW_ANON_PUBLIC
+        and _env_bool("ENABLE_PUBLIC_WEBSITE_FALLBACK", False)
+        and _looks_like_public_website_question(question)
+        and not _looks_like_policy_question(question)
+    ):
+        website_fallback = _try_public_website_rag_fallback(
+            request=request,
+            question=question,
+            body={
+                **body,
+                "top_k": body.get("top_k") or 3,
+                "num_predict": body.get("num_predict") or 350,
+            },
+            min_matches=1,
+            min_score=0.62,
+        )
+
+        if website_fallback is not None:
+            return website_fallback
+
+    # Protected route below.
+    deny = _deny_auth(request)
+    if deny:
+        return deny
+
+    # Group-based default routing.
+    route = _first_route_group(request.user)
+
+    if route not in ROUTE_GROUPS:
+        route = "general"
+
+    if route == "general":
+        _set_json_body(
+            request,
+            {
+                "message": question,
+                "session_id": body.get("session_id"),
+            },
+        )
+        return api_chat(request)
+
+    if route == "cashflow":
+        return _route_cashflow_question()
+
+    if route == "core":
+        return _route_core_question()
+
+    if route == "hr":
+        return _route_hr_question()
+
+    zypl_response = _try_zypl_cashflow_response(request, question)
+    if zypl_response is not None:
+        return zypl_response
+
+    zypl_logs_response = _try_zypl_cashflow_logs_response(request, question)
+    if zypl_logs_response is not None:
+        return zypl_logs_response
+
+    zypl_help_response = _try_zypl_help_response(request, question)
+    if zypl_help_response is not None:
+        return zypl_help_response
+
+    if route == "customer_support":
+        return _route_customer_support_question()
+
+    if route == "notice":
+        return _route_notice_question()
+
+    # Final fallback to policy for internal users whose default route is policy.
+    return _route_policy_question()
+
+
+# -------------------------
+# Optional backend health endpoint
+# -------------------------
+def backend_health(request):
+    result: Dict[str, Any] = {
+        "ok": True,
+        "ollama": {
+            "url": CFG.OLLAMA_URL,
+            "ok": False,
+        },
+        "qdrant": {
+            "url": CFG.QDRANT_URL,
+            "ok": False,
+        },
+        "nifi": {
+            "base_url": CFG.NIFI_BASE_URL,
+            "customer_support_url": CFG.NIFI_CUSTOMER_SUPPORT_URL,
+            "core_url": CFG.NIFI_CORE_URL,
+            "cashflow_url": CFG.NIFI_CASHFLOW_URL,
+            "ok": False,
+        },
+    }
+
+    # Ollama
+    try:
+        r = requests.get(f"{CFG.OLLAMA_URL}/api/tags", timeout=5)
+        result["ollama"]["status_code"] = r.status_code
+        result["ollama"]["ok"] = r.status_code < 500
+    except Exception as e:
+        result["ollama"]["error"] = str(e)
+
+    # Qdrant
+    try:
+        headers = {"Accept": "application/json"}
+        if CFG.QDRANT_API_KEY:
+            headers["api-key"] = CFG.QDRANT_API_KEY
+
+        r = requests.get(f"{CFG.QDRANT_URL}/collections", timeout=5, headers=headers)
+        result["qdrant"]["status_code"] = r.status_code
+        result["qdrant"]["ok"] = r.status_code < 500
+    except Exception as e:
+        result["qdrant"]["error"] = str(e)
+
+    # NiFi customer support
+    try:
+        r = requests.get(CFG.NIFI_CUSTOMER_SUPPORT_URL, timeout=5)
+        result["nifi"]["customer_support_status_code"] = r.status_code
+        result["nifi"]["customer_support_ok"] = r.status_code < 500
+    except Exception as e:
+        result["nifi"]["customer_support_error"] = str(e)
+
+    # NiFi core
+    try:
+        r = requests.get(CFG.NIFI_CORE_URL, timeout=5)
+        result["nifi"]["core_status_code"] = r.status_code
+        result["nifi"]["core_ok"] = r.status_code < 500
+    except Exception as e:
+        result["nifi"]["core_error"] = str(e)
+
+    result["nifi"]["ok"] = bool(
+        result["nifi"].get("customer_support_ok")
+        or result["nifi"].get("core_ok")
+    )
+
+    result["ok"] = bool(
+        result["ollama"].get("ok")
+        and result["qdrant"].get("ok")
+    )
+
+    return JsonResponse(result)

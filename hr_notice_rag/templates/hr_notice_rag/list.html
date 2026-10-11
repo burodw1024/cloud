@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HR Notices</title>
+</head>
+<body>
+  <h1>HR Notices</h1>
+  <p><a href="{% url 'hr_notice_rag:upload' %}">Upload new notice</a></p>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <tr>
+      <th>ID</th>
+      <th>Title</th>
+      <th>Notice No</th>
+      <th>Department</th>
+      <th>Date</th>
+      <th>Status</th>
+    </tr>
+    {% for n in notices %}
+    <tr>
+      <td><a href="{% url 'hr_notice_rag:detail' n.pk %}">{{ n.id }}</a></td>
+      <td>{{ n.title }}</td>
+      <td>{{ n.notice_no }}</td>
+      <td>{{ n.department }}</td>
+      <td>{{ n.publish_date }}</td>
+      <td>{{ n.index_status }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">No notices found.</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

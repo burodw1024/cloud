@@ -1,0 +1,188 @@
+
+
+cat > agentic_ai/tools/website_rag_tool.py <<'PY'
+import requests
+
+from chat.dynamic_config import (
+    get_setting,
+    get_qdrant_url,
+    get_ollama_url,
+    qdrant_headers,
+)
+
+
+QDRANT_COLLECTION = get_setting("QDRANT_COLLECTION_WEBSITE", "buro_website")
+OLLAMA_URL = get_ollama_url()
+EMBED_MODEL = get_setting("EMBED_MODEL", get_setting("EMBEDDING_MODEL", "nomic-embed-text"))
+GEN_MODEL = get_setting("GEN_MODEL", "aya-23-8b:q5")
+
+
+def get_embedding(text):
+    resp = requests.post(
+        f"{OLLAMA_URL}/api/embeddings",
+        json={"model": EMBED_MODEL, "prompt": text},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json().get("embedding", [])
+
+
+def search_qdrant(query, limit=5):
+    qdrant_url = get_qdrant_url(check_health=True)
+    vector = get_embedding(query)
+
+    payload = {
+        "vector": vector,
+        "limit": limit,
+        "with_payload": True,
+    }
+
+    resp = requests.post(
+        f"{qdrant_url}/collections/{QDRANT_COLLECTION}/points/search",
+        json=payload,
+        headers=qdrant_headers(),
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def build_context(chunks):
+    lines = []
+
+    for i, item in enumerate(chunks, start=1):
+        title = item.get("title") or "Untitled"
+        url = item.get("url") or ""
+        text = (item.get("text") or "").strip()
+
+        if len(text) > 1200:
+            text = text[:1200]
+
+        lines.append(
+            f"[Source {i}]\n"
+            f"Title: {title}\n"
+            f"URL: {url}\n"
+            f"Content: {text}\n"
+        )
+
+    return "\n\n".join(lines)
+
+
+def generate_answer(query, chunks, language="en"):
+    context = build_context(chunks)
+
+    if language == "bn":
+        prompt = f"""
+আপনি BURO Bangladesh-এর অফিসিয়াল ওয়েবসাইট RAG সহকারী।
+
+নিয়ম:
+১. শুধু নিচের Context থেকে উত্তর দিন।
+২. Context-এ তথ্য না থাকলে বলুন: "প্রদত্ত ওয়েবসাইট তথ্যের মধ্যে এই প্রশ্নের নির্দিষ্ট উত্তর পাওয়া যায়নি।"
+৩. উত্তর সহজ, পেশাদার এবং বাংলায় দিন।
+৪. অপ্রয়োজনীয় বড় লেখা নয়।
+৫. শেষে "উৎস" নামে প্রাসঙ্গিক URL দিন।
+
+প্রশ্ন:
+{query}
+
+Context:
+{context}
+
+বাংলা উত্তর:
+"""
+    else:
+        prompt = f"""
+You are the official BURO Bangladesh website RAG assistant.
+
+Rules:
+1. Answer only from the provided context.
+2. If the answer is not available in the context, say that the specific answer was not found in the provided website information.
+3. Keep the answer professional and concise.
+4. Add source URLs at the end.
+
+Question:
+{query}
+
+Context:
+{context}
+
+Answer:
+"""
+
+    resp = requests.post(
+        f"{OLLAMA_URL}/api/generate",
+        json={
+            "model": GEN_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                "top_p": 0.9,
+            },
+        },
+        timeout=180,
+    )
+    resp.raise_for_status()
+
+    return resp.json().get("response", "").strip()
+
+
+def run(user=None, query="", params=None, language="en", **kwargs):
+    try:
+        limit = (params or {}).get("limit", 5)
+        result = search_qdrant(query, limit=limit)
+
+        chunks = []
+        sources = []
+
+        for item in result.get("result", []):
+            payload = item.get("payload", {}) or {}
+
+            row = {
+                "score": item.get("score"),
+                "title": payload.get("title"),
+                "url": payload.get("url"),
+                "text": payload.get("text") or payload.get("content"),
+            }
+
+            chunks.append(row)
+
+            if row["url"] and row["url"] not in [s["url"] for s in sources]:
+                sources.append({
+                    "title": row["title"],
+                    "url": row["url"],
+                    "score": row["score"],
+                })
+
+        if not chunks:
+            if language == "bn":
+                final_answer = "BURO ওয়েবসাইট RAG collection-এ এই প্রশ্নের প্রাসঙ্গিক তথ্য পাওয়া যায়নি।"
+            else:
+                final_answer = "No relevant information was found in the BURO website RAG collection."
+
+            return {
+                "ok": True,
+                "source": QDRANT_COLLECTION,
+                "answer": final_answer,
+                "sources": [],
+                "matches": [],
+            }
+
+        final_answer = generate_answer(query, chunks, language=language)
+
+        return {
+            "ok": True,
+            "source": QDRANT_COLLECTION,
+            "answer": final_answer,
+            "sources": sources,
+            "matches_count": len(chunks),
+        }
+
+    except Exception as exc:
+        return {
+            "ok": False,
+            "source": QDRANT_COLLECTION,
+            "error": str(exc),
+            "answer": f"Website RAG tool error: {exc}",
+        }
+PY

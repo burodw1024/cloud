@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Qdrant Copy / Restore</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            margin: 0;
+            padding: 30px;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        h1, h2 {
+            margin-top: 0;
+        }
+
+        label {
+            font-weight: 700;
+            display: block;
+            margin-bottom: 7px;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            max-width: 650px;
+            padding: 11px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .row {
+            margin-bottom: 18px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 850px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .muted {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .warning {
+            background: #fff7ed;
+            border-left: 5px solid #f97316;
+            padding: 14px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+
+        .danger {
+            background: #fef2f2;
+            border-left: 5px solid #ef4444;
+            padding: 14px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+
+        .success {
+            background: #ecfdf5;
+            border-left: 5px solid #10b981;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        .error {
+            background: #fef2f2;
+            border-left: 5px solid #ef4444;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        button {
+            background: #1f6feb;
+            color: white;
+            border: 0;
+            padding: 12px 20px;
+            border-radius: 9px;
+            font-size: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #1557ba;
+        }
+
+        code {
+            background: #eef2ff;
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+
+        pre {
+            background: #111827;
+            color: #e5e7eb;
+            padding: 16px;
+            border-radius: 10px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #eef2ff;
+            color: #3730a3;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            margin: 3px;
+        }
+    </style>
+
+    <script>
+        function confirmRun() {
+            const dryRun = document.getElementById("dry_run").checked;
+            const mode = document.getElementById("collection_mode").value;
+            const dst = document.getElementById("dst_url").value;
+            const collection = document.getElementById("collection_name").value;
+
+            if (dryRun) {
+                return confirm("Run DRY RUN only? No data will be changed.");
+            }
+
+            let msg = "This will modify destination Qdrant:\\n" + dst + "\\n\\n";
+
+            if (mode === "all") {
+                msg += "Mode: ALL collections\\n";
+            } else {
+                msg += "Collection: " + collection + "\\n";
+            }
+
+            msg += "\\nAre you sure you want to continue?";
+
+            return confirm(msg);
+        }
+    </script>
+</head>
+<body>
+<div class="container">
+
+    <div class="card">
+        <h1>Qdrant Copy / Restore</h1>
+
+        <p class="muted">
+            Use this tool to copy Qdrant collections from one Qdrant instance to another using snapshots.
+            It can preserve selected destination collections such as <code>customer_support</code>.
+        </p>
+
+        <p class="muted">
+            Your detected role/group:
+            {% if roles %}
+                {% for r in roles %}
+                    <span class="badge">{{ r }}</span>
+                {% endfor %}
+            {% else %}
+                <span class="badge">no group</span>
+            {% endif %}
+        </p>
+
+        <div class="warning">
+            <strong>Recommended:</strong> first run with <strong>Dry Run</strong> enabled.
+            Then uncheck Dry Run only after verifying source, destination, collection name, and preserve list.
+        </div>
+    </div>
+
+    <form method="post" onsubmit="return confirmRun();">
+        {% csrf_token %}
+
+        <div class="card">
+            <h2>Connection Settings</h2>
+
+            <div class="grid">
+                <div class="row">
+                    <label for="src_url">Source Qdrant URL</label>
+                    <input type="text" id="src_url" name="src_url" value="{{ src_url }}">
+                    <p class="muted">Example: <code>http://192.168.1.176:31633</code></p>
+                </div>
+
+                <div class="row">
+                    <label for="dst_url">Destination Qdrant URL</label>
+                    <input type="text" id="dst_url" name="dst_url" value="{{ dst_url }}">
+                    <p class="muted">Example: <code>http://10.50.1.29:31635</code></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Restore Scope</h2>
+
+            <div class="grid">
+                <div class="row">
+                    <label for="collection_mode">Collection Mode</label>
+                    <select id="collection_mode" name="collection_mode">
+                        <option value="single" {% if collection_mode == "single" %}selected{% endif %}>Single collection</option>
+                        <option value="all" {% if collection_mode == "all" %}selected{% endif %}>All source collections</option>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <label for="collection_name">Collection Name</label>
+                    <input type="text" id="collection_name" name="collection_name" value="{{ collection_name }}">
+                    <p class="muted">Used when mode is Single collection. Example: <code>buro_website</code></p>
+                </div>
+            </div>
+
+            <div class="row">
+                <label for="preserve_collections">Preserve Destination Collections</label>
+                <input type="text" id="preserve_collections" name="preserve_collections" value="{{ preserve_collections }}">
+                <p class="muted">Comma-separated. Example: <code>customer_support,hr_notices</code></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Safety Options</h2>
+
+            <div class="row">
+                <label>
+                    <input type="checkbox" id="dry_run" name="dry_run" {% if dry_run %}checked{% endif %}>
+                    Dry Run only
+                </label>
+                <p class="muted">No data will be deleted/restored. Use this first.</p>
+            </div>
+
+            <div class="row">
+                <label>
+                    <input type="checkbox" name="backup_destination" {% if backup_destination %}checked{% endif %}>
+                    Backup destination before restore
+                </label>
+                <p class="muted">Recommended. Destination snapshots will be saved under the work directory.</p>
+            </div>
+
+            <div class="row">
+                <label>
+                    <input type="checkbox" name="delete_before_restore" {% if delete_before_restore %}checked{% endif %}>
+                    Delete destination collection before restore
+                </label>
+                <p class="muted">
+                    For single mode, deletes only the selected destination collection.
+                    For all mode, deletes all destination collections except preserved collections.
+                </p>
+            </div>
+
+            <div class="row">
+                <label>
+                    <input type="checkbox" name="restore_aliases" {% if restore_aliases %}checked{% endif %}>
+                    Restore source aliases
+                </label>
+                <p class="muted">Optional. Use only if you know aliases are needed.</p>
+            </div>
+
+            <div class="danger">
+                <strong>Danger zone:</strong>
+                If Dry Run is unchecked and Delete Before Restore is checked, destination data can be deleted.
+                Keep preserve list correct before running.
+            </div>
+        </div>
+
+        <div class="card">
+            <button type="submit">Run Qdrant Copy / Restore</button>
+        </div>
+    </form>
+
+    {% if error %}
+    <div class="card error">
+        <strong>Error</strong>
+        <pre>{{ error }}</pre>
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <div class="card success">
+        <strong>Result</strong>
+        <pre>{{ result_json }}</pre>
+    </div>
+    {% endif %}
+
+</div>
+</body>
+</html>

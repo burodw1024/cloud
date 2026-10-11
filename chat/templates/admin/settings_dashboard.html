@@ -1,0 +1,193 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}
+System Settings | {{ site_title|default:"Django site admin" }}
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .settings-wrapper {
+        max-width: 1200px;
+    }
+
+    .settings-header {
+        margin-bottom: 20px;
+    }
+
+    .settings-header h1 {
+        margin-bottom: 6px;
+    }
+
+    .settings-help {
+        color: #666;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .settings-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+    }
+
+    .settings-table th,
+    .settings-table td {
+        border-bottom: 1px solid #ddd;
+        padding: 12px;
+        vertical-align: top;
+    }
+
+    .settings-table th {
+        background: #f5f5f5;
+        font-weight: 600;
+        text-align: left;
+    }
+
+    .setting-key {
+        color: #666;
+        font-size: 12px;
+        font-family: monospace;
+        margin-top: 4px;
+    }
+
+    .setting-description {
+        color: #555;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    .setting-source {
+        font-size: 12px;
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 10px;
+        background: #e8e8e8;
+        color: #333;
+    }
+
+    .setting-source.database {
+        background: #dff0d8;
+        color: #2f6627;
+    }
+
+    .setting-source.fallback {
+        background: #fcf8e3;
+        color: #8a6d3b;
+    }
+
+    .settings-input,
+    .settings-select {
+        width: 100%;
+        max-width: 520px;
+        padding: 8px;
+        box-sizing: border-box;
+    }
+
+    .settings-actions {
+        margin-top: 20px;
+    }
+
+    .settings-actions button {
+        padding: 10px 18px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .messages {
+        margin-bottom: 15px;
+    }
+
+    .messages li {
+        padding: 10px;
+        margin-bottom: 8px;
+        border-radius: 4px;
+    }
+</style>
+
+<div class="settings-wrapper">
+
+    <div class="settings-header">
+        <h1>System Settings</h1>
+        <div class="settings-help">
+            Manage runtime URLs, Qdrant collections, NiFi endpoints, and the active Ollama model.
+            Changing <strong>Ollama LLM Model</strong> updates the central model setting for the chat application.
+        </div>
+    </div>
+
+    {% if messages %}
+        <ul class="messagelist">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+                    {{ message }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+
+        <table class="settings-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Setting</th>
+                    <th style="width: 42%;">Value</th>
+                    <th style="width: 10%;">Source</th>
+                    <th style="width: 23%;">Description</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.label }}</strong>
+                            <div class="setting-key">{{ row.key }}</div>
+                        </td>
+
+                        <td>
+                            {% if row.input_type == "select" %}
+                                <select name="{{ row.key }}" class="settings-select">
+                                    {% for choice in row.choices %}
+                                        <option value="{{ choice }}" {% if choice == row.value %}selected{% endif %}>
+                                            {{ choice }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <input
+                                    type="text"
+                                    name="{{ row.key }}"
+                                    value="{{ row.value }}"
+                                    class="settings-input"
+                                >
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <span class="setting-source {% if row.source == 'Database' %}database{% else %}fallback{% endif %}">
+                                {{ row.source }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <div class="setting-description">
+                                {{ row.description }}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="settings-actions">
+            <button type="submit" class="default">
+                Save Settings
+            </button>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

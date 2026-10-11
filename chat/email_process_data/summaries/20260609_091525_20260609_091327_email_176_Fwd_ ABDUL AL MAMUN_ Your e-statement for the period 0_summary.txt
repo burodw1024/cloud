@@ -1,0 +1,117 @@
+Processed Time: 2026-06-09 09:15:25
+Email Subject: Fwd: ABDUL AL MAMUN, Your e-statement for the period 01/04/2026 To 30/04/2026
+Email Sender: John Dalton <johnbangla@gmail.com>
+Attachment File: 20260609_091327_email_176_Fwd_ ABDUL AL MAMUN_ Your e-statement for the period 01_04_2_E-Statement - 00310fc94232-4cce-4227-832d-6e6953e67e76512026 84226 PM-01-04-2026-30-04-2026.pdf
+Attachment SHA256: 2bcd238d1be1a375196c5782f2e127243df64c2556c87a23a4f7d9ce9d03a8b2
+Ollama URL: http://192.168.1.144:31134
+Ollama Model: aya-23-8b:q5
+
+==================== CHARITY / AID VERIFICATION SUMMARY ====================
+
+--- Page 2 ---
+Statement of Account
+SOUTHEAST BANK PLC.
+Corporate Branch
+Name
+Address
+A/C No:
+:
+0031 12200000925
+347/3, WEST DEOBOG NARAYANGANJ
+ABDUL AL MAMUN
+SAVINGS ACCOUNT STAFFA/C Type
+City
+Phone
+Period
+AC Status
+Currency:
+:
+NARAYANGANJ
+8801553080223
+01/04/2026 TO 30/04/2026 01-May-2026  8:42 pmGeneration Date :
+REGULAR
+BDT
+:
+Trans Type Debit CreditDate Cheque No Narration Balance
+Opening Date
+Opening Balance  216.98
+C= Cash, T= Transfer, L= Clearing
+Page 2 of 1BankUltimus
+--- Page 3 ---
+Statement of Account
+SOUTHEAST BANK PLC.
+Corporate Branch
+Name
+Address
+A/C No:
+:
+0031 12200000925
+347/3, WEST DEOBOG NARAYANGANJ
+ABDUL AL MAMUN
+SAVINGS ACCOUNT STAFFA/C Type
+City
+Phone
+Period
+AC Status
+Currency:
+:
+NARAYANGANJ
+8801553080223
+01/04/2026 TO 30/04/2026 01-May-2026  8:42 pmGeneration Date :
+REGULAR
+BDT
+:
+Trans Type Debit CreditDate Cheque No Narration Balance
+Opening Date
+Opening Balance  216.98
+C= Cash, T= Transfer, L= Clearing
+Page 3 of 1BankUltimus
+--- Page 4 ---
+Statement of Account
+SOUTHEAST BANK PLC.
+Corporate Branch
+Name
+Address
+A/C No:
+:
+0031 12200000925
+347/3, WEST DEOBOG NARAYANGANJ
+ABDUL AL MAMUN
+SAVINGS ACCOUNT STAFFA/C Type
+City
+Phone
+Period
+AC Status
+Currency:
+:
+NARAYANGANJ
+8801553080223
+01/04/2026 TO 30/04/2026 01-May-2026  8:42 pmGeneration Date :
+REGULAR
+BDT
+:
+Trans Type Debit CreditDate Cheque No Narration Balance
+Opening Date
+Opening Balance  216.98
+C= Cash, T= Transfer, L= Clearing
+Page 4 of 1BankUltimus
+--- Page 5 ---
+Statement of Account
+SOUTHEAST BANK PLC.
+Corporate Branch
+Name
+Address
+A/C No:
+:
+0031 12200000925
+347/3, WEST DEOBOG NARAYANGANJ
+ABDUL AL MAMUN
+SAVINGS ACCOUNT STAFFA/C Type
+City
+Phone
+Period
+AC Status
+Currency:
+:
+NARAYANGANJ
+88

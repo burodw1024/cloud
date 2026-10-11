@@ -1,0 +1,226 @@
+cat > patch_chat_views_public_website_rag.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /home/mamun/finalapp/app
+
+python3 <<'PY'
+from pathlib import Path
+
+p = Path("chat/views.py")
+text = p.read_text()
+backup = p.with_suffix(".py.bak_public_website_rag")
+backup.write_text(text)
+
+helper_block = r'''
+
+# -------------------------
+# Public BURO website RAG helpers
+# -------------------------
+PUBLIC_WEBSITE_MODULES: Set[str] = {
+    "website",
+    "website_rag",
+    "buro_website",
+    "public_website",
+    "public_website_rag",
+    "buro",
+    "burobd",
+}
+
+
+def _contains_bangla(text: str) -> bool:
+    return any("\u0980" <= ch <= "\u09FF" for ch in (text or ""))
+
+
+def _looks_like_public_website_question(q: str) -> bool:
+    """
+    Detect only public BURO website questions.
+
+    Important:
+    Do NOT use generic words like 'loan', 'branch', 'member', 'balance',
+    or 'outstanding' here, because those may be internal/core/NiFi queries.
+    """
+    ql = (q or "").lower().strip()
+
+    if not ql:
+        return False
+
+    public_website_hints = [
+        "buro bangladesh",
+        "burobd",
+        "buro bd",
+        "about buro",
+        "buro website",
+        "buro service",
+        "buro services",
+        "what services does buro",
+        "what service does buro",
+        "programs and services",
+        "buro loan service",
+        "buro saving scheme",
+        "buro membership",
+        "buro remittance",
+        "buro career",
+        "buro publication",
+        "buro location",
+        "বুরো",
+        "বুরো বাংলাদেশ",
+        "বুরো ওয়েবসাইট",
+        "বুরো ওয়েবসাইট",
+        "বুরোর সেবা",
+        "বুরো কী",
+        "বুরো কি",
+        "বুরো সম্পর্কে",
+        "কী কী সেবা প্রদান করে",
+        "কি কি সেবা প্রদান করে",
+        "সেবা প্রদান করে",
+        "সঞ্চয় স্কিম",
+        "সঞ্চয় স্কিম",
+        "সদস্যপদ",
+    ]
+
+    return any(h in ql for h in public_website_hints)
+
+
+def _safe_int(value: Any, default: int = 5) -> int:
+    try:
+        v = int(value)
+        if v < 1:
+            return default
+        if v > 10:
+            return 10
+        return v
+    except Exception:
+        return default
+
+
+def _handle_public_website_rag(request, question: str, body: Optional[Dict[str, Any]] = None) -> JsonResponse:
+    """
+    Public/no-login BURO website RAG answer.
+
+    This function intentionally calls only website_rag_tool.
+    It must not call:
+    - full agentic orchestrator
+    - NiFi
+    - HR
+    - Core
+    - Customer Support
+    - Email
+    - Teams
+    """
+    body = body or {}
+    language = "bn" if _contains_bangla(question) else "en"
+    limit = _safe_int(body.get("top_k") or body.get("limit"), 5)
+
+    try:
+        from agentic_ai.tools.website_rag_tool import run as run_website_rag
+
+        result = run_website_rag(
+            user=None,
+            query=question,
+            language=language,
+            params={"limit": limit},
+        )
+
+        # Optional audit log. Do not fail the request if logging fails.
+        try:
+            from agentic_ai.audit import write_agent_log
+
+            session_key = None
+            try:
+                session_key = request.session.session_key
+            except Exception:
+                session_key = None
+
+            write_agent_log(
+                user=None,
+                query=question,
+                intent="public_website_rag",
+                tool="website_rag_tool",
+                tool_input={"query": question, "limit": limit},
+                tool_output_summary=str(result)[:2000],
+                final_answer=str(result.get("answer", ""))[:5000],
+                status="success" if result.get("ok") else "failed",
+                risk_level="low",
+                session_id=session_key,
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "ok": result.get("ok", False),
+                "answer": result.get("answer"),
+                "intent": "public_website_rag",
+                "tool": "website_rag_tool",
+                "source_collection": result.get("source"),
+                "sources": result.get("sources", []),
+                "matches_count": result.get("matches_count", 0),
+                "public": True,
+                "login_required": False,
+            },
+            safe=False,
+            status=200 if result.get("ok", False) else 502,
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": f"Public website RAG error: {e}",
+                "intent": "public_website_rag",
+                "tool": "website_rag_tool",
+                "public": True,
+                "login_required": False,
+            },
+            status=502,
+        )
+'''
+
+marker = "# -------------------------\n# Main auto router\n# -------------------------"
+if "def _handle_public_website_rag" not in text:
+    if marker not in text:
+        raise SystemExit("Could not find Main auto router marker.")
+    text = text.replace(marker, helper_block + "\n" + marker)
+    print("Inserted public website RAG helper block.")
+else:
+    print("Public website RAG helper block already exists.")
+
+old = '''    user = getattr(request, "user", None)
+    is_auth = bool(user and user.is_authenticated)
+
+    # Explicit Customer Support module selection
+'''
+new = '''    user = getattr(request, "user", None)
+    is_auth = bool(user and user.is_authenticated)
+
+    # Public BURO website RAG.
+    # No login required.
+    # This branch is intentionally placed before protected module routing.
+    # It only calls website_rag_tool and never calls NiFi/HR/Core/Email/Teams.
+    if selected_module in PUBLIC_WEBSITE_MODULES or (
+        selected_module == "auto" and _looks_like_public_website_question(question)
+    ):
+        return _handle_public_website_rag(request, question, body)
+
+    # Explicit Customer Support module selection
+'''
+
+if "Public BURO website RAG." not in text:
+    if old not in text:
+        raise SystemExit("Could not find auto_ask user/is_auth block.")
+    text = text.replace(old, new, 1)
+    print("Inserted public website RAG branch in auto_ask.")
+else:
+    print("Public website RAG branch already exists in auto_ask.")
+
+p.write_text(text)
+print(f"Updated {p}")
+print(f"Backup saved to {backup}")
+PY
+
+echo "Patch completed."
+EOF
+
+chmod +x patch_chat_views_public_website_rag.sh
+./patch_chat_views_public_website_rag.sh

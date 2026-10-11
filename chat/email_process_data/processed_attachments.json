@@ -1,0 +1,102 @@
+{
+  "982e424ab157ce0484b47ba3a8c9338e8425026119bd85865402a3efa1c3470f": {
+    "processed_time": "2026-06-09 08:41:37",
+    "email_id": "169",
+    "email_subject": "attachment",
+    "email_sender": "mydw <burodw1024@gmail.com>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260609_083241_email_169_attachment_ছাগল সহায়তা পাওয়ার জন্য আবেদনকারীর তথ্য.docx",
+    "summary_file": "email_process_data/summaries/20260609_084137_20260609_083241_email_169_attachment_ছাগল সহায়তা পাওয়ার জন্য আবেদনকারীর তথ্য_summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260609_084137_20260609_083241_email_169_attachment_ছাগল সহায়তা পাওয়ার জন্য আবেদনকারীর তথ্য_summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "53754a499d46b3f64699f5bf778aed1d43f9ea62af17658f999781c9e2b56d3a": {
+    "processed_time": "2026-06-09 08:47:49",
+    "email_id": "174",
+    "email_subject": "file",
+    "email_sender": "mydw <burodw1024@gmail.com>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260609_084544_email_174_file_ANALYTICAL REPORT COLLECTION-EFFICIENCY-F.docx",
+    "summary_file": "email_process_data/summaries/20260609_084749_20260609_084544_email_174_file_ANALYTICAL REPORT COLLECTION-EFFICIENCY-F_summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260609_084749_20260609_084544_email_174_file_ANALYTICAL REPORT COLLECTION-EFFICIENCY-F_summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "2bcd238d1be1a375196c5782f2e127243df64c2556c87a23a4f7d9ce9d03a8b2": {
+    "processed_time": "2026-06-09 09:15:25",
+    "email_id": "176",
+    "email_subject": "Fwd: ABDUL AL MAMUN, Your e-statement for the period 01/04/2026 To 30/04/2026",
+    "email_sender": "John Dalton <johnbangla@gmail.com>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260609_091327_email_176_Fwd_ ABDUL AL MAMUN_ Your e-statement for the period 01_04_2_E-Statement - 00310fc94232-4cce-4227-832d-6e6953e67e76512026 84226 PM-01-04-2026-30-04-2026.pdf",
+    "summary_file": "email_process_data/summaries/20260609_091525_20260609_091327_email_176_Fwd_ ABDUL AL MAMUN_ Your e-statement for the period 0_summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260609_091525_20260609_091327_email_176_Fwd_ ABDUL AL MAMUN_ Your e-statement for the period 0_summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "41af8fb4635cdbd154e20f683d26e59d1d809f1344b6179cf1b6dd06995e0f42": {
+    "processed_time": "2026-06-09 09:28:37",
+    "email_id": "177",
+    "email_subject": "msg",
+    "email_sender": "kamrul ahasan <kkahasanburobd@gmail.com>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260609_092609_email_177_msg_High Level Technical Specifications _1_.docx",
+    "summary_file": "email_process_data/summaries/20260609_092837_20260609_092609_email_177_msg_High Level Technical Specifications _1__summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260609_092837_20260609_092609_email_177_msg_High Level Technical Specifications _1__summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "9487012be6d5e0c1c9f34f310748071267f80ec321882718c9f4430ac78359f7": {
+    "processed_time": "2026-06-11 05:14:54",
+    "email_id": "181",
+    "email_subject": "New Email",
+    "email_sender": "Abdul Al Mamun <mamun.it@burobd.org>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentation.pptx",
+    "extraction_file": "email_process_data/converted_pdfs/20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentat_9487012be6d5.pdf",
+    "conversion_method": "gotenberg_to_pdf",
+    "gotenberg_url": "http://192.168.1.136:31164",
+    "summary_file": "email_process_data/summaries/20260611_051454_20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentat_summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260611_051454_20260611_050432_email_181_New Email_Enterprise_AI_Assistant_Management_Presentat_summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "3af6b4df4d5dd2f66ccfdaf9573fc77f49ead66311874353fff12d5a18a9563c": {
+    "processed_time": "2026-06-16 07:40:07",
+    "email_id": "191",
+    "email_subject": "ppt ",
+    "email_sender": "Abdul Al Mamun <mamun.it@burobd.org>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation.pptx",
+    "extraction_file": "email_process_data/converted_pdfs/20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation_3af6b4df4d5d.pdf",
+    "conversion_method": "gotenberg_to_pdf",
+    "gotenberg_url": "http://192.168.1.136:31164",
+    "summary_file": "email_process_data/summaries/20260616_074007_20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation_summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260616_074007_20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation_summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "7b7ca0f1ceba036a036176433b8f39396f4a2e17eb1879614772d35c68c4c98e": {
+    "processed_time": "2026-06-16 08:06:56",
+    "email_id": "192",
+    "email_subject": "sohel bhai",
+    "email_sender": "Sohel Parvez <Sohel@burobd.org>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260616_080356_email_192_sohel bhai_PF April 2026 _1_.xlsx",
+    "extraction_file": "email_process_data/converted_pdfs/20260616_080356_email_192_sohel bhai_PF April 2026 _1__7b7ca0f1ceba.pdf",
+    "conversion_method": "gotenberg_to_pdf",
+    "gotenberg_url": "http://192.168.1.136:31164",
+    "summary_file": "email_process_data/summaries/20260616_080656_20260616_080356_email_192_sohel bhai_PF April 2026 _1__summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260616_080656_20260616_080356_email_192_sohel bhai_PF April 2026 _1__summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  },
+  "577a39c42b218c47203943a280dd6ba515985095d9a5386a8653675fb381d172": {
+    "processed_time": "2026-06-24 05:35:31",
+    "email_id": "200",
+    "email_subject": "Emailing DOC-20260608-WA0031..pdf",
+    "email_sender": "Abiduzzaman Abid <itisabidss@gmail.com>",
+    "attachment_file": "email_process_data/downloaded_attachments/20260624_052439_email_200_Emailing DOC-20260608-WA0031..pdf_DOC-20260608-WA0031..pdf",
+    "extraction_file": "email_process_data/downloaded_attachments/20260624_052439_email_200_Emailing DOC-20260608-WA0031..pdf_DOC-20260608-WA0031..pdf",
+    "conversion_method": "direct_pdf",
+    "gotenberg_url": "http://192.168.1.136:31164",
+    "summary_file": "email_process_data/summaries/20260624_053531_20260624_052439_email_200_Emailing DOC-20260608-WA0031..pdf_DOC-20260608-WA0031._summary.txt",
+    "summary_json_file": "email_process_data/summaries_json/20260624_053531_20260624_052439_email_200_Emailing DOC-20260608-WA0031..pdf_DOC-20260608-WA0031._summary.json",
+    "ollama_url": "http://192.168.1.144:31134",
+    "ollama_model": "aya-23-8b:q5"
+  }
+}

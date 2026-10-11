@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">BURO Enterprise AI Admin</a>
+</h1>
+{% endblock %}
+
+{% block nav-global %}
+<div style="
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-left: 20px;
+    flex-wrap: wrap;
+">
+    <a href="/admin-tools/website-sync/"
+       style="background:#1f6feb;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">
+        Website Sync
+    </a>
+
+    <a href="/admin-tools/qdrant-copy-restore/"
+       style="background:#dc2626;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">
+        Qdrant Copy / Restore
+    </a>
+
+    <a href="/admin-tools/qdrant/"
+       style="background:#374151;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">
+        Qdrant Tools
+    </a>
+
+
+ 
+  <a href="/upload" style="background:#374151;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;"         >Upload JSONL       </a>
+  <a href="/admin-tools/policy-topics/" style="background:#374151;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">Policy Topics</a>
+  <a href="/hr-notices/" style="background:#374151;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">HR Notice List</a>
+
+
+
+
+<p style="margin:8px 0 0 0;font-size:14px;">
+  <a href="/admin-tools/settings/" style="background:#374151;color:#fff;padding:7px 12px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">URL Settings</a>
+</p>
+
+
+</div>
+{% endblock %}

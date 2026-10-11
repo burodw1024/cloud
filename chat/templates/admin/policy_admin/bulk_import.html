@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Bulk Import Topics (JSONL)</h1>
+
+{% if msg %}
+  <p style="color: green;">{{ msg }}</p>
+{% endif %}
+
+{% if err %}
+  <p style="color: red;">{{ err }}</p>
+{% endif %}
+
+<form method="post" action="">
+  {% csrf_token %}
+
+  <p>Paste JSONL below. One JSON object per line.</p>
+
+  <textarea name="jsonl_text" rows="20" style="width:100%;" placeholder='{"topic_id":"policy_1","text":"example"}'></textarea>
+
+  <br><br>
+  <button type="submit" class="button">Import JSONL</button>
+  <a class="button" href="{% url 'policy_topics_list' %}">Back</a>
+</form>
+
+{% if report %}
+  <hr>
+  <h3>Import Report</h3>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <tr>
+      <th>Line</th>
+      <th>Topic ID</th>
+      <th>Status</th>
+      <th>Error</th>
+    </tr>
+    {% for r in report %}
+      <tr>
+        <td>{{ r.line }}</td>
+        <td>{{ r.topic_id|default:"-" }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.error|default:"" }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+{% endif %}
+
+{% endblock %}

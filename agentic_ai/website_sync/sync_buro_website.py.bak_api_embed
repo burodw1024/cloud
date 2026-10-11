@@ -1,0 +1,124 @@
+import hashlib
+import uuid
+from datetime import datetime, timezone
+
+import requests
+
+from chat.dynamic_config import (
+    get_setting,
+    get_int_setting,
+    get_qdrant_url,
+    get_ollama_url,
+    qdrant_headers,
+)
+
+from .crawler import crawl_site
+from .chunker import chunk_text
+
+
+START_URL = get_setting("BURO_WEBSITE_START_URL", "https://www.burobd.org/")
+QDRANT_COLLECTION = get_setting("QDRANT_COLLECTION_WEBSITE", "buro_website")
+OLLAMA_URL = get_ollama_url()
+EMBED_MODEL = get_setting("EMBED_MODEL", get_setting("EMBEDDING_MODEL", "nomic-embed-text"))
+VECTOR_SIZE = get_int_setting("QDRANT_VECTOR_SIZE", 768)
+
+
+def ensure_collection():
+    qdrant_url = get_qdrant_url(check_health=True)
+    url = f"{qdrant_url}/collections/{QDRANT_COLLECTION}"
+
+    resp = requests.get(url, headers=qdrant_headers(), timeout=30)
+    if resp.status_code == 200:
+        return
+
+    payload = {
+        "vectors": {
+            "size": VECTOR_SIZE,
+            "distance": "Cosine",
+        }
+    }
+
+    resp = requests.put(url, json=payload, headers=qdrant_headers(), timeout=60)
+    resp.raise_for_status()
+
+
+def get_embedding(text):
+    resp = requests.post(
+        f"{OLLAMA_URL}/api/embeddings",
+        json={"model": EMBED_MODEL, "prompt": text},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["embedding"]
+
+
+def make_point_id(url, idx):
+    raw = f"{url}-{idx}".encode("utf-8")
+    return str(uuid.UUID(hashlib.md5(raw).hexdigest()))
+
+
+def upsert_points(points):
+    qdrant_url = get_qdrant_url(check_health=True)
+
+    resp = requests.put(
+        f"{qdrant_url}/collections/{QDRANT_COLLECTION}/points?wait=true",
+        json={"points": points},
+        headers=qdrant_headers(),
+        timeout=120,
+    )
+    resp.raise_for_status()
+
+
+def sync():
+    ensure_collection()
+
+    pages = crawl_site(
+        START_URL,
+        max_pages=get_int_setting("BURO_WEBSITE_MAX_PAGES", 150),
+        max_depth=get_int_setting("BURO_WEBSITE_MAX_DEPTH", 3),
+    )
+
+    points = []
+    synced_at = datetime.now(timezone.utc).isoformat()
+
+    for page in pages:
+        chunks = chunk_text(page["text"])
+
+        for idx, chunk in enumerate(chunks):
+            if len(chunk.strip()) < 80:
+                continue
+
+            vector = get_embedding(chunk)
+
+            points.append({
+                "id": make_point_id(page["url"], idx),
+                "vector": vector,
+                "payload": {
+                    "source_type": "website",
+                    "domain": "burobd.org",
+                    "url": page["url"],
+                    "title": page["title"],
+                    "chunk_index": idx,
+                    "text": chunk,
+                    "content_hash": hashlib.sha256(chunk.encode("utf-8")).hexdigest(),
+                    "last_synced_at": synced_at,
+                },
+            })
+
+            if len(points) >= 50:
+                upsert_points(points)
+                points = []
+
+    if points:
+        upsert_points(points)
+
+    return {
+        "status": "done",
+        "pages": len(pages),
+        "collection": QDRANT_COLLECTION,
+        "start_url": START_URL,
+    }
+
+
+if __name__ == "__main__":
+    print(sync())

@@ -1,0 +1,8 @@
+{% extends "admin/base.html" %}
+
+{% block branding %}
+  {{ block.super }}
+  <span style="margin-left:12px; font-size:13px;">
+    | <a href="{% url 'admin:ai_tools' %}">AI Tools</a>
+  </span>
+{% endblock %}

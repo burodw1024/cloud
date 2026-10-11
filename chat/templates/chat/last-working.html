@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Private LLM + RAG</title>
+
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#0f1621; --panel2:#111823;
+      --border:#1e2a3a; --border2:#22324a;
+      --text:#e6edf3; --muted:#9fb0c3;
+      --blue:#0b5cff; --blue2:#1d4ed8;
+      --danger:#ef4444; --ok:#22c55e;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box;}
+    body{margin:0; font-family:Arial, sans-serif; background:var(--bg); color:var(--text);}
+
+    .app{display:grid; grid-template-columns: 1fr; height:100dvh;}
+    .main{display:flex; flex-direction:column; height:100dvh;}
+
+    header{
+      padding:12px 14px;
+      background:var(--panel2);
+      border-bottom:1px solid var(--border);
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      position:sticky; top:0; z-index:20;
+    }
+    header .title{display:flex; align-items:baseline; gap:10px; flex:1; min-width:240px;}
+    header .title strong{font-size:14px;}
+    header .title span{font-size:12px; color:var(--muted);}
+
+    .toggle{display:flex; gap:8px; align-items:center; font-size:13px; color:var(--muted);}
+    .pill{
+      padding:6px 10px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+      background:#0b0f14;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+      text-decoration:none;
+    }
+    .pill:hover{border-color:#314159;}
+
+    .statusDot{
+      width:10px; height:10px; border-radius:50%;
+      display:inline-block; border:1px solid var(--border);
+      background:#3b4453;
+    }
+    .statusDot.ok{background:var(--ok);}
+    .statusDot.bad{background:var(--danger);}
+
+    select{
+      background:#0b0f14; color:var(--text);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:8px 10px;
+      font-size:13px;
+      min-height:40px;
+    }
+
+    .wrap{
+      max-width:1000px;
+      width:100%;
+      margin:0 auto;
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      flex:1;
+      overflow:hidden;
+    }
+    .chatbox{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:18px;
+      flex:1;
+      overflow:auto;
+      padding:14px;
+      -webkit-overflow-scrolling: touch;
+      box-shadow: var(--shadow);
+    }
+    .msg{margin:12px 0; display:flex; gap:10px;}
+    .msg.user{justify-content:flex-end;}
+    .avatar{
+      width:32px; height:32px; border-radius:50%;
+      border:1px solid var(--border);
+      background:#0b0f14;
+      display:flex; align-items:center; justify-content:center;
+      font-size:12px; color:var(--muted);
+      flex:0 0 auto;
+    }
+    .bubbleWrap{max-width: 86%;}
+    .bubble{
+      padding:12px 12px;
+      border-radius:14px;
+      white-space:pre-wrap;
+      line-height:1.45;
+      word-break:break-word;
+      font-size:14px;
+    }
+    .user .bubble{background:var(--blue2);}
+    .assistant .bubble{background:#152235; border:1px solid var(--border2);}
+    .meta{margin-top:6px; font-size:11px; color:var(--muted); display:flex; gap:8px; align-items:center;}
+
+    .composer{display:flex; flex-direction:column; gap:10px;}
+    .inputRow{
+      display:flex;
+      gap:10px;
+      align-items:stretch;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:10px;
+      box-shadow: var(--shadow);
+    }
+    textarea{
+      flex:1;
+      resize:none;
+      min-height:48px;
+      max-height:160px;
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:#0b0f14;
+      color:var(--text);
+      font-size:14px;
+      outline:none;
+    }
+    textarea:focus{border-color:#33507a;}
+
+    .iconBtn{
+      width:44px; min-width:44px; padding:0;
+      display:inline-flex; align-items:center; justify-content:center;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:#0b0f14;
+      cursor:pointer;
+    }
+    .iconBtn:hover{border-color:#314159;}
+    .iconBtn svg{width:18px; height:18px; fill:var(--text); opacity:.9;}
+
+    .btnRow{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .btn{
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:var(--blue);
+      color:white;
+      font-weight:900;
+      cursor:pointer;
+      padding:10px 12px;
+      min-height:42px;
+      font-size:13px;
+    }
+    .btn.secondary{background:#0b0f14;}
+    .btn:disabled{opacity:.6; cursor:not-allowed;}
+
+    .btnDanger{background:#2a0b0b; border-color:#4b1111;}
+    .hint{color:var(--muted); font-size:12px; margin:0; line-height:1.4;}
+
+    .detailsWrap{ margin-top:10px; }
+    .detailsBtn{
+      background:#0b0f14;
+      border:1px solid var(--border);
+      color:var(--text);
+      font-weight:900;
+      font-size:13px;
+      padding:8px 10px;
+      border-radius:12px;
+      cursor:pointer;
+    }
+    .detailsPanel{
+      display:none;
+      margin-top:8px;
+      padding:10px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:#0b0f14;
+      overflow-x:auto;
+    }
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    th, td{padding:6px; border-bottom:1px solid #182233; vertical-align:top;}
+    th{border-bottom:1px solid var(--border); color:var(--muted); font-weight:900;}
+    pre{white-space:pre-wrap; word-break:break-word; margin:10px 0 0; font-size:12px; color:var(--muted);}
+
+    @media (max-width: 980px){
+      .bubbleWrap{max-width: 92%;}
+    }
+
+    .authArea{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-left:auto;
+    }
+    .userPill{
+      color: var(--text);
+      border-color: var(--border2);
+      background: #0b0f14;
+      font-weight: 800;
+    }
+    .linkPill{
+      cursor:pointer;
+      font-weight:900;
+    }
+    .linkPill:hover{
+      border-color:#314159;
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <main class="main">
+    <header>
+      <div class="title">
+        <strong>Buro On-Prem Private LLM + RAG</strong>
+        <span class="pill">Use: /api/auto/ask</span>
+      </div>
+
+      <div class="authArea">
+        {% if request.user.is_authenticated %}
+          <span class="pill userPill" title="Logged in user">
+            <span class="statusDot ok"></span>
+            {{ request.user.username }}
+          </span>
+          <a class="pill linkPill" href="/logout/">Logout</a>
+        {% else %}
+          <a class="pill linkPill" href="/login/">Login</a>
+        {% endif %}
+      </div>
+
+      <div class="toggle">
+        <span class="pill" id="modePill">Docs mode: RAG</span>
+        <label><input type="checkbox" id="modeToggle" checked /> Use Qdrant for policy/docs</label>
+      </div>
+
+      <span class="pill" id="memPill" title="Server session id (short-term memory thread)">
+        Session: <span id="sessionText">—</span>
+      </span>
+
+      <span class="pill" id="filePill" title="Active uploaded file id">
+        File: <span id="fileText">—</span>
+      </span>
+
+      <span class="pill" id="micPill">
+        <span class="statusDot" id="micDot"></span>
+        Mic: <span id="micState">Checking…</span>
+      </span>
+
+      <label class="toggle">
+        Mic language
+        <select id="micLang">
+          <option value="bn-BD" selected>বাংলা (bn-BD)</option>
+          <option value="en-US">English (en-US)</option>
+        </select>
+      </label>
+    </header>
+
+    <div class="wrap">
+      <div id="chatbox" class="chatbox"></div>
+
+      <div class="composer">
+        <div class="inputRow">
+          <textarea id="input" placeholder="Type… (Enter=Send, Shift+Enter=New line)
+Tip: After upload, ask: 'Summarize this document'"></textarea>
+
+          <input id="fileInput" type="file" style="display:none"
+                 accept=".pdf,.doc,.docx,.txt,.json,.png,.jpg,.jpeg" />
+
+          <button id="uploadBtn" class="iconBtn" title="Upload file" aria-label="Upload file">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16.5 6.5l-7.9 7.9a3 3 0 0 0 4.2 4.2l8-8a5 5 0 0 0-7.1-7.1l-8 8a7 7 0 0 0 9.9 9.9l6.6-6.6a1 1 0 1 0-1.4-1.4l-6.6 6.6a5 5 0 1 1-7.1-7.1l8-8a3 3 0 0 1 4.2 4.2l-8 8a1 1 0 1 1-1.4-1.4l7.9-7.9a1 1 0 0 0-1.4-1.4z"/>
+            </svg>
+          </button>
+
+          <button id="micBtn" class="iconBtn" title="Voice input" aria-label="Voice input">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 0 1 2 0 7 7 0 0 1-6 6.93V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="btnRow">
+          <button class="btn" id="sendBtn">Send</button>
+          <button class="btn secondary" id="stopBtn" disabled>Stop</button>
+          <button class="btn secondary" id="clearBtn">Clear Chat</button>
+          <button class="btn secondary" id="clearFileBtn">Clear File</button>
+          <span class="hint">If a file is active, your question goes to /api/doc/ask automatically.</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const ASK_URL = "/api/auto/ask";   // normal router
+  const DOC_URL = "/api/doc/ask";    // document-only endpoint
+  const UPLOAD_URL = "/api/files/upload";
+
+  const chatbox = document.getElementById("chatbox");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const clearFileBtn = document.getElementById("clearFileBtn");
+  const modeToggle = document.getElementById("modeToggle");
+  const modePill = document.getElementById("modePill");
+  const sessionText = document.getElementById("sessionText");
+  const fileText = document.getElementById("fileText");
+
+  const micBtn = document.getElementById("micBtn");
+  const micState = document.getElementById("micState");
+  const micDot = document.getElementById("micDot");
+  const micLang = document.getElementById("micLang");
+
+  const uploadBtn = document.getElementById("uploadBtn");
+  const fileInput = document.getElementById("fileInput");
+
+  let abortCtl = null;
+
+  // ✅ STM session
+  let sessionId = null;
+
+  // ✅ active uploaded file token (uuid or db id)
+  let currentFileId = null;
+
+  function nowTime(){
+    const d = new Date();
+    return d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  }
+
+  function autosize() {
+    input.style.height = "48px";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  }
+  input.addEventListener("input", autosize);
+
+  function addMessage(role, content) {
+    const row = document.createElement("div");
+    row.className = "msg " + role;
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    avatar.textContent = role === "user" ? "You" : "AI";
+
+    const bubbleWrap = document.createElement("div");
+    bubbleWrap.className = "bubbleWrap";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = content;
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = nowTime();
+
+    if(role === "user"){
+      row.appendChild(bubbleWrap);
+      bubbleWrap.appendChild(bubble);
+      bubbleWrap.appendChild(meta);
+      row.appendChild(avatar);
+    }else{
+      row.appendChild(avatar);
+      row.appendChild(bubbleWrap);
+      bubbleWrap.appendChild(bubble);
+      bubbleWrap.appendChild(meta);
+    }
+
+    chatbox.appendChild(row);
+    chatbox.scrollTop = chatbox.scrollHeight;
+    return bubble;
+  }
+
+  function renderDetails(afterBubble, data){
+    const wrap = document.createElement("div");
+    wrap.className = "detailsWrap";
+
+    const btn = document.createElement("button");
+    btn.className = "detailsBtn";
+    btn.textContent = "Show details";
+
+    const panel = document.createElement("div");
+    panel.className = "detailsPanel";
+
+    btn.onclick = () => {
+      const open = panel.style.display === "block";
+      panel.style.display = open ? "none" : "block";
+      btn.textContent = open ? "Show details" : "Hide details";
+    };
+
+    // Some endpoints return result/sql/plan
+    if (Array.isArray(data.result) && data.result.length) {
+      const cols = Object.keys(data.result[0] || {});
+      const table = document.createElement("table");
+
+      const thead = document.createElement("thead");
+      const hr = document.createElement("tr");
+      cols.forEach(c=>{
+        const th = document.createElement("th");
+        th.textContent = c;
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      const tb = document.createElement("tbody");
+      data.result.forEach(row=>{
+        const tr = document.createElement("tr");
+        cols.forEach(c=>{
+          const td = document.createElement("td");
+          td.textContent = (row[c] === null || row[c] === undefined) ? "" : String(row[c]);
+          tr.appendChild(td);
+        });
+        tb.appendChild(tr);
+      });
+      table.appendChild(tb);
+      panel.appendChild(table);
+    }
+
+    if (typeof data.sql === "string" && data.sql.trim()) {
+      const pre = document.createElement("pre");
+      pre.textContent = "SQL:\n" + data.sql;
+      panel.appendChild(pre);
+    }
+
+    if (data.plan && typeof data.plan === "object") {
+      const pre2 = document.createElement("pre");
+      pre2.textContent = "Plan (debug):\n" + JSON.stringify(data.plan, null, 2);
+      panel.appendChild(pre2);
+    }
+
+    if (typeof data.raw === "string" && data.raw.trim()) {
+      const pre3 = document.createElement("pre");
+      pre3.textContent = "Raw:\n" + data.raw.slice(0, 1200);
+      panel.appendChild(pre3);
+    }
+
+    wrap.appendChild(btn);
+    wrap.appendChild(panel);
+    afterBubble.appendChild(wrap);
+  }
+
+  function updateModeLabel() {
+    modePill.textContent = modeToggle.checked ? "Docs mode: RAG" : "Docs mode: LLM";
+  }
+  modeToggle.addEventListener("change", updateModeLabel);
+  updateModeLabel();
+
+  function setSessionPill() {
+    sessionText.textContent = sessionId ? String(sessionId) : "—";
+  }
+  function setFilePill() {
+    fileText.textContent = currentFileId ? String(currentFileId) : "—";
+  }
+  setSessionPill();
+  setFilePill();
+
+  stopBtn.addEventListener("click", () => {
+    if (abortCtl) { abortCtl.abort(); abortCtl = null; }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    sessionId = null;
+    setSessionPill();
+    chatbox.innerHTML = "";
+    addMessage("assistant", "Cleared chat. Upload a file then ask: “Summarize this document”.");
+  });
+
+  clearFileBtn.addEventListener("click", () => {
+    currentFileId = null;
+    setFilePill();
+    addMessage("assistant", "Cleared active file. Upload again to use document mode.");
+  });
+
+  // Upload
+  uploadBtn.addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+
+    addMessage("user", "📎 Uploading: " + f.name);
+    const bubble = addMessage("assistant", "Uploading...");
+
+    try{
+      const fd = new FormData();
+      fd.append("file", f);
+
+      const resp = await fetch(UPLOAD_URL, { method:"POST", body: fd });
+
+      // ✅ robust parse (show real backend error)
+      const raw = await resp.text();
+      let data = {};
+      try { data = JSON.parse(raw || "{}"); } catch(e){ data = { raw }; }
+
+      if(!resp.ok){
+        const msg = (data && data.error) ? data.error : ("HTTP " + resp.status + " " + resp.statusText + "\n" + raw.slice(0, 600));
+        throw new Error(msg);
+      }
+
+      // ✅ store file token
+      currentFileId = data.file_id || null;
+      setFilePill();
+
+      bubble.textContent =
+        "✅ Uploaded: " + (data.filename || f.name) + "\n" +
+        "File ID: " + (currentFileId || "(not returned)") + "\n" +
+        "Now ask: “Summarize this document”";
+
+    }catch(err){
+      bubble.textContent = "Upload error: " + ((err && err.message) ? err.message : String(err));
+    }finally{
+      fileInput.value = "";
+    }
+  });
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = "";
+    autosize();
+    sendBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    addMessage("user", text);
+    const thinkingBubble = addMessage("assistant", "Thinking...");
+
+    abortCtl = new AbortController();
+
+    try {
+      const usingDoc = !!currentFileId;
+      const urlToUse = usingDoc ? DOC_URL : ASK_URL;
+
+      const body = usingDoc
+        ? { question: text, file_id: currentFileId }   // ✅ doc endpoint expects this
+        : {
+            question: text,
+            session_id: sessionId,
+            file_id: currentFileId,
+            want_rag: !!modeToggle.checked,
+            top_k: 6,
+            explain: true
+          };
+
+      const resp = await fetch(urlToUse, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(body),
+        signal: abortCtl.signal
+      });
+
+      // ✅ robust parse (fixes "Request failed" hiding real errors)
+      const raw = await resp.text();
+      let data = {};
+      try { data = JSON.parse(raw || "{}"); } catch(e){ data = { raw }; }
+
+      if (!resp.ok) {
+        const msg = (data && data.error) ? data.error : ("HTTP " + resp.status + " " + resp.statusText + "\n" + raw.slice(0, 800));
+        throw new Error(msg);
+      }
+
+      // Keep session id only for normal chat router
+      if (!usingDoc && data.session_id) {
+        sessionId = data.session_id;
+        setSessionPill();
+      }
+
+      const textOut =
+        (typeof data.answer_human === "string" && data.answer_human.trim()) ? data.answer_human :
+        (typeof data.answer === "string" && data.answer.trim()) ? data.answer :
+        (typeof data.explanation === "string" && data.explanation.trim()) ? data.explanation :
+        (typeof data.answer_pretty === "string" && data.answer_pretty.trim()) ? data.answer_pretty :
+        JSON.stringify(data, null, 2);
+
+      thinkingBubble.textContent = textOut;
+
+      // Show details if available
+      if (data && (data.result || data.sql || data.plan || data.raw)) {
+        renderDetails(thinkingBubble, data);
+      }
+
+    } catch (err) {
+      if (err && err.name === "AbortError") thinkingBubble.textContent = "Stopped.";
+      else thinkingBubble.textContent = "Error: " + ((err && err.message) ? err.message : String(err));
+    } finally {
+      sendBtn.disabled = false;
+      stopBtn.disabled = true;
+      abortCtl = null;
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener("click", sendMessage);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // Mic
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizer = null;
+  let listening = false;
+
+  function setMicUI(stateText, ok) {
+    micState.textContent = stateText;
+    micDot.className = "statusDot " + (ok ? "ok" : "bad");
+  }
+
+  function secureContextHint() {
+    const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    const isHttps = location.protocol === "https:";
+    return (isHttps || isLocalhost);
+  }
+
+  async function initMic() {
+    micBtn.disabled = true;
+
+    if (!SpeechRecognition) {
+      setMicUI("Not supported", false);
+      micBtn.disabled = true;
+      return;
+    }
+
+    if (!secureContextHint()) {
+      setMicUI("Blocked (need HTTPS/localhost)", false);
+      micBtn.disabled = false;
+      return;
+    }
+
+    setMicUI("Ready", true);
+    micBtn.disabled = false;
+
+    recognizer = new SpeechRecognition();
+    recognizer.interimResults = true;
+    recognizer.continuous = false;
+    recognizer.lang = micLang.value;
+
+    recognizer.onstart = () => {
+      listening = true;
+      setMicUI("Listening…", true);
+      micBtn.classList.add("btnDanger");
+    };
+    recognizer.onend = () => {
+      listening = false;
+      setMicUI("Ready", true);
+      micBtn.classList.remove("btnDanger");
+    };
+    recognizer.onerror = (ev) => {
+      setMicUI("Error: " + (ev.error || "unknown"), false);
+      micBtn.classList.remove("btnDanger");
+      listening = false;
+    };
+    recognizer.onresult = (event) => {
+      let finalText = "";
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += transcript;
+        else interim += transcript;
+      }
+      const combined = (finalText || interim).trim();
+      if (!combined) return;
+
+      const current = input.value.trim();
+      input.value = (current ? (current + " ") : "") + combined;
+      autosize();
+    };
+  }
+
+  micLang.addEventListener("change", async () => {
+    if (recognizer && listening) {
+      try { recognizer.stop(); } catch(_) {}
+    }
+    recognizer = null;
+    await initMic();
+  });
+
+  micBtn.addEventListener("click", async () => {
+    if (!secureContextHint()) {
+      addMessage("assistant",
+        "Microphone is blocked because this page is not HTTPS (or localhost).\n" +
+        "Fix: open via https:// (recommended) or test on http://localhost.\n" +
+        "Then: Chrome → Site settings → Microphone → Allow."
+      );
+      return;
+    }
+    if (!recognizer) await initMic();
+    if (!recognizer) return;
+
+    try {
+      if (listening) recognizer.stop();
+      else {
+        recognizer.lang = micLang.value;
+        recognizer.start();
+      }
+    } catch (e) {
+      addMessage("assistant", "Mic error: " + ((e && e.message) ? e.message : String(e)));
+    }
+  });
+
+  addMessage("assistant", "System ready. Upload a file then ask: “Summarize this document”.");
+  initMic();
+</script>
+</body>
+</html>

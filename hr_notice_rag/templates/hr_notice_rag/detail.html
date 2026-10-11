@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HR Notice Detail</title>
+</head>
+<body>
+  <h1>HR Notice Detail</h1>
+
+  <p><strong>ID:</strong> {{ obj.id }}</p>
+  <p><strong>Title:</strong> {{ obj.title }}</p>
+  <p><strong>Notice No:</strong> {{ obj.notice_no }}</p>
+  <p><strong>Department:</strong> {{ obj.department }}</p>
+  <p><strong>Publish Date:</strong> {{ obj.publish_date }}</p>
+  <p><strong>Template Type:</strong> {{ obj.template_type }}</p>
+  <p><strong>Status:</strong> {{ obj.index_status }}</p>
+  <p><strong>Indexing Notes:</strong> {{ obj.indexing_notes }}</p>
+
+  <form method="post" action="{% url 'hr_notice_rag:reindex' obj.pk %}">
+    {% csrf_token %}
+    <button type="submit">Reindex</button>
+  </form>
+
+  <h3>Normalized Text Preview</h3>
+  <pre style="white-space: pre-wrap;">{{ obj.normalized_text|truncatechars:3000 }}</pre>
+
+  <h3>Raw Text Preview</h3>
+  <pre style="white-space: pre-wrap;">{{ obj.raw_text|truncatechars:2000 }}</pre>
+
+  <p><a href="{% url 'hr_notice_rag:list' %}">Back to list</a></p>
+</body>
+</html>

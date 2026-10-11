@@ -1,0 +1,220 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Qdrant Collections Admin</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .topbar { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+    .box { border:1px solid #ddd; padding:12px; border-radius:8px; margin-top:12px; }
+    .msg { color: #0a7b28; font-weight: bold; }
+    .err { color: #b00020; font-weight: bold; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    th { background: #f6f6f6; text-align: left; }
+    pre { background: #f6f6f6; padding: 8px; border-radius: 6px; overflow:auto; }
+    .danger { color:#b00020; font-weight:bold; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .col { flex: 1 1 340px; }
+    input, select { padding:8px; width: 100%; box-sizing:border-box; }
+    button { padding: 8px 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h2 style="margin:0;">Qdrant Collections Admin</h2>
+    <div><b>Base:</b> {{ qdrant_base }}</div>
+    <div><b>Active collection:</b> {{ active_collection|default:"(none)" }}</div>
+  </div>
+
+  {% if msg %}<div class="box msg">{{ msg }}</div>{% endif %}
+  {% if err %}<div class="box err">{{ err }}</div>{% endif %}
+
+  <div class="box">
+    <h3>Collections</h3>
+    <p>All collections currently available in Qdrant.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Points</th>
+          <th>Vector Size</th>
+          <th>Distance</th>
+          <th>Active?</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in collection_cards %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td>{{ c.points }}</td>
+          <td>{{ c.vectors }}</td>
+          <td>{{ c.distance }}</td>
+          <td>{% if c.name == active_collection %}✅{% else %}-{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">No collections found.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="box">
+    <h3>Manage collection (CRUD)</h3>
+    <p class="danger">Warning: Delete/Recreate permanently removes all vectors in the collection.</p>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="row">
+        <div class="col">
+          <label><b>Select existing collection</b></label>
+          <select name="selected_collection">
+            <option value="">-- choose --</option>
+            {% for n in collections %}
+              <option value="{{ n }}">{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col">
+          <label><b>Or type collection name</b> (for Create/Recreate/Set Active/Info/List)</label>
+          <input name="collection_name" placeholder="e.g. hr_schema, policy_docs, coredb_tables">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <label><b>Confirm name</b> (required for Delete/Recreate)</label>
+          <input name="confirm_name" placeholder="type exact name for delete/recreate">
+        </div>
+
+        <div class="col">
+          <label><b>Vector size</b> (Create/Recreate)</label>
+          <input name="dims" value="768">
+        </div>
+
+        <div class="col">
+          <label><b>Distance</b> (Create/Recreate)</label>
+          <select name="distance">
+            <option value="Cosine" selected>Cosine</option>
+            <option value="Dot">Dot</option>
+            <option value="Euclid">Euclid</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div class="col">
+          <label><b>Points limit</b> (List Points)</label>
+          <input name="points_limit" value="20">
+        </div>
+
+        <div class="col">
+          <label><b>Include vectors?</b> (List Points: slow/big)</label>
+          <select name="with_vectors">
+            <option value="">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button name="action" value="create">Create</button>
+        <button name="action" value="delete">Delete</button>
+        <button name="action" value="recreate">Recreate</button>
+        <button name="action" value="set_active">Set Active</button>
+        <button name="action" value="info">View Info</button>
+        <button name="action" value="list_points">List Points</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="box">
+    <h3>Inserted data (sample points)</h3>
+
+    {% if points %}
+      <table>
+        <thead>
+          <tr>
+            <th style="width:160px;">ID</th>
+            <th>Payload (your inserted metadata/text)</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in points %}
+          <tr>
+            <td>{{ p.id }}</td>
+            <td><pre style="margin:0;">{{ p.payload }}</pre></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      {% if points_next %}
+        <p><b>Next page offset:</b> {{ points_next }}</p>
+      {% endif %}
+
+      {% if raw_points %}
+        <h4>Raw scroll response</h4>
+        <pre>{{ raw_points }}</pre>
+      {% endif %}
+    {% else %}
+      <p>(Click <b>List Points</b> to view inserted records.)</p>
+    {% endif %}
+  </div>
+
+  <div class="box">
+    <h3>Active collection info</h3>
+    {% if active_info_pretty %}
+      <pre>{{ active_info_pretty }}</pre>
+      {% if raw_active %}
+        <h4>Raw</h4>
+        <pre>{{ raw_active }}</pre>
+      {% endif %}
+    {% else %}
+      <p>(No active collection)</p>
+    {% endif %}
+  </div>
+
+  <div class="box">
+    <h3>Selected collection info</h3>
+    {% if selected_info_pretty %}
+      <pre>{{ selected_info_pretty }}</pre>
+      {% if raw_selected %}
+        <h4>Raw</h4>
+        <pre>{{ raw_selected }}</pre>
+      {% endif %}
+    {% else %}
+      <p>(Use “View Info”)</p>
+    {% endif %}
+  </div>
+
+  <div class="box">
+    <h3>Raw response from /collections</h3>
+    {% if raw_list %}<pre>{{ raw_list }}</pre>{% else %}<p>(none)</p>{% endif %}
+  </div>
+
+
+
+
+<form method="get" style="margin-bottom: 15px;">
+    <label><strong>Base:</strong></label>
+
+    <select name="base" onchange="this.form.submit()" style="padding:6px; min-width:420px;">
+        {% for item in qdrant_bases %}
+            <option value="{{ item.url }}" {% if item.url == selected_qdrant_base %}selected{% endif %}>
+                {{ item.name }} - {{ item.url }}
+            </option>
+        {% endfor %}
+    </select>
+</form>
+
+<p>
+    <strong>Current Base:</strong> {{ qdrant_base }}
+</p>
+
+</body>
+</html>

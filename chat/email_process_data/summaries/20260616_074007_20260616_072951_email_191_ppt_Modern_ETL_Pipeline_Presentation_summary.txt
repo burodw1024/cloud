@@ -1,0 +1,116 @@
+Processed Time: 2026-06-16 07:40:07
+Email Subject: ppt 
+Email Sender: Abdul Al Mamun <mamun.it@burobd.org>
+Original Attachment File: 20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation.pptx
+Extraction File: 20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation_3af6b4df4d5d.pdf
+Conversion Method: gotenberg_to_pdf
+Gotenberg URL: http://192.168.1.136:31164
+Converted PDF: 20260616_072951_email_191_ppt_Modern_ETL_Pipeline_Presentation_3af6b4df4d5d.pdf
+Attachment SHA256: 3af6b4df4d5dd2f66ccfdaf9573fc77f49ead66311874353fff12d5a18a9563c
+Ollama URL: http://192.168.1.144:31134
+Ollama Model: aya-23-8b:q5
+
+==================== CHARITY / AID VERIFICATION SUMMARY ====================
+
+--- Page 4 ---
+## Introduction
+• ETL: Extract, Transform, Load
+• Modern ETL: Data pipelines for real-time + batch analytics
+• Use case: Nonprofit organization data pipeline
+• Tools: NiFi, Flink, Airflow, Iceberg
+
+--- Page 5 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+
+--- Page 6 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+
+--- Page 7 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+• Data can also be used for batch analytics
+
+--- Page 8 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+• Data can also be used for batch analytics
+• Data can be shared with other organizations
+
+--- Page 9 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+• Data can also be used for batch analytics
+• Data can be shared with other organizations
+• Data can be used to improve decision-making
+
+--- Page 10 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+• Data can also be used for batch analytics
+• Data can be shared with other organizations
+• Data can be used to improve decision-making
+• Data can be used to improve efficiency
+
+--- Page 11 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+• Data can also be used for batch analytics
+• Data can be shared with other organizations
+• Data can be used to improve decision-making
+• Data can be used to improve efficiency
+• Data can be used to reduce costs
+
+--- Page 12 ---
+## ETL Pipeline Architecture
+• Source: Database (e.g., PostgreSQL)
+• Extract: NiFi
+• Transform: Flink
+• Load: Iceberg
+• Orchestrate: Airflow
+• Data is ingested, transformed, and stored in a data lake
+• Data can be analyzed by tools like Dremio
+• Data can also be used for batch analytics
+• Data can be shared with other organizations
+• Data can be used to improve decision

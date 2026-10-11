@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-serving
+  namespace: mlops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow-serving
+  template:
+    metadata:
+      labels:
+        app: mlflow-serving
+    spec:
+      containers:
+      - name: mlflow
+        image: python:3.12-slim
+        command: ["sh", "-c"]
+        args:
+          - pip install mlflow boto3 scikit-learn && \
+            mlflow models serve -m models:/linreg/1 -h 0.0.0.0 -p 5001
+        ports:
+        - containerPort: 5001
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          value: cB0wYpzS47LQFHRqxhoR
+        - name: AWS_SECRET_ACCESS_KEY
+          value: 1nsq1fXfEkwV5LsxYPEMTGJyM4OZSCZ1n3WHqa0W
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: http://10.50.1.29:32000

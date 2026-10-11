@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Notice Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      background: #f7f7f7;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      padding: 10px;
+      font-size: 15px;
+    }
+    button {
+      padding: 10px 18px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    .box {
+      margin-top: 20px;
+      padding: 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .muted {
+      color: #666;
+      font-size: 14px;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Notice Chat</h2>
+    <p class="muted">Search and ask questions from indexed office notices.</p>
+
+    <textarea id="q" placeholder="Ask about attendance, leave, notice number, or date..."></textarea>
+    <br>
+    <button onclick="askNotice()">Ask</button>
+
+    <div class="box">
+      <h3>Answer</h3>
+      <pre id="answer">No response yet.</pre>
+    </div>
+
+    <div class="box">
+      <h3>Citations</h3>
+      <pre id="citations">No citations yet.</pre>
+    </div>
+
+    <div class="box">
+      <h3>Debug</h3>
+      <pre id="debug">No debug info yet.</pre>
+    </div>
+  </div>
+
+  <script>
+    async function askNotice() {
+      const q = document.getElementById("q").value.trim();
+      if (!q) return;
+
+      const res = await fetch("/api/notice/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ question: q })
+      });
+
+      const data = await res.json();
+      document.getElementById("answer").textContent = data.answer || data.error || "No response";
+      document.getElementById("citations").textContent = JSON.stringify(data.citations || [], null, 2);
+      document.getElementById("debug").textContent = JSON.stringify(data.debug || {}, null, 2);
+    }
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+  </script>
+</body>
+</html>

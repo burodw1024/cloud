@@ -1,0 +1,2421 @@
+{
+    "module": "cashflow",
+    "schema": "SCOTT",
+    "tables": [
+        {
+            "table": "AI_DW_MF_BANKBALANCE_DW",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "TWOMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FOURTMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FOURTMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FOURTMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FOURTMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIVEMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIVEMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIVEMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIVEMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SIXMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SIXMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SIXMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SIXMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BALANCEID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BALANCEID_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "AVERAGEBANKBALANCEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGEBANKBALANCEPREVIOUS_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "FIRSTMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_BUSINESSEXPENSEMON_01",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "TELMOBILEINTERPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TRANSPORT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TRANSPORT_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "TRANSPORTPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TRANSPORTPREVIOUSLOAN_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "GASANDWATER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "GASANDWATERPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MAINTAINENCE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MAINTAINENCEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DIESELFORGENERATOR",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DIESELFORGENERATORPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MARKETING",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MARKETINGPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LABOUREXPENSE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LABOUREXPENSE_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "LABOUREXPENSEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LABOUREXPENSEPREVIOUSLOAN_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "SOCIETYBILLSECURITY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SOCIETYBILLSECURITYPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TAX",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RENT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TAXPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENTERTAINMENT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENTERTAINMENTPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OTHERBUSINESSEXPENSE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OTHERBUSINESSEXPENSE_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "OTHERBUSINESSEXPENSEPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OTHERBUSINESSEXPENSEPREVLO_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "BUSIEXPID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RENTPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ELECTRICITY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ELECTRICITYPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "STAFFSALARY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "STAFFSALARYPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TELEPHONEMOBILEINTERNET",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_BUYERVERIFICATION",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "PAYMENTTERMS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PAYMENTTERMS_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PRODUCTSERVICEQUALITY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUYERFEEDBACKONCUSTOMER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUYERFEEDBACKONCUSTOMER_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "BUYERVERIFYID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUYERNAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MOBILENUMBER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUYERLOCATION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "YEARSPURCHASINGFROMCUSTOMER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PURCHASEFREQUENCY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGEMONTHLYPURCHASEAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGEMONTHLYPURCHASEAMOU_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_CUSTOMERSDETAILS",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "VINTAGEWITHBUROMONTHS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CURRENTSAVINGSAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CURRENTSAVINGSAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PEAKSAVINGSAMOUNTLAST12MONTHS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PEAKSAVINGSAMOUNTLAST12MON_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "EXISTINGLOANAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "EXISTINGLOANAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PEAKDPDLAST12MONTHS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANCUSTOMERSTATUS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANSAVINGAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANSAVINGAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PREVIOUSLOANAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PREVIOUSLOANREPAYMENTBEHAVIOUR",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANREPAYMENTBEHAV_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PREVIOUSLOANPEAKDPD",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MEMBERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERSTATUS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "GENDER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MARITALSTATUS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERNAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "QUALIFICATION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RESIDENCEOWNERSHIP",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REPAYMENTBEHAVIOR",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REPAYMENTBEHAVIOR_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "BRANCHID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "EMPLOYEEID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DATEOFBIRTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DATEOFBIRTH_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "HOUSEPINCODE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FAMILYMEMBERSCOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "EARNINGMEMBERSCOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RESIDENCESTAYVINTAGE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_CUSTOMER_INFO",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "DATE_OF_BIRTH_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "NID_17",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NID_10",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DIVISION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DISTRICT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "UPOZILA",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BRANCHNAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SAMITYCODE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERTDATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERTDATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BRANCHCODE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMER_ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NAME_EN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NAME_BN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FATHER_NAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MOTHER_NAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DATE_OF_BIRTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_CUSTOMER_INFO_LAST_02",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LAST_SYNCID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LAST_SYNC_TIME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LAST_SYNC_TIME_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_DEBTBURDEN",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "DEBTBURDEN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DEBTBURDENPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DEBTBURDEN_ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_ENTERPRISESDETAILS",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "WORKPLACEOWNERSHIP",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "WORKPLACEVINTAGE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "GROSSMARGIN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NUMBEROFPAIDREGULAREMPLOYEES",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANGROSSMARGIN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANNOOFEMPLOYEES",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENTERPRISEID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENTERPRISENAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CONSTITUTIONOFENTERPRISE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "WORKPLACEPINCODE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUSINESSSEGMENT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUSINESSSUBSEGMENT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CURRENTTRADELICENSEAVAILABLE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TINAVAILABLE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_EXSITINGLOANS",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "BALANCETENOR",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BALANCETENOR_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "LOANTOBECLOSED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OBLIGATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANOBLIGATION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "EXLOANID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NAMEOFINSTITUTION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "EMI",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANOUTSTANDING",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TENOR",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PAIDTENOR",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_MANUFACTURINGOPTIO_03",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TYPEOFPRODUCT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NUMBEROFUNITS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGESALEPRICEPERUNIT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PRODUCTIONCOSTPERUNIT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_MANUFACTURINGOPTIO_04",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MATERIALCOST",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OTHERCASHCOST",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGESALESPERMONTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DEBTBURDEN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DEBTBURDENPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_OTHERINCOMEMONTHLY",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "RENTALINCOMEPREVIOUSLOAN_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "SALARYINCOMEFM",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SALARYINCOMEFM_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "SALARYINCOMEFMPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SALARYINCOMEFMPREVIOUSLOAN_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "ALLIEDAGRIINCOME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ALLIEDAGRIINCOME_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "ALLIEDAGRIINCOMEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ALLIEDAGRIINCOMEPREVIOUSLO_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "OTHERINCOME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OTHERINCOME_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "OTHERINCOMEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "OTHERINCOMEPREVIOUSLOAN_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "INCOMEID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INCOMEID_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "AGRICULTUREINCOME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AGRICULTUREINCOME_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "AGRICULTUREINCOMEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AGRICULTUREINCOMEPREVIOUSL_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "RENTALINCOME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RENTALINCOME_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "RENTALINCOMEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PERSONALEXPENSEMON_05",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "EDUCATIONMONTHLYPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ELECTRICITY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ELECTRICITYPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TRANSPORTCONVEYANCE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TRANSPORTCONVEYANCE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "TRANSPORTCONVEYANCEPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TRANSPORTCONVEYANCEPREVLOAN_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "TELMOBILEINTER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TELMOBILEINTERPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MEDICAL",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MEDICALPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENTERTAINMENT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENTERTAINMENTPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REPAIRMAINTENANCE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REPAIRMAINTENANCEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MAID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MAIDPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "HOUSETAX",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "HOUSETAXPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ANYOTHEREXPENSE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "HOUSERENT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ANYOTHEREXPENSE_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "ANYOTHEREXPENSEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ANYOTHEREXPENSEPREVIOUSLOA_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PERSONALEXPID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "HOUSERENTPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FOOD",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FOODPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CLOTHING",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CLOTHINGPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "EDUCATIONMONTHLY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PREFERENCEVERIFICA_06",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "FEEDBACKONCUSTOMER_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PERSONAL_REFERENCE_ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PERSONNAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MOBILENUMBER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REFERENCELOCATION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RELATIONWITHCUSTOMER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "YEARSKNOWINGCUSTOMER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LEVELOFINTERACTION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FEEDBACKONCUSTOMER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PRODUCTPURCHASEPRICE",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TYPEOFPRODUCT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NUMBEROFUNITS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGEPRICEPERUNIT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PROID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PRODUCTSALEPRICE",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TYPEOFPRODUCT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NUMBEROFUNITS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGEPRICEPERUNIT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PROID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PROPOSEDLOANDETAILS",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "REPAYMENTFREQUENCY_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "CUSTOMERAFFORDABLEEMI",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANELIGIBILITYPOLICY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANAMOUNTAPPROVED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANAMOUNTAPPROVED_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PREVIOUSLOANAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PREVIOUSLOANTENUREAPPLIED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANROIPROPOSED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANCAPITAL",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANFACILITYAPPLIED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANREPAYMENTFREQUENCY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANREPAYMENTFREQU_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PREVIOUSLOANAFFORTABLEEMI",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANELIGIBILITY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANAPPROVEDAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PREVIOUSLOANAPPROVEDAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PROPOSED_LOAN_ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "LOANAPPLIEDAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOANAPPLIEDAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "TENUREAPPLIEDMONTHS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ROIPROPOSEDPERCENTAGE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ENDUSE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FACILITYAPPLIED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REPAYMENTFREQUENCY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PURCHASECASHBOOK",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "TWOMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PURCHASECASHID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_PURCHASES",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "DAILY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "WEEKLY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTHLY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTHLYPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CREDITORS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CREDITORSPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PURCHASESID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_QUALITATIVEASPECTS",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PROMOTER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "BUSINESSACTIVITY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MARKETANDDEMAND",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RECOMMENDATION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_REGULARINVESTMENT",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "GROSSMARGININBUSINESSPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTHLYCASHINHANDFROMBUSINESS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CASHINHANDFROMBUSIPREVLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "REGULARID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LIFEINSURANCE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LIFEINSURANCEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "GENERALINSURANCE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "GENERALINSURANCEPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DPS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DPSPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "GROSSMARGININBUSINESS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_SALES",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "WEEKS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOW",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "HIGH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NORMAL",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "LOWMONTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "HIGHMONTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "NORMALMONTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DEBTORS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "DEBTORSPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTHLYSALESGROWTHPOSTFUNDING",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTHLYSALESGROWTHPOSTFUNDI_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "SALESID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "CLOSINGDAYINWEEK",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "WORKINGDAYSINMONTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SALESDAILY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SALESWEEKLY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SALESMONTHLY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTHPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MONTH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_SALESCASHBOOK",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "TWOMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_10TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_20TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "TWOMONTH_30TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_10TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_20TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_30TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "THREEMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SALEID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "FIRSTMONTH_5TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_10TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_15TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_20TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_25TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_30TH",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FIRSTMONTH_PREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_STOCK",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FINISHEDGOODS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RAWMATERIAL",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "FINISHEDGOODSPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "RAWMATERIALPREVIOUSLOAN",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "STOCKID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                }
+            ]
+        },
+        {
+            "table": "AI_DW_MF_SUPPLIERVERIFICATION",
+            "row_id_candidate": "ROW_ID",
+            "columns": [
+                {
+                    "name": "ROW_ID",
+                    "oracle_type": "ROWID",
+                    "oracle_len": 10
+                },
+                {
+                    "name": "AVERAGEMONTHLYSUPPLYAMOUNT_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PAYMENTTERMS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PAYMENTTERMS_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PAYMENTTIMELINESS",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PAYMENTTIMELINESS_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "PAYMENTTIMELINESS_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "SUPPLIERFEEDBACK",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SUPPLIERFEEDBACK_NUM",
+                    "oracle_type": "NUMBER",
+                    "oracle_len": 22
+                },
+                {
+                    "name": "SUPPLY_VERIFICATION_ID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "CUSTOMERID",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "INSERT_DATE_DT",
+                    "oracle_type": "DATE",
+                    "oracle_len": 7
+                },
+                {
+                    "name": "SUPPLIERNAME",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "MOBILENUMBER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SUPPLIERLOCATION",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "YEARSSUPPLYINGTOCUSTOMER",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "SUPPLYFREQUENCY",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "PRODUCTSERVICESUPPLIED",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                },
+                {
+                    "name": "AVERAGEMONTHLYSUPPLYAMOUNT",
+                    "oracle_type": "VARCHAR2",
+                    "oracle_len": 400
+                }
+            ]
+        }
+    ]
+}

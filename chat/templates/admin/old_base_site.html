@@ -1,0 +1,16 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}BuroCloud Admin{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">BuroCloud Admin</a>
+</h1>
+<p style="margin:8px 0 0 0;font-size:14px;">
+  <a href="/admin-tools/qdrant/" style="margin-right:16px;">Qdrant Tools</a>
+  <a href="/admin-tools/upload-jsonl/">Upload JSONL</a>
+</p>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

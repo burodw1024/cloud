@@ -1,0 +1,82 @@
+Processed Time: 2026-06-09 08:47:49
+Email Subject: file
+Email Sender: mydw <burodw1024@gmail.com>
+Attachment File: 20260609_084544_email_174_file_ANALYTICAL REPORT COLLECTION-EFFICIENCY-F.docx
+Attachment SHA256: 53754a499d46b3f64699f5bf778aed1d43f9ea62af17658f999781c9e2b56d3a
+Ollama URL: http://192.168.1.144:31134
+Ollama Model: aya-23-8b:q5
+
+==================== CHARITY / AID VERIFICATION SUMMARY ====================
+
+REPORT MODULE: COLLECTION EFFICIENY MODULE
+REPORT NAME: COLLECTION EFFICIENY
+REPORT TYPE: ANALYTICAL
+STAKE HOLDERS: Not Specified
+Users:  Not Specified
+Report Priority: Not Specified
+Have we received any requirements or not:   Yes (IFC Recommended)
+Is there any existing report: NO
+Have we received any Design: No
+Have we received any special Instruction: Yes
+Report Deployment Policy and methods:
+*Source- Data Warehouse
+*Monthly After EOD
+Report Refresh Schedule:  4.00 AM/May Change
+DB SOURCES: CORE (GC)
+BUSINESS RULES:
+
+1. For Each Loan Transaction in DW_GC_LOAN_REGISTER:
+Check if the transaction date is within the range '01/07/2019' to '30/06/2023'.
+Check if the transaction type is not '65'.
+Check if the first character of the item code is not '7'.
+If all conditions are met, proceed.
+If Conditions Met:
+Store the branch code from the loan transaction.
+Calculate the last day of the transaction month and store it as PaymentMonth.
+Retrieve the payment frequency associated with the loan product from DW_GC_ITEM_CODE.
+Accumulate the LoanDue and IntDue values into Realizable.
+Accumulate the LoanPaid and IntPaid values into Realized.
+Output the Results:
+For each unique combination of branch code, PaymentMonth, and PaymentFrequency:
+Display branch code, PaymentMonth, PaymentFrequency, Realizable, and Realized
+TABLE NAME(s): DW_COLLECTION_EFFICIENCY_FINAL
+VIEW NAME(s):   DW_GC_BRANCHCODE_V
+PROCEDURE(S):
+*DW_COLLECTION_EFFICIENCY_PROC
+TRIGGER NAME(s):
+*COLLECTION_EFFICIENCY_JOB
+TRIGGER TIME:
+*Everyday/Monthly 11:31 AM
+POWER BI DEPENDANCY: DW_COLLECTION_EFFICIENCY_FINAL, DW_GC_BRANCHCODE_V
+APPROVED BY:
+REPORT MODULE: COLLECTION EFFICIENY MODULE
+REPORT NAME: COLLECTION EFFICIENY
+REPORT TYPE: ANALYTICAL
+STAKE HOLDERS: Not Specified
+Users:  Not Specified
+Report Priority: Not Specified
+Have we received any requirements or not:   Yes (IFC Recommended)
+Is there any existing report: NO
+Have we received any Design: No
+Have we received any special Instruction: Yes
+Report Deployment Policy and methods:
+*Source- Data Warehouse
+*Monthly After EOD
+Report Refresh Schedule:  4.00 AM/May Change
+DB SOURCES: CORE (GC)
+BUSINESS RULES:
+
+1. For Each Loan Transaction in DW_GC_LOAN_REGISTER:
+Check if the transaction date is within the range '01/07/2019' to '30/06/2023'.
+Check if the transaction type is not '65'.
+Check if the first character of the item code is not '7'.
+If all conditions are met, proceed.
+If Conditions Met:
+Store the branch code from the loan transaction.
+Calculate the last day of the transaction month and store it as PaymentMonth.
+Retrieve the payment frequency associated with the loan product from DW_GC_ITEM_CODE.
+Accumulate the LoanDue and IntDue values into Realizable.
+Accumulate the LoanPaid and IntPaid values into Realized.
+Output the Results:
+For each unique combination of branch code, PaymentMonth, and PaymentFrequency:
+Display branch code, PaymentMonth, PaymentFrequency, Real

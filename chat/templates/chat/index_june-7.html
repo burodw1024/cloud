@@ -1,0 +1,2669 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>BURO Enterprise AI Assistant</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+
+  <style>
+    :root{
+      --bg:#070b12;
+      --bg2:#0b1020;
+      --surface:#0f172a;
+      --surface2:#111c31;
+      --surface3:#17233b;
+      --glass:rgba(15,23,42,.78);
+      --border:rgba(148,163,184,.18);
+      --border2:rgba(96,165,250,.28);
+      --text:#e5edf7;
+      --text2:#cbd5e1;
+      --muted:#94a3b8;
+      --muted2:#64748b;
+      --primary:#2563eb;
+      --primary2:#60a5fa;
+      --primary3:#1d4ed8;
+      --green:#22c55e;
+      --green2:#16a34a;
+      --amber:#f59e0b;
+      --red:#ef4444;
+      --purple:#8b5cf6;
+      --shadow:0 22px 70px rgba(0,0,0,.38);
+      --shadow2:0 12px 36px rgba(37,99,235,.14);
+      --radius:22px;
+      --radius2:16px;
+      --font:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+
+    *{box-sizing:border-box;}
+    html,body{height:100%;}
+    body{
+      margin:0;
+      color:var(--text);
+      font-family:var(--font);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(37,99,235,.22), transparent 34%),
+        radial-gradient(circle at 88% 18%, rgba(139,92,246,.18), transparent 28%),
+        radial-gradient(circle at 60% 100%, rgba(34,197,94,.10), transparent 32%),
+        linear-gradient(135deg, #05070d 0%, #08101f 45%, #0b1120 100%);
+      overflow:hidden;
+    }
+
+    button,input,textarea,select{font:inherit;}
+    button{user-select:none;}
+
+    .app{
+      min-height:100dvh;
+      display:grid;
+      grid-template-columns:280px minmax(0,1fr);
+    }
+
+    .sidebar{
+      position:relative;
+      padding:18px;
+      border-right:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(15,23,42,.92), rgba(8,13,24,.86));
+      backdrop-filter:blur(18px);
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      overflow:auto;
+    }
+
+    .brandCard{
+      padding:18px;
+      border:1px solid var(--border);
+      border-radius:24px;
+      background:
+        linear-gradient(145deg, rgba(96,165,250,.14), rgba(15,23,42,.82)),
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow:var(--shadow2);
+    }
+
+    .brandLogo{
+      width:46px;
+      height:46px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      color:#fff;
+      font-weight:950;
+      letter-spacing:.5px;
+      background:linear-gradient(135deg, var(--primary), var(--purple));
+      box-shadow:0 14px 34px rgba(37,99,235,.35);
+      margin-bottom:14px;
+    }
+
+    .brandTitle{
+      margin:0;
+      font-size:17px;
+      line-height:1.25;
+      font-weight:950;
+      letter-spacing:-.02em;
+    }
+
+    .brandSub{
+      margin:8px 0 0;
+      color:var(--muted);
+      line-height:1.5;
+      font-size:12.5px;
+    }
+
+    .sideSection{
+      padding:14px;
+      border:1px solid var(--border);
+      border-radius:20px;
+      background:rgba(15,23,42,.56);
+    }
+
+    .sideLabel{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:10px;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .moduleTabs{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+    }
+
+    .moduleBtn{
+      width:100%;
+      border:1px solid transparent;
+      border-radius:15px;
+      padding:10px 12px;
+      background:transparent;
+      color:var(--text2);
+      cursor:pointer;
+      font-size:13px;
+      font-weight:850;
+      text-align:left;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      transition:.2s ease;
+    }
+
+    .moduleBtn::before{
+      content:"";
+      width:9px;
+      height:9px;
+      border-radius:999px;
+      background:var(--muted2);
+      box-shadow:0 0 0 4px rgba(100,116,139,.10);
+    }
+
+    .moduleBtn:hover{
+      color:#fff;
+      border-color:rgba(148,163,184,.18);
+      background:rgba(255,255,255,.04);
+      transform:translateX(2px);
+    }
+
+    .moduleBtn.active{
+      color:#fff;
+      border-color:rgba(96,165,250,.36);
+      background:linear-gradient(135deg, rgba(37,99,235,.24), rgba(96,165,250,.08));
+      box-shadow:inset 0 0 0 1px rgba(96,165,250,.12);
+    }
+
+    .moduleBtn.active::before{
+      background:var(--primary2);
+      box-shadow:0 0 0 4px rgba(96,165,250,.15), 0 0 20px rgba(96,165,250,.45);
+    }
+
+    .moduleBtn.customer.active{
+      border-color:rgba(34,197,94,.35);
+      background:linear-gradient(135deg, rgba(22,163,74,.22), rgba(34,197,94,.08));
+    }
+
+    .moduleBtn.customer.active::before{
+      background:var(--green);
+      box-shadow:0 0 0 4px rgba(34,197,94,.14), 0 0 20px rgba(34,197,94,.38);
+    }
+
+    .toggleMini{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:rgba(7,11,18,.72);
+      color:var(--text2);
+      font-size:13px;
+      font-weight:850;
+    }
+
+    .toggleMini label{
+      display:flex;
+      align-items:center;
+      gap:9px;
+      cursor:pointer;
+      width:100%;
+      justify-content:space-between;
+    }
+
+    .toggleMini input{accent-color:var(--primary2);}
+
+    #modePill{
+      padding:4px 9px;
+      border-radius:999px;
+      color:#dbeafe;
+      border:1px solid rgba(96,165,250,.26);
+      background:rgba(37,99,235,.16);
+      font-size:11px;
+    }
+
+    .statusStack{display:grid; gap:8px;}
+    .miniStatus{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 0;
+      border-bottom:1px solid rgba(148,163,184,.10);
+    }
+    .miniStatus:last-child{border-bottom:none;}
+
+    .statusDot{
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:var(--muted2);
+      box-shadow:0 0 0 4px rgba(100,116,139,.10);
+      display:inline-block;
+      flex:0 0 auto;
+    }
+    .statusDot.ok{background:var(--green); box-shadow:0 0 0 4px rgba(34,197,94,.12);}
+    .statusDot.bad{background:var(--red); box-shadow:0 0 0 4px rgba(239,68,68,.12);}
+
+    .main{
+      min-width:0;
+      height:100dvh;
+      display:flex;
+      flex-direction:column;
+      position:relative;
+    }
+
+    header{
+      flex:0 0 auto;
+      padding:16px 22px 12px;
+      border-bottom:1px solid var(--border);
+      background:rgba(7,11,18,.72);
+      backdrop-filter:blur(18px);
+      position:sticky;
+      top:0;
+      z-index:30;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .titleBlock{min-width:0;}
+    .eyebrow{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:850;
+      margin-bottom:4px;
+    }
+    .eyebrow .liveDot{
+      width:7px;
+      height:7px;
+      border-radius:999px;
+      background:var(--green);
+      box-shadow:0 0 0 4px rgba(34,197,94,.14), 0 0 18px rgba(34,197,94,.6);
+    }
+    .pageTitle{
+      margin:0;
+      font-size:23px;
+      font-weight:950;
+      letter-spacing:-.035em;
+      line-height:1.1;
+    }
+    .pageSub{
+      margin:6px 0 0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    .authArea{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      padding:9px 12px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+      background:rgba(15,23,42,.72);
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+      text-decoration:none;
+      transition:.2s ease;
+    }
+    .pill:hover{border-color:rgba(96,165,250,.38); color:#fff; transform:translateY(-1px);}
+
+    .primaryPill{
+      color:#fff;
+      border-color:rgba(245,158,11,.45);
+      background:linear-gradient(135deg, rgba(245,158,11,.26), rgba(217,119,6,.13));
+      box-shadow:0 0 0 1px rgba(245,158,11,.14), 0 10px 28px rgba(245,158,11,.12);
+      font-weight:900;
+    }
+    .primaryPill:hover{border-color:#f59e0b; box-shadow:0 0 0 1px rgba(245,158,11,.25), 0 16px 36px rgba(245,158,11,.20);}
+
+    .userPill{
+      color:var(--text);
+      border-color:rgba(96,165,250,.38);
+      background:linear-gradient(135deg, rgba(37,99,235,.20), rgba(15,23,42,.76));
+      font-weight:850;
+    }
+
+    .subbar{
+      margin-top:14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .statusSummary{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      color:var(--text2);
+      padding:9px 12px;
+      background:rgba(15,23,42,.72);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:800;
+      transition:.2s ease;
+    }
+    .statusSummary:hover{border-color:rgba(96,165,250,.36); transform:translateY(-1px);}
+    .summaryMuted{color:var(--muted2);}
+
+    .micLangWrap{
+      display:none;
+      align-items:center;
+      gap:8px;
+      padding:7px 10px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      background:rgba(15,23,42,.72);
+      color:var(--muted);
+      font-size:12px;
+      font-weight:850;
+    }
+    .micLangWrap.show{display:inline-flex;}
+
+    select{
+      background:#0b1020;
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:7px 9px;
+      font-size:12px;
+      min-height:34px;
+      outline:none;
+    }
+
+    .statusDetails{
+      display:none;
+      margin-top:12px;
+      padding:12px;
+      border:1px solid var(--border);
+      border-radius:18px;
+      background:rgba(15,23,42,.70);
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.5;
+    }
+    .statusGrid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+      gap:10px;
+    }
+    .statusCard{
+      border:1px solid rgba(148,163,184,.14);
+      border-radius:16px;
+      padding:11px 12px;
+      background:rgba(2,6,23,.45);
+    }
+    .statusCard b{display:block; color:var(--text); margin-bottom:4px; font-size:12px;}
+
+    .wrap{
+      flex:1;
+      min-height:0;
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
+      padding:18px 22px 22px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    .chatbox{
+      position:relative;
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      padding:18px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:
+        linear-gradient(180deg, rgba(15,23,42,.78), rgba(11,16,32,.82)),
+        radial-gradient(circle at 30% 0%, rgba(96,165,250,.12), transparent 36%);
+      box-shadow:var(--shadow);
+      scroll-behavior:smooth;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    .chatbox::-webkit-scrollbar{width:10px;}
+    .chatbox::-webkit-scrollbar-track{background:transparent;}
+    .chatbox::-webkit-scrollbar-thumb{background:rgba(148,163,184,.22); border-radius:999px; border:3px solid transparent; background-clip:content-box;}
+
+    .msg{
+      margin:14px 0;
+      display:flex;
+      gap:11px;
+      animation:fadeUp .22s ease both;
+    }
+    @keyframes fadeUp{from{opacity:0; transform:translateY(6px);}to{opacity:1; transform:translateY(0);}}
+    .msg.user{justify-content:flex-end;}
+
+    .avatar{
+      width:36px;
+      height:36px;
+      border-radius:15px;
+      border:1px solid var(--border);
+      background:rgba(2,6,23,.62);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:11px;
+      font-weight:900;
+      color:var(--muted);
+      flex:0 0 auto;
+    }
+    .assistant .avatar{
+      color:#dbeafe;
+      border-color:rgba(96,165,250,.32);
+      background:linear-gradient(135deg, rgba(37,99,235,.30), rgba(139,92,246,.16));
+    }
+    .user .avatar{
+      color:#dcfce7;
+      border-color:rgba(34,197,94,.30);
+      background:linear-gradient(135deg, rgba(22,163,74,.28), rgba(15,23,42,.60));
+    }
+
+    .bubbleWrap{max-width:min(820px,86%);}
+    .bubble{
+      padding:14px 15px;
+      border-radius:18px;
+      white-space:pre-wrap;
+      line-height:1.58;
+      word-break:break-word;
+      overflow-wrap:anywhere;
+      font-size:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,.18);
+    }
+    .user .bubble{
+      color:#fff;
+      border:1px solid rgba(96,165,250,.22);
+      background:linear-gradient(135deg, var(--primary3), #2563eb);
+      border-bottom-right-radius:8px;
+    }
+    .assistant .bubble{
+      color:var(--text2);
+      border:1px solid rgba(148,163,184,.16);
+      background:linear-gradient(180deg, rgba(23,35,59,.86), rgba(15,23,42,.86));
+      border-bottom-left-radius:8px;
+    }
+    .meta{
+      margin-top:6px;
+      font-size:11px;
+      color:var(--muted2);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .user .meta{justify-content:flex-end;}
+
+    .bubble h1,.bubble h2,.bubble h3,.bubble h4,.bubble h5,.bubble h6{margin:0 0 10px; line-height:1.3; color:#fff;}
+    .bubble p{margin:0 0 10px;}
+    .bubble p:last-child{margin-bottom:0;}
+    .bubble ul,.bubble ol{margin:0 0 10px 20px; padding:0;}
+    .bubble li{margin:5px 0;}
+    .bubble code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px;}
+    .bubble pre{
+      white-space:pre-wrap;
+      word-break:break-word;
+      margin:10px 0 0;
+      font-size:12px;
+      color:var(--text2);
+      background:#050814;
+      border:1px solid rgba(148,163,184,.14);
+      border-radius:14px;
+      padding:12px;
+      overflow:auto;
+    }
+    .bubble pre code{color:inherit; background:transparent; padding:0; border:none;}
+    .bubble table{width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; overflow:hidden; border-radius:12px;}
+    .bubble th,.bubble td{padding:8px; border-bottom:1px solid rgba(148,163,184,.13); vertical-align:top;}
+    .bubble th{color:#dbeafe; font-weight:900; background:rgba(37,99,235,.10);}
+    .bubble blockquote{margin:10px 0; padding:9px 12px; border-left:3px solid var(--primary2); background:rgba(96,165,250,.08); color:var(--text2); border-radius:10px;}
+    .bubble a{color:#93c5fd;}
+
+    .streamingText{white-space:pre-wrap; word-break:break-word; line-height:1.58; min-height:1.2em;}
+    .streamingCursor{display:inline-block; margin-left:1px; font-weight:700; color:var(--primary2); animation:blink 1s steps(1) infinite;}
+    .thinkingDots::after{content:""; display:inline-block; width:1.2em; text-align:left; animation:dots 1.2s steps(4,end) infinite;}
+    @keyframes blink{0%{opacity:1}50%{opacity:0}100%{opacity:1}}
+    @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}100%{content:""}}
+
+    .composer{
+      flex:0 0 auto;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:rgba(15,23,42,.78);
+      box-shadow:var(--shadow);
+      padding:12px;
+      backdrop-filter:blur(16px);
+    }
+
+    .inputRow{
+      display:flex;
+      gap:10px;
+      align-items:flex-end;
+    }
+
+    textarea{
+      flex:1;
+      resize:none;
+      min-height:54px;
+      max-height:170px;
+      padding:14px 15px;
+      border-radius:18px;
+      border:1px solid rgba(148,163,184,.18);
+      background:rgba(2,6,23,.54);
+      color:var(--text);
+      font-size:14px;
+      outline:none;
+      line-height:1.45;
+      transition:.2s ease;
+    }
+    textarea::placeholder{color:rgba(148,163,184,.72);}
+    textarea:focus{border-color:rgba(96,165,250,.52); box-shadow:0 0 0 4px rgba(96,165,250,.10);}
+
+    .iconBtn{
+      width:48px;
+      min-width:48px;
+      height:48px;
+      padding:0;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:16px;
+      border:1px solid rgba(148,163,184,.18);
+      background:rgba(2,6,23,.54);
+      cursor:pointer;
+      transition:.2s ease;
+    }
+    .iconBtn:hover{border-color:rgba(96,165,250,.45); transform:translateY(-1px); background:rgba(15,23,42,.92);}
+    .iconBtn svg{width:19px; height:19px; fill:var(--text); opacity:.92;}
+    .iconBtn.btnDanger{border-color:rgba(239,68,68,.45); background:rgba(127,29,29,.28);}
+
+    .btnRow{
+      margin-top:10px;
+      display:flex;
+      gap:9px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .btn{
+      border-radius:15px;
+      border:1px solid rgba(96,165,250,.28);
+      background:linear-gradient(135deg, var(--primary), var(--primary3));
+      color:white;
+      font-weight:950;
+      cursor:pointer;
+      padding:10px 14px;
+      min-height:42px;
+      font-size:13px;
+      transition:.2s ease;
+      box-shadow:0 10px 26px rgba(37,99,235,.18);
+    }
+    .btn:hover{transform:translateY(-1px); box-shadow:0 15px 32px rgba(37,99,235,.23);}
+    .btn.secondary{background:rgba(2,6,23,.48); border-color:rgba(148,163,184,.18); box-shadow:none; color:var(--text2);}
+    .btn.secondary:hover{border-color:rgba(96,165,250,.34); color:#fff;}
+    .btn:disabled{opacity:.55; cursor:not-allowed; transform:none;}
+    .hint{color:var(--muted); font-size:12px; margin:0; line-height:1.5; flex:1; min-width:260px;}
+
+    .detailsWrap{margin-top:10px;}
+    .detailsBtn{
+      background:rgba(2,6,23,.44);
+      border:1px solid rgba(148,163,184,.16);
+      color:var(--text2);
+      font-weight:900;
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:12px;
+      cursor:pointer;
+    }
+    .detailsBtn:hover{border-color:rgba(96,165,250,.32); color:#fff;}
+    .detailsPanel{
+      display:none;
+      margin-top:8px;
+      padding:10px;
+      border:1px solid rgba(148,163,184,.14);
+      border-radius:14px;
+      background:rgba(2,6,23,.55);
+      overflow-x:auto;
+    }
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    th,td{padding:7px; border-bottom:1px solid rgba(148,163,184,.13); vertical-align:top;}
+    th{color:#dbeafe; font-weight:900;}
+    pre{white-space:pre-wrap; word-break:break-word; margin:10px 0 0; font-size:12px; color:var(--muted);}
+
+    .sourceList{
+      margin-top:10px;
+      padding:12px;
+      border:1px solid rgba(96,165,250,.18);
+      border-radius:16px;
+      background:rgba(2,6,23,.42);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .sourceList b{color:var(--text); display:block; margin-bottom:7px;}
+    .sourceItem{margin:5px 0; line-height:1.4;}
+
+    .suggestionBar{
+      margin-top:10px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .suggestionBtn,.topicChip{
+      background:rgba(2,6,23,.48);
+      color:var(--text2);
+      border:1px solid rgba(148,163,184,.16);
+      border-radius:999px;
+      padding:8px 12px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:800;
+      transition:.2s ease;
+    }
+    .suggestionBtn:hover,.topicChip:hover{border-color:rgba(96,165,250,.38); color:#fff; transform:translateY(-1px);}
+
+    .topicGroupsWrap{margin-top:12px; display:flex; flex-direction:column; gap:12px;}
+    .topicGroupCard{
+      border:1px solid rgba(148,163,184,.14);
+      border-radius:18px;
+      background:rgba(2,6,23,.42);
+      padding:12px;
+    }
+    .topicGroupTitle{font-size:13px; font-weight:950; color:#fff; margin:0 0 9px;}
+    .topicChipWrap{display:flex; gap:8px; flex-wrap:wrap;}
+
+    .mobileModuleBar{display:none;}
+
+    @media (max-width:1060px){
+      .app{grid-template-columns:1fr;}
+      .sidebar{display:none;}
+      .mobileModuleBar{display:flex; width:100%; overflow:auto; gap:8px; padding-bottom:2px;}
+      .mobileModuleBar .moduleBtn{width:auto; white-space:nowrap; padding:8px 11px;}
+      .bubbleWrap{max-width:92%;}
+    }
+
+    @media (max-width:720px){
+      body{overflow:auto;}
+      .main{height:100dvh;}
+      header{padding:13px 14px 10px;}
+      .topbar{align-items:flex-start; flex-direction:column;}
+      .pageTitle{font-size:19px;}
+      .wrap{padding:12px; gap:10px;}
+      .chatbox{padding:12px; border-radius:18px;}
+      .composer{border-radius:18px;}
+      .inputRow{gap:7px;}
+      .iconBtn{width:44px; min-width:44px; height:44px; border-radius:14px;}
+      .btnRow{gap:7px;}
+      .btn{padding:9px 11px;}
+      .hint{display:none;}
+      .bubbleWrap{max-width:95%;}
+      .avatar{width:32px; height:32px; border-radius:13px;}
+      .bubble{font-size:13.5px; padding:12px 13px;}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" aria-label="Assistant navigation">
+    <div class="brandCard">
+      <div class="brandLogo">AI</div>
+      <h1 class="brandTitle">BURO Enterprise AI Assistant</h1>
+      <p class="brandSub">Private on-prem LLM, RAG, workflow automation, and internal system intelligence.</p>
+    </div>
+
+    <div class="sideSection">
+      <div class="sideLabel"><span>AI Modules</span><span>Live</span></div>
+      <div class="moduleTabs" title="Select AI module">
+        <button type="button" class="moduleBtn active" data-module="auto">Auto Router</button>
+        <button type="button" class="moduleBtn" data-module="website">Website RAG</button>
+        <button type="button" class="moduleBtn" data-module="policy">HR Policy</button>
+        <button type="button" class="moduleBtn" data-module="notice">Notice RAG</button>
+        <button type="button" class="moduleBtn" data-module="core">Core System</button>
+        <button type="button" class="moduleBtn customer" data-module="customer_support">Customer Support</button>
+      </div>
+    </div>
+
+    <div class="sideSection">
+      <div class="sideLabel"><span>Answer Mode</span></div>
+      <div class="toggleMini">
+        <label>
+          <span class="modeText">Use documents</span>
+          <span>
+            <input type="checkbox" id="modeToggle" checked />
+            <span id="modePill">RAG</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="sideSection">
+      <div class="sideLabel"><span>Current Status</span></div>
+      <div class="statusStack">
+        <div class="miniStatus"><span class="statusDot ok"></span><span>Secure on-prem assistant</span></div>
+        <div class="miniStatus"><span class="statusDot"></span><span id="sidebarSession">Session: —</span></div>
+        <div class="miniStatus"><span class="statusDot"></span><span id="sidebarFile">File: —</span></div>
+        <div class="miniStatus"><span class="statusDot"></span><span id="sidebarWorkflow">Workflow: —</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header>
+      <div class="topbar">
+        <div class="titleBlock">
+          <div class="eyebrow"><span class="liveDot"></span><span>Private RAG • HRM • Cashflow • Core • Customer Support</span></div>
+          <h2 class="pageTitle">BURO Enterprise Intelligence Platform</h2>
+          <p class="pageSub">A secure on-premises AI platform for policy intelligence, notice search, document analysis, customer support, and core-system interaction.</p>
+        </div>
+
+        <div class="authArea">
+          <span class="pill">/api/auto/ask</span>
+          {% if request.user.is_authenticated %}
+            <span class="pill userPill" title="Logged in user">
+              <span class="statusDot ok"></span>
+              {{ request.user.username }}
+            </span>
+            <a class="pill primaryPill" href="/logout/">Logout</a>
+          {% else %}
+            <a class="pill primaryPill" href="/login/">Login</a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="subbar">
+        <div class="mobileModuleBar" title="Select AI module">
+          <button type="button" class="moduleBtn active" data-module="auto">Auto</button>
+          <button type="button" class="moduleBtn" data-module="website">Website</button>
+          <button type="button" class="moduleBtn" data-module="policy">Policy</button>
+          <button type="button" class="moduleBtn" data-module="notice">Notice</button>
+          <button type="button" class="moduleBtn" data-module="core">Core</button>
+          <button type="button" class="moduleBtn customer" data-module="customer_support">Customer Support</button>
+        </div>
+
+        <div id="micLangWrap" class="micLangWrap">
+          <span>Mic</span>
+          <select id="micLang">
+            <option value="auto" selected>Auto</option>
+            <option value="bn">বাংলা</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
+        <button id="statusSummary" class="statusSummary" type="button" title="Show status details">
+          <span id="summaryMode">RAG</span>
+          <span class="summaryMuted">•</span>
+          <span id="summaryMic">Mic off</span>
+          <span class="summaryMuted">•</span>
+          <span id="summaryFile">No file</span>
+        </button>
+      </div>
+
+      <div id="statusDetails" class="statusDetails">
+        <div class="statusGrid">
+          <div class="statusCard"><b>Session</b><span id="sessionText">—</span></div>
+          <div class="statusCard"><b>File</b><span id="fileText">—</span></div>
+          <div class="statusCard"><b>Workflow Upload</b><span id="workflowText">—</span></div>
+          <div class="statusCard"><b>Microphone</b><span id="micState">Checking…</span></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <div id="chatbox" class="chatbox"></div>
+
+      <div class="composer">
+        <div class="inputRow">
+          <textarea id="input" placeholder="Ask anything… Example: Show  topics list"></textarea>
+
+          <input id="fileInput" type="file" style="display:none" accept=".pdf,.doc,.docx,.txt,.json,.xls,.xlsx,.csv,.png,.jpg,.jpeg" />
+
+          <button id="uploadBtn" class="iconBtn" title="Upload file" aria-label="Upload file">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16.5 6.5l-7.9 7.9a3 3 0 0 0 4.2 4.2l8-8a5 5 0 0 0-7.1-7.1l-8 8a7 7 0 0 0 9.9 9.9l6.6-6.6a1 1 0 1 0-1.4-1.4l-6.6 6.6a5 5 0 1 1-7.1-7.1l8-8a3 3 0 0 1 4.2 4.2l-8 8a1 1 0 1 1-1.4-1.4l7.9-7.9a1 1 0 0 0-1.4-1.4z"/>
+            </svg>
+          </button>
+
+          <button id="micBtn" class="iconBtn" title="Voice input" aria-label="Voice input">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 0 1 2 0 7 7 0 0 1-6 6.93V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="btnRow">
+          <button class="btn" id="sendBtn">Send</button>
+          <button class="btn secondary" id="stopBtn" disabled>Stop</button>
+          <button class="btn secondary" id="clearBtn">Clear Chat</button>
+          <button class="btn secondary" id="clearFileBtn">Clear File</button>
+          <span class="hint">File active = document mode. Excel files can be sent to Zypl batch scoring. Workflow upload reuses the upload button for NID/photo steps.</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const ASK_URL = "/api/auto/ask";
+  const DOC_URL = "/api/doc/ask";
+  const UPLOAD_URL = "/api/files/upload";
+  const ZYPL_BATCH_FILE_URL = "/api/zypl/cashflow/score-file/from-uploaded-file";
+  const POLICY_STREAM_URLS = ["/api/policy/ask/stream", "/api/policy/ask-stream"];
+  const WORKFLOW_UPLOAD_URL = "/workflow/upload/";
+
+  const chatbox = document.getElementById("chatbox");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const clearFileBtn = document.getElementById("clearFileBtn");
+  const modeToggle = document.getElementById("modeToggle");
+  const modePill = document.getElementById("modePill");
+  const sessionText = document.getElementById("sessionText");
+  const fileText = document.getElementById("fileText");
+  const workflowText = document.getElementById("workflowText");
+  const micBtn = document.getElementById("micBtn");
+  const micState = document.getElementById("micState");
+  const micLang = document.getElementById("micLang");
+  const micLangWrap = document.getElementById("micLangWrap");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const fileInput = document.getElementById("fileInput");
+  const statusSummary = document.getElementById("statusSummary");
+  const statusDetails = document.getElementById("statusDetails");
+  const summaryMode = document.getElementById("summaryMode");
+  const summaryMic = document.getElementById("summaryMic");
+  const summaryFile = document.getElementById("summaryFile");
+  const moduleBtns = document.querySelectorAll(".moduleBtn");
+  const sidebarSession = document.getElementById("sidebarSession");
+  const sidebarFile = document.getElementById("sidebarFile");
+  const sidebarWorkflow = document.getElementById("sidebarWorkflow");
+
+  let selectedModule = "auto";
+  let abortCtl = null;
+  let sessionId = null;
+  let currentFileId = null;
+  let currentFileName = null;
+  let currentFileMediaPath = null;
+  let workflowUploadMode = null;
+  let lastPolicyRagActive = false;
+
+  function setModule(moduleName) {
+    selectedModule = moduleName || "auto";
+
+    if (["website", "notice", "core", "customer_support"].includes(selectedModule)) {
+      lastPolicyRagActive = false;
+    }
+
+    updateModuleUI();
+  }
+
+  function updateModuleUI() {
+    moduleBtns.forEach(btn => {
+      const isActive = btn.dataset.module === selectedModule;
+      btn.classList.toggle("active", isActive);
+    });
+
+    const selectedBtn = Array.from(moduleBtns).find(btn => btn.dataset.module === selectedModule && btn.offsetParent !== null) ||
+      Array.from(moduleBtns).find(btn => btn.dataset.module === selectedModule);
+
+    if (selectedBtn) {
+      input.placeholder = "Selected module: " + selectedBtn.textContent.trim() + " — Type your question here";
+    }
+  }
+
+  moduleBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      setModule(btn.dataset.module || "auto");
+    });
+  });
+
+  function updateHeaderSummary() {
+    summaryMode.textContent = modeToggle.checked ? "RAG" : "LLM";
+    summaryMic.textContent = (micState.textContent || "").includes("Ready") ? "Mic ready" : (micState.textContent || "Mic off");
+    if (workflowUploadMode) summaryFile.textContent = "Workflow active";
+    else if (currentFileId) summaryFile.textContent = "File ready";
+    else summaryFile.textContent = "No file";
+  }
+
+  statusSummary.addEventListener("click", () => {
+    const open = statusDetails.style.display === "block";
+    statusDetails.style.display = open ? "none" : "block";
+  });
+
+  function nowTime() {
+    const d = new Date();
+    return d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function renderMarkdown(text) {
+    try {
+      const html = marked.parse(text || "", { breaks: true, gfm: true });
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      div.querySelectorAll("pre code").forEach(block => {
+        try { hljs.highlightElement(block); } catch(e) {}
+      });
+      return div.innerHTML;
+    } catch(e) {
+      return escapeHtml(text || "");
+    }
+  }
+
+  function setBubbleMarkdown(bubble, text) {
+    bubble.innerHTML = renderMarkdown(text || "");
+  }
+
+  function formatPolicyAnswerText(text) {
+    const lines = String(text || "").split("\n");
+    let html = "";
+    let inList = false;
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+
+      if (!line) {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        continue;
+      }
+
+      if (line.startsWith("Summary:")) {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        html += `<p><strong>Summary:</strong> ${escapeHtml(line.replace(/^Summary:\s*/, ""))}</p>`;
+        continue;
+      }
+
+      if (line === "Rules:") {
+        if (inList) html += "</ul>";
+        html += `<p><strong>Rules:</strong></p><ul>`;
+        inList = true;
+        continue;
+      }
+
+      if (line.startsWith("- ")) {
+        if (!inList) {
+          html += "<ul>";
+          inList = true;
+        }
+        html += `<li>${escapeHtml(line.replace(/^- /, ""))}</li>`;
+        continue;
+      }
+
+      if (line.startsWith("  - ")) {
+        if (!inList) {
+          html += "<ul>";
+          inList = true;
+        }
+        html += `<li>${escapeHtml(line.replace(/^  - /, ""))}</li>`;
+        continue;
+      }
+
+      if (line.startsWith("Sources:")) {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        html += `<p><strong>Sources:</strong> ${escapeHtml(line.replace(/^Sources:\s*/, ""))}</p>`;
+        continue;
+      }
+
+      if (inList) {
+        html += "</ul>";
+        inList = false;
+      }
+      html += `<p>${escapeHtml(line)}</p>`;
+    }
+
+    if (inList) html += "</ul>";
+    return html;
+  }
+
+  function setPolicyBubbleFormatted(bubble, text) {
+    bubble.innerHTML = formatPolicyAnswerText(text || "");
+  }
+
+  function createStreamingRenderer(bubble) {
+    bubble.innerHTML = "";
+    const live = document.createElement("div");
+    live.className = "streamingText";
+    const textNode = document.createElement("span");
+    const cursor = document.createElement("span");
+    cursor.className = "streamingCursor";
+    cursor.textContent = "▌";
+    live.appendChild(textNode);
+    live.appendChild(cursor);
+    bubble.appendChild(live);
+
+    let plainText = "";
+    let queue = "";
+    let raf = null;
+    let stopped = false;
+    let fallbackTimer = null;
+
+    function flush() {
+      if (stopped) return;
+      if (queue) {
+        plainText += queue;
+        queue = "";
+        textNode.textContent = plainText;
+        chatbox.scrollTop = chatbox.scrollHeight;
+      }
+      raf = null;
+    }
+
+    function startFallbackTyping(fullText) {
+      bubble.innerHTML = "";
+      const live2 = document.createElement("div");
+      live2.className = "streamingText";
+      const text2 = document.createElement("span");
+      const cursor2 = document.createElement("span");
+      cursor2.className = "streamingCursor";
+      cursor2.textContent = "▌";
+      live2.appendChild(text2);
+      live2.appendChild(cursor2);
+      bubble.appendChild(live2);
+
+      const words = String(fullText || "").split(/(\s+)/);
+      let i = 0;
+      let assembled = "";
+
+      function step() {
+        if (stopped) return;
+        if (i >= words.length) {
+          setBubbleMarkdown(bubble, fullText);
+          return;
+        }
+        assembled += words[i++];
+        text2.textContent = assembled;
+        chatbox.scrollTop = chatbox.scrollHeight;
+        fallbackTimer = setTimeout(step, 20);
+      }
+      step();
+    }
+
+    return {
+      showThinking() {
+        bubble.innerHTML = '<div class="streamingText"><span class="thinkingDots">Thinking</span><span class="streamingCursor">▌</span></div>';
+      },
+      showCursorOnly() {
+        bubble.innerHTML = "";
+        bubble.appendChild(live);
+      },
+      append(token) {
+        if (stopped || !token) return;
+        if (!bubble.contains(live)) this.showCursorOnly();
+        queue += token;
+        if (!raf) raf = requestAnimationFrame(flush);
+      },
+      finalize(fullText = null, animateIfNeeded = false) {
+        stopped = true;
+        if (raf) cancelAnimationFrame(raf);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+
+        const finalValue =
+          (fullText !== null && fullText !== undefined && fullText !== "")
+            ? String(fullText)
+            : (plainText + queue);
+
+        if (animateIfNeeded) {
+          stopped = false;
+          startFallbackTyping(finalValue);
+          return;
+        }
+
+        setBubbleMarkdown(bubble, finalValue);
+      },
+      error(message) {
+        stopped = true;
+        if (raf) cancelAnimationFrame(raf);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        setBubbleMarkdown(bubble, message);
+      },
+      getText() {
+        return plainText + queue;
+      }
+    };
+  }
+
+  function autosize() {
+    input.style.height = "54px";
+    input.style.height = Math.min(input.scrollHeight, 170) + "px";
+  }
+  input.addEventListener("input", autosize);
+
+  function extractTopicGroupsFromAnswerText(answerText) {
+    const text = String(answerText || "").replace(/\r/g, "");
+    const lines = text.split("\n");
+
+    const groups = [];
+    let currentGroup = null;
+
+    for (let raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      if (
+        line.endsWith(":") &&
+        !line.startsWith("- ") &&
+        !line.startsWith("* ") &&
+        !line.startsWith("Summary:") &&
+        !line.startsWith("Rules:") &&
+        !line.startsWith("Sources:")
+      ) {
+        currentGroup = {
+          group_name: line.replace(/:$/, "").trim(),
+          items: []
+        };
+        groups.push(currentGroup);
+        continue;
+      }
+
+      if (line.startsWith("- ") || line.startsWith("* ")) {
+        const body = line.replace(/^[-*]\s+/, "").trim();
+
+        let label = body;
+        let askText = body.replace(/\s*\([^)]+\)\s*$/g, "").trim();
+
+        if (askText.includes(" — ")) {
+          askText = askText.split(" — ")[0].trim();
+        } else if (askText.includes(" - ")) {
+          askText = askText.split(" - ")[0].trim();
+        }
+
+        if (!currentGroup) {
+          currentGroup = { group_name: "Topics", items: [] };
+          groups.push(currentGroup);
+        }
+
+        currentGroup.items.push({
+          label: label,
+          ask_text: askText,
+          topic_id: "",
+          topic_bn: "",
+          topic_en: "",
+          clause_range: ""
+        });
+      }
+    }
+
+    return groups.filter(g => Array.isArray(g.items) && g.items.length);
+  }
+
+  function renderTopicGroups(afterBubble, topicGroups) {
+    if (!Array.isArray(topicGroups) || !topicGroups.length) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "topicGroupsWrap";
+
+    topicGroups.forEach(group => {
+      const card = document.createElement("div");
+      card.className = "topicGroupCard";
+
+      const title = document.createElement("div");
+      title.className = "topicGroupTitle";
+      title.textContent = group.group_name || "Topics";
+      card.appendChild(title);
+
+      const chipWrap = document.createElement("div");
+      chipWrap.className = "topicChipWrap";
+
+      (group.items || []).forEach(item => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "topicChip";
+        btn.textContent = item.label || item.topic_bn || item.topic_en || item.topic_id || "Topic";
+        btn.onclick = () => {
+          const askText =
+            item.ask_text ||
+            item.label ||
+            item.topic_bn ||
+            item.topic_en ||
+            item.topic_id ||
+            "";
+          if (!askText) return;
+          input.value = askText;
+          autosize();
+          sendMessage();
+        };
+        chipWrap.appendChild(btn);
+      });
+
+      card.appendChild(chipWrap);
+      wrap.appendChild(card);
+    });
+
+    afterBubble.parentElement.appendChild(wrap);
+  }
+
+  function addMessage(role, content) {
+    const row = document.createElement("div");
+    row.className = "msg " + role;
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    avatar.textContent = role === "user" ? "You" : "AI";
+
+    const bubbleWrap = document.createElement("div");
+    bubbleWrap.className = "bubbleWrap";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+
+    if (role === "assistant") setBubbleMarkdown(bubble, content || "");
+    else bubble.textContent = content;
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = nowTime();
+
+    if (role === "user") {
+      row.appendChild(bubbleWrap);
+      bubbleWrap.appendChild(bubble);
+      bubbleWrap.appendChild(meta);
+      row.appendChild(avatar);
+    } else {
+      row.appendChild(avatar);
+      row.appendChild(bubbleWrap);
+      bubbleWrap.appendChild(bubble);
+      bubbleWrap.appendChild(meta);
+    }
+
+    chatbox.appendChild(row);
+    chatbox.scrollTop = chatbox.scrollHeight;
+    return bubble;
+  }
+
+  function renderSourceList(afterBubble, citations) {
+    if (!Array.isArray(citations) || !citations.length) return;
+    const box = document.createElement("div");
+    box.className = "sourceList";
+    const title = document.createElement("b");
+    title.textContent = "Sources";
+    box.appendChild(title);
+
+    citations.forEach((c, i) => {
+      const item = document.createElement("div");
+      item.className = "sourceItem";
+      const parts = [];
+      parts.push(`[${i + 1}]`);
+      if (c.topic_bn) parts.push(c.topic_bn);
+      else if (c.topic_en) parts.push(c.topic_en);
+      else if (c.topic_id) parts.push(c.topic_id);
+      if (c.clause || c.clause_range) parts.push(`clause=${c.clause || c.clause_range}`);
+      if (c.source_file) parts.push(`file=${c.source_file}`);
+      item.textContent = parts.join(" | ");
+      box.appendChild(item);
+    });
+
+    afterBubble.parentElement.appendChild(box);
+  }
+
+  function expandFollowupQuestion(topicLabel, suggestionText) {
+    const topic = String(topicLabel || "").trim();
+    const s = String(suggestionText || "").trim();
+
+    if (!topic) return s;
+
+    if (s === "এই বিষয়ে বিস্তারিত কী?") return `${topic} বিষয়ে বিস্তারিত কী?`;
+    if (s === "এই নীতির মূল শর্তগুলো কী?") return `${topic} নীতির মূল শর্তগুলো কী?`;
+    if (s === "এখানে কোনো ব্যতিক্রম আছে কি?") return `${topic} বিষয়ে কোনো ব্যতিক্রম আছে কি?`;
+    if (s === "আরও বিস্তারিত বলো") return `${topic} বিষয়ে আরও বিস্তারিত বলো`;
+    if (s === "মূল পয়েন্টগুলো দাও") return `${topic} বিষয়ে মূল পয়েন্টগুলো দাও`;
+    if (s === "সংক্ষিপ্ত সারাংশ দাও") return `${topic} বিষয়ে সংক্ষিপ্ত সারাংশ দাও`;
+    if (s === "এই নোটিশের সারাংশ কী?") return `${topic} নোটিশের সারাংশ কী?`;
+    if (s === "এটার কার্যকর তারিখ কী?") return `${topic} এর কার্যকর তারিখ কী?`;
+    if (s === "এতে কারা প্রভাবিত হবে?") return `${topic} এ কারা প্রভাবিত হবে?`;
+
+    return `${topic} ${s}`;
+  }
+
+  function renderSuggestions(afterBubble, suggestions, topicLabel = "") {
+    if (!Array.isArray(suggestions) || !suggestions.length) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "suggestionBar";
+
+    suggestions.forEach((s) => {
+      const btn = document.createElement("button");
+      btn.className = "suggestionBtn";
+      btn.type = "button";
+      btn.textContent = s;
+      btn.onclick = () => {
+        const finalQuestion = expandFollowupQuestion(topicLabel, s);
+        input.value = finalQuestion;
+        autosize();
+        sendMessage();
+      };
+      wrap.appendChild(btn);
+    });
+
+    afterBubble.parentElement.appendChild(wrap);
+  }
+
+  function buildLocalSuggestions(question, answer) {
+    const q = (question || "").toLowerCase();
+    const a = (answer || "").toLowerCase();
+
+    if (
+      q.includes("policy") || q.includes("নীতিমালা") ||
+      q.includes("recruitment") || q.includes("নিয়োগ") ||
+      q.includes("loan") || q.includes("ঋণ") ||
+      q.includes("leave") || q.includes("ছুটি") ||
+      q.includes("gratuity") || q.includes("গ্র্যাচুইটি") ||
+      q.includes("provident") || q.includes("প্রভিডেন্ট") ||
+      q.includes("tax") || q.includes("আয়কর") ||
+      q.includes("allowance") || q.includes("ভাতা") ||
+      q.includes("telephone") || q.includes("internet") || q.includes("email") ||
+      q.includes("টেলিফোন") || q.includes("ইন্টারনেট") || q.includes("ইমেইল")
+    ) {
+      return [
+        "এই বিষয়ে বিস্তারিত কী?",
+        "এই নীতির মূল শর্তগুলো কী?",
+        "এখানে কোনো ব্যতিক্রম আছে কি?",
+      ];
+    }
+
+    if (
+      q.includes("notice") || q.includes("নোটিশ") ||
+      q.includes("বিজ্ঞপ্তি") || q.includes("circular")
+    ) {
+      return [
+        "এই নোটিশের সারাংশ কী?",
+        "এটার কার্যকর তারিখ কী?",
+        "এতে কারা প্রভাবিত হবে?",
+      ];
+    }
+
+    if (
+      q.includes("balance") || q.includes("amount") ||
+      q.includes("summary") || q.includes("report") ||
+      q.includes("customer") || q.includes("loan account") ||
+      q.includes("cashflow")
+    ) {
+      return [
+        "এটার সংক্ষিপ্ত সারাংশ দাও",
+        "এটার বিস্তারিত দেখাও",
+        "মূল পয়েন্টগুলো দাও",
+      ];
+    }
+
+    if (
+      a.includes("summary:") ||
+      a.includes("rules:") ||
+      a.includes("sources:")
+    ) {
+      return [
+        "আরও বিস্তারিত বলো",
+        "মূল পয়েন্টগুলো দাও",
+        "সংক্ষিপ্ত সারাংশ দাও",
+      ];
+    }
+
+    return [
+      "আরও বিস্তারিত বলো",
+      "মূল পয়েন্টগুলো দাও",
+      "সংক্ষিপ্ত সারাংশ দাও",
+    ];
+  }
+
+  function dedupeSuggestions(items) {
+    const out = [];
+    const seen = new Set();
+
+    for (const item of (items || [])) {
+      const s = String(item || "").trim();
+      if (!s) continue;
+      const k = s.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(s);
+    }
+
+    return out.slice(0, 6);
+  }
+
+  function renderAnswerSuggestions(afterBubble, backendSuggestions, question, answer, detectedTopic = null) {
+    const finalSuggestions =
+      Array.isArray(backendSuggestions) && backendSuggestions.length
+        ? dedupeSuggestions(backendSuggestions)
+        : dedupeSuggestions(buildLocalSuggestions(question, answer));
+
+    let topicLabel = "";
+
+    if (detectedTopic && typeof detectedTopic === "object") {
+      topicLabel =
+        detectedTopic.topic_bn ||
+        detectedTopic.topic_en ||
+        detectedTopic.topic_id ||
+        "";
+    }
+
+    if (!topicLabel) {
+      const q = String(question || "").trim();
+      if (q) topicLabel = q;
+    }
+
+    if (finalSuggestions.length) {
+      renderSuggestions(afterBubble, finalSuggestions, topicLabel);
+    }
+  }
+
+  function renderPolicyResponse(afterBubble, data, originalQuestion = "") {
+    const textOut = extractDisplayText(data);
+    setPolicyBubbleFormatted(afterBubble, textOut);
+
+    let topicGroups = [];
+
+    if (data.topic_list_mode && Array.isArray(data.topic_groups) && data.topic_groups.length) {
+      topicGroups = data.topic_groups;
+    } else {
+      topicGroups = extractTopicGroupsFromAnswerText(textOut);
+    }
+
+    if (Array.isArray(topicGroups) && topicGroups.length) {
+      renderTopicGroups(afterBubble, topicGroups);
+    }
+
+    if (Array.isArray(data.citations) && data.citations.length) {
+      renderSourceList(afterBubble, data.citations);
+    }
+
+    const isTopicListMode = !!(
+      data.topic_list_mode ||
+      (Array.isArray(topicGroups) && topicGroups.length)
+    );
+
+    if (!isTopicListMode) {
+      renderAnswerSuggestions(
+        afterBubble,
+        data.suggestions || data.related_questions || [],
+        originalQuestion,
+        textOut,
+        data.detected_topic || null
+      );
+    }
+
+    if (
+      data &&
+      (
+        data.result || data.sql || data.plan || data.raw || data.citations ||
+        data.debug || data.suggestions || data.topic_groups || data.related_questions
+      )
+    ) {
+      renderDetails(afterBubble, data);
+    }
+
+    normalizeWorkflowStateFromResponse(data, textOut);
+  }
+
+  function renderDetails(afterBubble, data){
+    const wrap = document.createElement("div");
+    wrap.className = "detailsWrap";
+    const btn = document.createElement("button");
+    btn.className = "detailsBtn";
+    btn.textContent = "Show details";
+    const panel = document.createElement("div");
+    panel.className = "detailsPanel";
+
+    btn.onclick = () => {
+      const open = panel.style.display === "block";
+      panel.style.display = open ? "none" : "block";
+      btn.textContent = open ? "Show details" : "Hide details";
+    };
+
+    if (Array.isArray(data.result) && data.result.length) {
+      const cols = Object.keys(data.result[0] || {});
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const hr = document.createElement("tr");
+      cols.forEach(c => {
+        const th = document.createElement("th");
+        th.textContent = c;
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      const tb = document.createElement("tbody");
+      data.result.forEach(row => {
+        const tr = document.createElement("tr");
+        cols.forEach(c => {
+          const td = document.createElement("td");
+          td.textContent = (row[c] === null || row[c] === undefined) ? "" : String(row[c]);
+          tr.appendChild(td);
+        });
+        tb.appendChild(tr);
+      });
+      table.appendChild(tb);
+      panel.appendChild(table);
+    }
+
+    if (typeof data.sql === "string" && data.sql.trim()) {
+      const pre = document.createElement("pre");
+      pre.textContent = "SQL:\n" + data.sql;
+      panel.appendChild(pre);
+    }
+
+    if (data.plan && typeof data.plan === "object") {
+      const pre = document.createElement("pre");
+      pre.textContent = "Plan (debug):\n" + JSON.stringify(data.plan, null, 2);
+      panel.appendChild(pre);
+    }
+
+    if (typeof data.raw === "string" && data.raw.trim()) {
+      const pre = document.createElement("pre");
+      pre.textContent = "Raw:\n" + data.raw.slice(0, 1200);
+      panel.appendChild(pre);
+    }
+
+    if (Array.isArray(data.citations) && data.citations.length) {
+      const pre = document.createElement("pre");
+      pre.textContent = "Citations:\n" + JSON.stringify(data.citations, null, 2);
+      panel.appendChild(pre);
+    }
+
+    if (data.debug && typeof data.debug === "object") {
+      const pre = document.createElement("pre");
+      pre.textContent = "Debug:\n" + JSON.stringify(data.debug, null, 2);
+      panel.appendChild(pre);
+    }
+
+    if (Array.isArray(data.suggestions) && data.suggestions.length) {
+      const pre = document.createElement("pre");
+      pre.textContent = "Suggestions:\n" + JSON.stringify(data.suggestions, null, 2);
+      panel.appendChild(pre);
+    }
+
+    wrap.appendChild(btn);
+    wrap.appendChild(panel);
+    afterBubble.parentElement.appendChild(wrap);
+  }
+
+  function updateModeLabel() {
+    modePill.textContent = modeToggle.checked ? "RAG" : "LLM";
+    updateHeaderSummary();
+  }
+  modeToggle.addEventListener("change", updateModeLabel);
+
+  function setSessionPill() {
+    sessionText.textContent = sessionId ? String(sessionId) : "—";
+    if (sidebarSession) sidebarSession.textContent = "Session: " + (sessionId ? String(sessionId) : "—");
+    updateHeaderSummary();
+  }
+  function setFilePill() {
+    fileText.textContent = currentFileId ? String(currentFileId) : "—";
+    if (sidebarFile) sidebarFile.textContent = "File: " + (currentFileId ? "Ready" : "—");
+    updateHeaderSummary();
+  }
+  function setWorkflowPill() {
+    workflowText.textContent = workflowUploadMode ? workflowUploadMode : "—";
+    if (sidebarWorkflow) sidebarWorkflow.textContent = "Workflow: " + (workflowUploadMode ? workflowUploadMode : "—");
+    updateHeaderSummary();
+  }
+
+  function detectWorkflowUploadMode(text) {
+    const t = (text || "").toLowerCase();
+    if (t.includes("upload the front image of your nid") || t.includes("upload nid front") || t.includes("front image of your nid card")) return "nid_front";
+    if (t.includes("upload your recent passport size photo") || t.includes("upload your photo") || t.includes("passport size photo")) return "photo";
+    return null;
+  }
+
+  function normalizeWorkflowStateFromResponse(data, textOut) {
+    if (data && typeof data.workflow_active !== "undefined" && !data.workflow_active) {
+      workflowUploadMode = null;
+      setWorkflowPill();
+    }
+    const detected = detectWorkflowUploadMode(textOut || "");
+    workflowUploadMode = detected;
+    setWorkflowPill();
+  }
+
+  function extractDisplayText(data) {
+    return (
+      (typeof data.answer_human === "string" && data.answer_human.trim()) ? data.answer_human :
+      (typeof data.answer === "string" && data.answer.trim()) ? data.answer :
+      (typeof data.reply === "string" && data.reply.trim()) ? data.reply :
+      (typeof data.explanation === "string" && data.explanation.trim()) ? data.explanation :
+      (typeof data.answer_pretty === "string" && data.answer_pretty.trim()) ? data.answer_pretty :
+      JSON.stringify(data, null, 2)
+    );
+  }
+
+
+  function looksLikeWebsiteQuestion(text) {
+    const t = (text || "").toLowerCase();
+
+    const keywords = [
+      "buro",
+      "burobd",
+      "buro bangladesh",
+      "buro bd",
+      "buro website",
+      "about buro",
+      "buro service",
+      "buro services",
+      "programs and services",
+      "buro loan service",
+      "buro saving scheme",
+      "buro membership",
+      "buro remittance",
+      "buro career",
+      "buro publication",
+      "বুরো",
+      "বুরো বাংলাদেশ",
+      "বুরো ওয়েবসাইট",
+      "বুরো ওয়েবসাইট",
+      "বুরো সম্পর্কে",
+      "বুরোর সেবা",
+      "বুরো কী",
+      "বুরো কি",
+      "কী কী সেবা প্রদান করে",
+      "কি কি সেবা প্রদান করে",
+      "সেবা প্রদান করে",
+      "সঞ্চয় স্কিম",
+      "সঞ্চয় স্কিম",
+      "সদস্যপদ"
+    ];
+
+    return keywords.some(k => t.includes(k));
+  }
+
+  function renderWebsiteSources(afterBubble, sources) {
+    if (!Array.isArray(sources) || !sources.length) return;
+
+    const box = document.createElement("div");
+    box.className = "sourceList";
+
+    const title = document.createElement("b");
+    title.textContent = "Website Sources";
+    box.appendChild(title);
+
+    sources.forEach((src, i) => {
+      const item = document.createElement("div");
+      item.className = "sourceItem";
+
+      const label = src.title || "BURO Website";
+      const url = src.url || "";
+
+      if (url) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = `[${i + 1}] ${label} — ${url}`;
+        item.appendChild(a);
+      } else {
+        item.textContent = `[${i + 1}] ${label}`;
+      }
+
+      box.appendChild(item);
+    });
+
+    afterBubble.parentElement.appendChild(box);
+  }
+
+  function looksLikeNoticeQuestion(text) {
+    const t = (text || "").toLowerCase();
+    const keywords = [
+      "notice", "circular", "memo", "notice no", "memo no",
+      "নোটিশ", "বিজ্ঞপ্তি", "সার্কুলার", "মেমো"
+    ];
+    return keywords.some(k => t.includes(k));
+  }
+
+  function looksLikeCustomerSupportQuestion(text) {
+    const t = (text || "").toLowerCase();
+    const keywords = [
+      "customer", "customer support", "customer care", "client",
+      "member id", "member no", "customer id", "account no",
+      "loan status", "loan pending", "installment", "installment problem",
+      "payment not updated", "savings balance", "complaint", "ticket",
+      "ticket status", "branch contact", "account close", "account closing",
+      "new member", "member admission",
+      "গ্রাহক", "কাস্টমার", "সদস্য", "সদস্য নং", "সদস্য আইডি",
+      "গ্রাহক আইডি", "ঋণের অবস্থা", "লোন স্ট্যাটাস", "কিস্তি",
+      "কিস্তি আপডেট", "জমা হয়নি", "সঞ্চয় ব্যালেন্স", "ব্যালেন্স",
+      "অভিযোগ", "টিকেট", "শাখার যোগাযোগ", "হিসাব বন্ধ",
+      "নতুন সদস্য", "ভর্তি"
+    ];
+    return keywords.some(k => t.includes(k));
+  }
+
+  function looksLikePolicyQuestion(text) {
+    const t = (text || "").toLowerCase();
+
+    if (looksLikeNoticeQuestion(t)) return false;
+
+    const keywords = [
+      "policy", "hr policy", "promotion", "promotion eligibility", "grade",
+      "casual leave", "earned leave", "maternity leave", "paternity leave", "festival leave",
+      "sick leave", "probation", "confirmation", "seniority", "transfer", "distance allowance",
+      "overtime allowance", "gratuity", "provident fund", "income tax", "resignation",
+      "retirement", "termination", "show cause", "warning letter",
+      "sexual harassment", "sexual harasment", "joining rules", "recruitment", "grade structure",
+      "staff type", "staff classification", "project staff", "project employee", "project recruitment",
+      "vehicle loan", "car loan", "house loan", "flat loan",
+      "telephone facility", "internet facility", "email facility",
+      "নীতিমালা", "পলিসি", "পদোন্নতি", "পদোন্নতির যোগ্যতা",
+      "নৈমিত্তিক ছুটি", "অর্জিত ছুটি", "মাতৃত্বজনিত ছুটি", "পিতৃত্বজনিত ছুটি",
+      "উৎসবকালীন ছুটি", "অসুস্থতাজনিত ছুটি", "শিক্ষানবিশকাল", "স্থায়ীকরণ", "জ্যেষ্ঠতা", "বদলি",
+      "দূরত্ব ভাতা", "অধিকাল ভাতা", "গ্র্যাচুইটি", "প্রভিডেন্ট ফান্ড", "আয়কর", "পদত্যাগ",
+      "অবসর", "অব্যাহতি", "কারণ দর্শানো", "সতর্কীকরণ পত্র",
+      "যৌন হয়রানি", "যোগদান বিধি", "নিয়োগ", "গ্রেড কাঠামো", "কর্মীদের শ্রেণী বিভাগ",
+      "প্রকল্প কর্মী", "প্রকল্প নিয়োগ", "ঋণ", "গাড়ী ঋণ", "গাড়ি ঋণ",
+      "টেলিফোন সুবিধা", "ইন্টারনেট সুবিধা", "ইমেইল সুবিধা",
+      "leave", "leave approval", "leave approve", "approval", "approve", "branch office",
+      "ছুটি", "ছুটির", "ছুটি অনুমোদন", "ছুটি মঞ্জুর", "অনুমোদন", "মঞ্জুর",
+      "শাখা কার্যালয়", "শাখা কার্যালয়ের", "বিভাগীয় কার্যালয়", "আঞ্চলিক কার্যালয়",
+      "এলাকা কার্যালয়", "প্রধান কার্যালয়", "নিরীক্ষা বিভাগ", "মানবসম্পদ উন্নয়ন কেন্দ্র",
+      "show all topics", "list of topics", "what topics can you answer", "topic list",
+      "কোন কোন টপিক", "কি কি প্রশ্ন করতে পারি", "সব টপিক"
+    ];
+
+    return keywords.some(k => t.includes(k));
+  }
+
+  function looksLikePolicyFollowupQuestion(text) {
+    const t = String(text || "").toLowerCase().trim();
+
+    if (!t) return false;
+    if (looksLikeNoticeQuestion(t) || looksLikeCustomerSupportQuestion(t)) return false;
+
+    const followupTerms = [
+      "আরও", "আরো", "বিস্তারিত", "সহজ করে", "মূল শর্ত", "শর্তগুলো",
+      "ব্যতিক্রম", "কত", "কত দিন", "কতদিন", "কে", "কারা", "কখন",
+      "কিভাবে", "কীভাবে", "অনুমোদন", "মঞ্জুর", "শাখা", "শাখা কার্যালয়",
+      "বিভাগীয়", "আঞ্চলিক", "এলাকা", "প্রধান কার্যালয়",
+      "this", "that", "same", "previous", "above", "more", "details",
+      "explain", "who", "when", "how many", "approval", "condition", "exception"
+    ];
+
+    if (followupTerms.some(k => t.includes(k.toLowerCase()))) return true;
+
+    return t.split(/\s+/).length <= 8;
+  }
+
+  async function fetchPolicyStreamResponse(payload, signal) {
+    let lastError = null;
+    for (const url of POLICY_STREAM_URLS) {
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(payload),
+          signal
+        });
+        if (resp.ok) return { resp, url };
+        lastError = new Error(`HTTP ${resp.status} from ${url}`);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError || new Error("Policy stream endpoint not reachable");
+  }
+
+  async function sendPolicyStream(text, thinkingBubble) {
+    const renderer = createStreamingRenderer(thinkingBubble);
+    renderer.showThinking();
+
+    const { resp } = await fetchPolicyStreamResponse({
+      question: text,
+      top_k: 6,
+      stream_clean_final: 1
+    }, abortCtl.signal);
+
+    if (!resp.body) {
+      const raw = await resp.text();
+      let data = {};
+      try { data = JSON.parse(raw || "{}"); } catch(_) { data = { answer: raw }; }
+      renderPolicyResponse(thinkingBubble, data, text);
+      lastPolicyRagActive = true;
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    let finalPayload = null;
+    let finalAnswer = "";
+    let citations = [];
+    let suggestions = [];
+    let relatedQuestions = [];
+    let topicGroups = [];
+    let topicListMode = false;
+    let detectedTopic = null;
+    let debug = {};
+    let gotAnswerEvent = false;
+
+    while (true) {
+      if (abortCtl?.signal?.aborted) {
+        try { reader.cancel(); } catch(_) {}
+        throw new DOMException("Aborted", "AbortError");
+      }
+
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      while (true) {
+        const boundaryIndex = buffer.indexOf("\n\n");
+        if (boundaryIndex < 0) break;
+
+        const chunk = buffer.slice(0, boundaryIndex);
+        buffer = buffer.slice(boundaryIndex + 2);
+
+        const lines = chunk.split("\n");
+        let dataLines = [];
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            dataLines.push(line.slice(6));
+          }
+        }
+
+        if (!dataLines.length) continue;
+
+        const dataText = dataLines.join("\n").trim();
+        if (!dataText) continue;
+
+        let payload;
+        try {
+          payload = JSON.parse(dataText);
+        } catch (_) {
+          continue;
+        }
+
+        if (payload.event === "start") {
+          renderer.showThinking();
+        } else if (payload.event === "answer") {
+          gotAnswerEvent = true;
+          finalPayload = payload || {};
+          finalAnswer = payload.answer || "";
+          citations = payload.citations || [];
+          suggestions = payload.suggestions || [];
+          relatedQuestions = payload.related_questions || [];
+          topicGroups = payload.topic_groups || [];
+          topicListMode = !!payload.topic_list_mode;
+          detectedTopic = payload.detected_topic || null;
+          debug = payload.debug || {};
+          setPolicyBubbleFormatted(thinkingBubble, finalAnswer);
+        } else if (payload.event === "error") {
+          throw new Error(payload.error || payload.answer || "Streaming error");
+        } else if (payload.event === "end") {
+        }
+      }
+    }
+
+    if (!gotAnswerEvent) {
+      const fallbackText = finalAnswer || "A clear policy excerpt was not found.";
+      setPolicyBubbleFormatted(thinkingBubble, fallbackText);
+    }
+
+    const assembledPayload = finalPayload || {
+      answer: finalAnswer,
+      citations,
+      suggestions,
+      related_questions: relatedQuestions,
+      topic_groups: topicGroups,
+      topic_list_mode: topicListMode,
+      detected_topic: detectedTopic,
+      debug
+    };
+
+    renderPolicyResponse(thinkingBubble, assembledPayload, text);
+    lastPolicyRagActive = true;
+  }
+
+
+  function isExcelFileName(filename) {
+    const name = String(filename || "").toLowerCase();
+    return name.endsWith(".xlsx") || name.endsWith(".xls");
+  }
+
+  function looksLikeZyplBatchFileCommand(text) {
+    const t = String(text || "").toLowerCase();
+
+    const hasZypl =
+      t.includes("zypl") ||
+      t.includes("জাইপল") ||
+      t.includes("ঝাইপল");
+
+    const hasBatchOrFile =
+      t.includes("batch") ||
+      t.includes("file") ||
+      t.includes("excel") ||
+      t.includes("xlsx") ||
+      t.includes("xls") ||
+      t.includes("upload") ||
+      t.includes("score file") ||
+      t.includes("batch score") ||
+      t.includes("স্কোর") ||
+      t.includes("ফাইল") ||
+      t.includes("এক্সেল");
+
+    return hasZypl && hasBatchOrFile;
+  }
+
+  async function processUploadedFileWithZyplBatch(thinkingBubble) {
+    if (!currentFileId) {
+      setBubbleMarkdown(
+        thinkingBubble,
+        "Please upload an Excel file first, then ask: `zypl batch score this file`"
+      );
+      return;
+    }
+
+    if (!isExcelFileName(currentFileName)) {
+      setBubbleMarkdown(
+        thinkingBubble,
+        "The active uploaded file is not an Excel file.\n\n" +
+        "Current file: `" + (currentFileName || "unknown") + "`\n\n" +
+        "Please upload `.xlsx` file first, then ask: `zypl batch score this file`"
+      );
+      return;
+    }
+
+    setBubbleMarkdown(
+      thinkingBubble,
+      "Processing uploaded Excel file with Zypl batch scoring...\n\n" +
+      "File: `" + (currentFileName || currentFileId) + "`"
+    );
+
+    const resp = await fetch(ZYPL_BATCH_FILE_URL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        file_id: currentFileId
+      }),
+      signal: abortCtl ? abortCtl.signal : undefined
+    });
+
+    const raw = await resp.text();
+    let data = {};
+    try {
+      data = JSON.parse(raw || "{}");
+    } catch (e) {
+      data = { raw };
+    }
+
+    if (!resp.ok || !data.ok) {
+      const errMsg =
+        (data && data.error) ||
+        (data && data.zypl_error) ||
+        ("HTTP " + resp.status + " " + resp.statusText + "\n" + raw.slice(0, 1000));
+
+      throw new Error(errMsg);
+    }
+
+    const inputInfo = data.input || {};
+    const outputInfo = data.output || {};
+    const downloadUrl = outputInfo.media_path || "";
+
+    let msg =
+      "✅ Zypl batch file scoring completed successfully.\n\n" +
+      "**Input file:** `" + (inputInfo.filename || currentFileName || "") + "`\n" +
+      "**Output file:** `" + (outputInfo.filename || "") + "`\n\n";
+
+    if (downloadUrl) {
+      msg += "**Download result:** [" + downloadUrl + "](" + downloadUrl + ")\n\n";
+    }
+
+    msg += "**Output file ID:** `" + (outputInfo.file_id || "") + "`";
+
+    setBubbleMarkdown(thinkingBubble, msg);
+
+    if (data.zypl || data.input || data.output) {
+      renderDetails(thinkingBubble, data);
+    }
+  }
+
+  fileInput.addEventListener("change", async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+
+    addMessage("user", "📎 Uploading: " + f.name);
+    const bubble = addMessage("assistant", "Uploading...");
+
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+
+      let uploadTarget = UPLOAD_URL;
+      if (workflowUploadMode && sessionId) {
+        uploadTarget = WORKFLOW_UPLOAD_URL;
+        fd.append("session_id", String(sessionId));
+        fd.append("file_type", workflowUploadMode);
+      }
+
+      const resp = await fetch(uploadTarget, {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd
+      });
+      const raw = await resp.text();
+      let data = {};
+      try { data = JSON.parse(raw || "{}"); } catch(e) { data = { raw }; }
+
+      if (!resp.ok) {
+        const msg = data && data.error ? data.error : ("HTTP " + resp.status + " " + resp.statusText + "\n" + raw.slice(0, 600));
+        throw new Error(msg);
+      }
+
+      if (uploadTarget === UPLOAD_URL) {
+        currentFileId = data.file_id || null;
+        currentFileName = data.filename || f.name || "";
+        currentFileMediaPath = data.media_path || "";
+        setFilePill();
+
+        const uploadedName = currentFileName || f.name;
+        const isExcel = isExcelFileName(uploadedName);
+
+        const nextInstruction = isExcel
+          ? "Now ask: `zypl batch score this file`"
+          : "Now ask: “Summarize this document”";
+
+        setBubbleMarkdown(
+          bubble,
+          "✅ Uploaded: " + uploadedName + "\n" +
+          "File ID: `" + (currentFileId || "(not returned)") + "`\n" +
+          "File type: " + (isExcel ? "Excel / Zypl batch supported" : "Document") + "\n\n" +
+          nextInstruction
+        );
+      } else {
+        setBubbleMarkdown(bubble, data.reply || "Workflow file uploaded successfully.");
+        normalizeWorkflowStateFromResponse(data, data.reply || "");
+      }
+    } catch (err) {
+      setBubbleMarkdown(bubble, "Upload error: " + ((err && err.message) ? err.message : String(err)));
+    } finally {
+      fileInput.value = "";
+    }
+  });
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = "";
+    autosize();
+    sendBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    addMessage("user", text);
+    const thinkingBubble = addMessage("assistant", "Thinking...");
+
+    abortCtl = new AbortController();
+
+    try {
+      if (!workflowUploadMode && looksLikeZyplBatchFileCommand(text)) {
+        await processUploadedFileWithZyplBatch(thinkingBubble);
+        return;
+      }
+
+      const usingDoc = !!currentFileId && !workflowUploadMode;
+
+      const isWebsiteQuestion =
+        !usingDoc &&
+        !workflowUploadMode &&
+        (selectedModule === "website" || (selectedModule === "auto" && looksLikeWebsiteQuestion(text)));
+
+      const usePolicyStream =
+        !usingDoc &&
+        !workflowUploadMode &&
+        !isWebsiteQuestion &&
+        selectedModule !== "website" &&
+        selectedModule !== "customer_support" &&
+        selectedModule !== "notice" &&
+        selectedModule !== "core" &&
+        !looksLikeCustomerSupportQuestion(text) &&
+        !looksLikeNoticeQuestion(text) &&
+        (
+          selectedModule === "policy" ||
+          looksLikePolicyQuestion(text) ||
+          (lastPolicyRagActive && looksLikePolicyFollowupQuestion(text))
+        );
+
+      if (usePolicyStream) {
+        await sendPolicyStream(text, thinkingBubble);
+      } else {
+        const urlToUse = usingDoc ? DOC_URL : ASK_URL;
+
+        const effectiveModule = isWebsiteQuestion ? "website" : selectedModule;
+
+        const body = usingDoc
+          ? { question: text, file_id: currentFileId }
+          : {
+              question: text,
+              message: text,
+              session_id: sessionId,
+              file_id: currentFileId,
+              module: effectiveModule,
+              want_rag: !!modeToggle.checked,
+              top_k: 6,
+              explain: true
+            };
+
+        const resp = await fetch(urlToUse, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(body),
+          signal: abortCtl.signal
+        });
+
+        const raw = await resp.text();
+        let data = {};
+        try { data = JSON.parse(raw || "{}"); } catch(e) { data = { raw }; }
+
+        if (!resp.ok) {
+          const msg = data && data.error ? data.error : ("HTTP " + resp.status + " " + resp.statusText + "\n" + raw.slice(0, 800));
+          throw new Error(msg);
+        }
+
+        if (!usingDoc && data.session_id) {
+          sessionId = data.session_id;
+          setSessionPill();
+        }
+
+        const textOut = extractDisplayText(data);
+        const fallbackTopicGroups = extractTopicGroupsFromAnswerText(textOut);
+
+        if (
+          data.topic_list_mode ||
+          (Array.isArray(data.topic_groups) && data.topic_groups.length) ||
+          (Array.isArray(fallbackTopicGroups) && fallbackTopicGroups.length) ||
+          Array.isArray(data.citations)
+        ) {
+          renderPolicyResponse(thinkingBubble, data, text);
+        } else {
+          setBubbleMarkdown(thinkingBubble, textOut);
+
+          if (Array.isArray(data.citations) && data.citations.length) {
+            renderSourceList(thinkingBubble, data.citations);
+          }
+
+          if (Array.isArray(data.sources) && data.sources.length) {
+            renderWebsiteSources(thinkingBubble, data.sources);
+          }
+
+          renderAnswerSuggestions(
+            thinkingBubble,
+            data.suggestions || [],
+            text,
+            textOut,
+            data.detected_topic || null
+          );
+
+          if (data && (data.result || data.sql || data.plan || data.raw || data.citations || data.debug || data.suggestions)) {
+            renderDetails(thinkingBubble, data);
+          }
+
+          normalizeWorkflowStateFromResponse(data, textOut);
+        }
+
+        if (workflowUploadMode === "nid_front") {
+          addMessage("assistant", "Now click the upload button and select the NID front image, or type 'skip'.");
+        } else if (workflowUploadMode === "photo") {
+          addMessage("assistant", "Now click the upload button and select your photo, or type 'skip'.");
+        }
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") setBubbleMarkdown(thinkingBubble, "Stopped.");
+      else setBubbleMarkdown(thinkingBubble, "Error: " + ((err && err.message) ? err.message : String(err)));
+    } finally {
+      sendBtn.disabled = false;
+      stopBtn.disabled = true;
+      abortCtl = null;
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener("click", sendMessage);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  /*
+   * Browser-based offline voice input
+   * ---------------------------------
+   * This does NOT use Chrome/Firefox online SpeechRecognition.
+   * It records browser microphone audio with MediaRecorder and sends it to
+   * your Django voice proxy endpoint, which forwards to the on-prem Whisper server.
+   *
+   * Backend endpoint expected:
+   *   /api/voice/to-text/
+   *
+   * Whisper server behind Django:
+   *   http://192.168.1.136:31880/v1/audio/transcriptions
+   */
+
+  const VOICE_ENDPOINTS = [
+    "/api/voice/to-text/",
+    "/voice/to-text/",
+    "/voice/transcribe/"
+  ];
+
+  let mediaRecorder = null;
+  let micStream = null;
+  let micChunks = [];
+  let listening = false;
+
+  function setMicUI(stateText) {
+    if (micState) micState.textContent = stateText;
+    updateHeaderSummary();
+  }
+
+  function secureContextHint() {
+    const isLocalhost =
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1" ||
+      location.hostname === "[::1]";
+    const isHttps = location.protocol === "https:";
+    return (isHttps || isLocalhost);
+  }
+
+  function normalizeMicLanguage(value) {
+    const v = String(value || "auto").toLowerCase();
+    if (v === "bn" || v === "bn-bd" || v.includes("bangla") || v.includes("bengali")) return "bn";
+    if (v === "en" || v === "en-us" || v === "en-gb" || v.includes("english")) return "en";
+    return "auto";
+  }
+
+  function browserMicSupported() {
+    return !!(
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia &&
+      window.MediaRecorder
+    );
+  }
+
+  async function initMic() {
+    if (!micBtn) return;
+
+    micLangWrap.classList.add("show");
+
+    if (!secureContextHint()) {
+      setMicUI("Blocked");
+      micBtn.disabled = false;
+      return;
+    }
+
+    if (!browserMicSupported()) {
+      setMicUI("Not supported");
+      micBtn.disabled = true;
+      addMessage("assistant",
+        "Browser microphone recording is not supported in this browser.\n" +
+        "Use latest Chrome, Edge, or Firefox over HTTPS."
+      );
+      return;
+    }
+
+    setMicUI("Ready");
+    micBtn.disabled = false;
+  }
+
+  function setMicButtonRecordingUI(isRecording) {
+    if (!micBtn) return;
+
+    listening = !!isRecording;
+    micBtn.classList.toggle("btnDanger", listening);
+    micBtn.setAttribute("aria-pressed", listening ? "true" : "false");
+    micBtn.title = listening ? "Stop voice recording" : "Voice input";
+
+    if (listening) {
+      setMicUI("Recording");
+      if (summaryMic) summaryMic.textContent = "Recording";
+    } else {
+      setMicUI("Ready");
+    }
+  }
+
+  function stopMicTracks() {
+    if (micStream) {
+      try {
+        micStream.getTracks().forEach(track => track.stop());
+      } catch (_) {}
+    }
+    micStream = null;
+  }
+
+  function chooseMediaRecorderOptions() {
+    const preferredTypes = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+      "audio/mp4"
+    ];
+
+    for (const mimeType of preferredTypes) {
+      try {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(mimeType)) {
+          return { mimeType };
+        }
+      } catch (_) {}
+    }
+
+    return {};
+  }
+
+  async function startBrowserRecording() {
+    if (!secureContextHint()) {
+      addMessage("assistant",
+        "Microphone is blocked because this page is not HTTPS or localhost.\n\n" +
+        "Please open:\n" +
+        "https://burocloud2.it\n\n" +
+        "Then allow microphone permission from the browser address-bar lock icon."
+      );
+      setMicUI("Blocked");
+      return;
+    }
+
+    if (!browserMicSupported()) {
+      addMessage("assistant", "Browser microphone API is not available in this browser.");
+      setMicUI("Not supported");
+      return;
+    }
+
+    try {
+      micChunks = [];
+
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      mediaRecorder = new MediaRecorder(micStream, chooseMediaRecorderOptions());
+
+      mediaRecorder.ondataavailable = function (event) {
+        if (event.data && event.data.size > 0) {
+          micChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onerror = function (event) {
+        console.error("MediaRecorder error:", event);
+        addMessage("assistant", "Mic recording error. Please try again.");
+        setMicButtonRecordingUI(false);
+        stopMicTracks();
+      };
+
+      mediaRecorder.onstop = async function () {
+        setMicButtonRecordingUI(false);
+        setMicUI("Processing");
+        stopMicTracks();
+
+        if (!micChunks.length) {
+          setMicUI("Ready");
+          addMessage("assistant", "No audio was captured. Please try again.");
+          return;
+        }
+
+        const audioType = (mediaRecorder && mediaRecorder.mimeType) ? mediaRecorder.mimeType : "audio/webm";
+        const audioBlob = new Blob(micChunks, { type: audioType });
+
+        await sendBrowserAudioToDjango(audioBlob, audioType);
+      };
+
+      mediaRecorder.start();
+      setMicButtonRecordingUI(true);
+
+    } catch (error) {
+      console.error("Microphone permission/error:", error);
+      setMicButtonRecordingUI(false);
+      stopMicTracks();
+
+      const msg =
+        (error && error.name === "NotAllowedError")
+          ? "Microphone permission denied. Click the browser lock icon and allow microphone."
+          : "Microphone error: " + ((error && error.message) ? error.message : String(error));
+
+      addMessage("assistant", msg);
+      setMicUI("Error");
+    }
+  }
+
+  function stopBrowserRecording() {
+    try {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      } else {
+        setMicButtonRecordingUI(false);
+        stopMicTracks();
+      }
+    } catch (error) {
+      console.error("Stop recording error:", error);
+      setMicButtonRecordingUI(false);
+      stopMicTracks();
+    }
+  }
+
+  async function postAudioToEndpoint(url, formData) {
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin"
+    });
+
+    let data = null;
+    const rawText = await response.text();
+
+    try {
+      data = JSON.parse(rawText || "{}");
+    } catch (_) {
+      data = {
+        ok: false,
+        error: "Non-JSON response from voice endpoint",
+        raw: rawText
+      };
+    }
+
+    if (!response.ok) {
+      const err = new Error(data.error || data.details || ("HTTP " + response.status));
+      err.response = data;
+      err.status = response.status;
+      throw err;
+    }
+
+    return data;
+  }
+
+  async function sendBrowserAudioToDjango(audioBlob, audioType) {
+    const language = normalizeMicLanguage(micLang ? micLang.value : "auto");
+
+    let lastError = null;
+
+    for (const endpoint of VOICE_ENDPOINTS) {
+      try {
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "voice.webm");
+        formData.append("language", language);
+        formData.append("model", "whisper-1");
+
+        const data = await postAudioToEndpoint(endpoint, formData);
+        console.log("Voice API response from", endpoint, data);
+
+        if (data.ok && data.text && data.text.trim()) {
+          const text = data.text.trim();
+          const current = input.value.trim();
+          input.value = current ? (current + " " + text) : text;
+          autosize();
+          input.focus();
+
+          setMicUI("Ready");
+          if (summaryMic) summaryMic.textContent = "Mic ready";
+          return;
+        }
+
+        if (data.ok && (!data.text || !data.text.trim())) {
+          setMicUI("Ready");
+          addMessage("assistant",
+            "Voice was recorded, but no clear speech was detected.\n" +
+            "Please speak closer to the microphone and try again."
+          );
+          return;
+        }
+
+        lastError = new Error(data.error || "Voice endpoint returned an error");
+
+      } catch (error) {
+        console.warn("Voice endpoint failed:", endpoint, error);
+        lastError = error;
+      }
+    }
+
+    setMicUI("Error");
+    addMessage("assistant",
+      "Voice API error.\n\n" +
+      "Tried endpoints:\n" +
+      VOICE_ENDPOINTS.join("\n") +
+      "\n\nLast error: " +
+      ((lastError && lastError.message) ? lastError.message : String(lastError || "unknown"))
+    );
+  }
+
+  if (micLang) {
+    micLang.addEventListener("change", () => {
+      setMicUI(secureContextHint() ? "Ready" : "Blocked");
+      updateHeaderSummary();
+    });
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (listening) {
+        stopBrowserRecording();
+      } else {
+        await startBrowserRecording();
+      }
+    });
+  }
+
+ 
+
+
+clearBtn.addEventListener("click", () => {
+  // Stop any running request
+  if (abortCtl) {
+    abortCtl.abort();
+    abortCtl = null;
+  }
+
+  // Reset chat/session state
+  sessionId = null;
+  setSessionPill();
+
+  chatbox.innerHTML = "";
+
+  workflowUploadMode = null;
+  setWorkflowPill();
+
+  // Clear input textarea also
+  input.value = "";
+  autosize();
+  input.focus();
+
+  // Reset buttons
+  sendBtn.disabled = false;
+  stopBtn.disabled = true;
+
+  addMessage("assistant", "Cleared chat. You can start a new question.");
+});
+
+  clearFileBtn.addEventListener("click", () => {
+    currentFileId = null;
+    currentFileName = null;
+    currentFileMediaPath = null;
+    setFilePill();
+    workflowUploadMode = null;
+    setWorkflowPill();
+    addMessage("assistant", "Cleared active file. Upload again to use document mode or Zypl Excel batch scoring.");
+  });
+
+  stopBtn.addEventListener("click", () => {
+    if (abortCtl) abortCtl.abort();
+  });
+
+  uploadBtn.addEventListener("click", () => fileInput.click());
+
+  updateModeLabel();
+  updateModuleUI();
+  setSessionPill();
+  setFilePill();
+  setWorkflowPill();
+
+  
+
+
+addMessage(
+  "assistant",
+  `Welcome to BURO Enterprise AI Assistant
+
+A secure, on-premises Kubernetes-based enterprise AI platform designed for BURO Bangladesh.
+
+Try asking:
+- What is your current capability?
+- Show topics list
+- Tell about BURO Bangladesh services
+- নতুন সদস্য হতে কী কী কাগজ লাগে?
+- আমার কিস্তি জমা হয়েছে কিন্তু আপডেট হয়নি
+- zypl help`
+);
+
+  initMic();
+</script>
+</body>
+</html>

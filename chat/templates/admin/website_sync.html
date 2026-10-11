@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Website Clean Sync</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            margin: 0;
+            padding: 30px;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 950px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 26px;
+        }
+        .muted {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+        .warning {
+            background: #fff7ed;
+            border-left: 5px solid #f97316;
+            padding: 14px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        .success {
+            background: #ecfdf5;
+            border-left: 5px solid #10b981;
+            padding: 14px;
+            border-radius: 8px;
+        }
+        .error {
+            background: #fef2f2;
+            border-left: 5px solid #ef4444;
+            padding: 14px;
+            border-radius: 8px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        input[type="number"] {
+            width: 160px;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+        .row {
+            margin: 18px 0;
+        }
+        button {
+            background: #1f6feb;
+            color: white;
+            border: 0;
+            padding: 12px 20px;
+            border-radius: 9px;
+            font-size: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #1557ba;
+        }
+        pre {
+            background: #111827;
+            color: #e5e7eb;
+            padding: 16px;
+            border-radius: 10px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .badge {
+            display: inline-block;
+            background: #eef2ff;
+            color: #3730a3;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            margin: 3px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="card">
+        <h1>BURO Website Clean Sync</h1>
+        <p class="muted">
+            This page cleans and re-indexes BURO Bangladesh website knowledge into Qdrant.
+            It removes menu, footer, address, copyright, repeated navigation, and noisy website layout text.
+        </p>
+
+        <div class="warning">
+            <strong>Recommended:</strong>
+            Keep <strong>Recreate Collection</strong> enabled when old noisy website data already exists.
+        </div>
+
+        <p class="muted">
+            Your detected role/group:
+            {% if roles %}
+                {% for r in roles %}
+                    <span class="badge">{{ r }}</span>
+                {% endfor %}
+            {% else %}
+                <span class="badge">no group</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="card">
+        <form method="post" onsubmit="return confirm('Run Clean Website Sync now?');">
+            {% csrf_token %}
+
+            <div class="row">
+                <label for="max_pages">Maximum Pages</label>
+                <input type="number" id="max_pages" name="max_pages" value="{{ max_pages|default:80 }}" min="1" max="300">
+                <p class="muted">Recommended: 80. For quick test use 20.</p>
+            </div>
+
+            <div class="row">
+                <label>
+                    <input type="checkbox" name="recreate" {% if recreate %}checked{% endif %}>
+                    Recreate Collection
+                </label>
+                <p class="muted">This deletes old <code>buro_website</code> collection and creates clean data again.</p>
+            </div>
+
+            <button type="submit">Run Clean & Sync Now</button>
+        </form>
+    </div>
+
+    {% if error %}
+    <div class="card error">
+        <strong>Error</strong>
+        <pre>{{ error }}</pre>
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <div class="card success">
+        <strong>Sync Completed</strong>
+        <pre>{{ result }}</pre>
+    </div>
+    {% endif %}
+
+</div>
+</body>
+</html>

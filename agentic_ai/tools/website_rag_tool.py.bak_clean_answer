@@ -1,0 +1,174 @@
+import requests
+
+from chat.dynamic_config import (
+    get_qdrant_url,
+    get_ollama_url,
+    get_setting,
+    qdrant_headers,
+)
+
+
+QDRANT_COLLECTION = get_setting("QDRANT_COLLECTION_WEBSITE", "buro_website")
+OLLAMA_URL = get_ollama_url()
+
+# IMPORTANT:
+# This exact model + /api/embed was tested and returned 768.
+EMBED_MODEL = "nomic-embed-text:latest"
+
+
+def get_embedding(text):
+    """
+    Working embedding method:
+    POST /api/embed
+    model: nomic-embed-text:latest
+    input: text
+    """
+    resp = requests.post(
+        f"{OLLAMA_URL}/api/embed",
+        json={
+            "model": EMBED_MODEL,
+            "input": text,
+        },
+        timeout=60,
+    )
+    resp.raise_for_status()
+
+    data = resp.json()
+    embeddings = data.get("embeddings") or []
+
+    if embeddings and isinstance(embeddings, list):
+        return embeddings[0]
+
+    raise RuntimeError("No embedding returned from Ollama /api/embed")
+
+
+def search_qdrant(query, limit=3):
+    qdrant_url = get_qdrant_url(check_health=True)
+    vector = get_embedding(query)
+
+    payload = {
+        "vector": vector,
+        "limit": limit,
+        "with_payload": True,
+        "with_vector": False,
+    }
+
+    resp = requests.post(
+        f"{qdrant_url}/collections/{QDRANT_COLLECTION}/points/search",
+        json=payload,
+        headers=qdrant_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+
+    return resp.json()
+
+
+def _clean_text(text, max_chars=1300):
+    text = " ".join((text or "").split())
+    if len(text) > max_chars:
+        return text[:max_chars].strip() + "..."
+    return text
+
+
+def build_fast_answer(query, chunks, language="en"):
+    """
+    Fast public website answer.
+    No Aya generation here. This avoids long UI waiting.
+    """
+    if not chunks:
+        if language == "bn":
+            return "BURO ওয়েবসাইট তথ্যভান্ডারে এই প্রশ্নের প্রাসঙ্গিক তথ্য পাওয়া যায়নি।"
+        return "No relevant information was found in the BURO website knowledge base."
+
+    urls = []
+    titles = []
+
+    for row in chunks:
+        title = row.get("title") or "BURO Website"
+        url = row.get("url") or ""
+
+        if title not in titles:
+            titles.append(title)
+
+        if url and url not in urls:
+            urls.append(url)
+
+    combined = " ".join([(row.get("text") or "") for row in chunks])
+    combined = _clean_text(combined, max_chars=1400)
+
+    if language == "bn":
+        answer = "বুরো বাংলাদেশের ওয়েবসাইট তথ্য অনুযায়ী, "
+        answer += combined
+
+        if urls:
+            answer += "\n\nউৎস:\n"
+            for i, url in enumerate(urls[:5], start=1):
+                answer += f"{i}. {url}\n"
+
+        return answer.strip()
+
+    answer = "According to BURO Bangladesh website information, "
+    answer += combined
+
+    if urls:
+        answer += "\n\nSources:\n"
+        for i, url in enumerate(urls[:5], start=1):
+            answer += f"{i}. {url}\n"
+
+    return answer.strip()
+
+
+def run(user=None, query="", params=None, language="en", **kwargs):
+    try:
+        params = params or {}
+        limit = int(params.get("limit", 3))
+
+        if limit < 1:
+            limit = 3
+        if limit > 5:
+            limit = 5
+
+        result = search_qdrant(query, limit=limit)
+
+        chunks = []
+        sources = []
+
+        for item in result.get("result", []):
+            payload = item.get("payload", {}) or {}
+
+            row = {
+                "score": item.get("score"),
+                "title": payload.get("title"),
+                "url": payload.get("url"),
+                "text": payload.get("text") or payload.get("content") or "",
+            }
+
+            chunks.append(row)
+
+            if row["url"] and row["url"] not in [s["url"] for s in sources]:
+                sources.append({
+                    "title": row["title"],
+                    "url": row["url"],
+                    "score": row["score"],
+                })
+
+        final_answer = build_fast_answer(query, chunks, language=language)
+
+        return {
+            "ok": True,
+            "source": QDRANT_COLLECTION,
+            "answer": final_answer,
+            "sources": sources,
+            "matches_count": len(chunks),
+        }
+
+    except Exception as exc:
+        return {
+            "ok": False,
+            "source": QDRANT_COLLECTION,
+            "error": str(exc),
+            "answer": f"Website RAG tool error: {exc}",
+            "sources": [],
+            "matches_count": 0,
+        }
