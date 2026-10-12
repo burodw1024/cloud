@@ -6,6 +6,10 @@ from .models import AgentApprovalRequest
 
 
 def run_agentic_query(user=None, query="", session_id=None):
+    from . import mcp_agent
+    if mcp_agent.enabled():
+        return mcp_agent.run(user, query, session_id)
+
     plan = plan_query(query)
     tool_name = plan.get("tool")
     tool_config = TOOL_REGISTRY.get(tool_name)

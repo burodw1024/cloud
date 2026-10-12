@@ -16,6 +16,43 @@
     <h1>Enterprise Agentic AI Dashboard</h1>
 
     <div class="card">
+        <h2>Ask the agent</h2>
+        <form id="agent-form">
+            {% csrf_token %}
+            <label for="agent-question">Your question</label><br>
+            <textarea id="agent-question" rows="3" style="width:100%" required></textarea><br>
+            <button id="agent-submit" type="submit">Ask</button>
+        </form>
+        <pre id="agent-answer" style="white-space:pre-wrap" aria-live="polite"></pre>
+    </div>
+    <script>
+    document.getElementById('agent-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = document.getElementById('agent-submit');
+        const output = document.getElementById('agent-answer');
+        button.disabled = true;
+        output.textContent = 'Working…';
+        try {
+            const response = await fetch('{% url "agentic_ai:agentic_query_api" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json',
+                          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+                body: JSON.stringify({message: document.getElementById('agent-question').value})
+            });
+            const result = await response.json();
+            output.textContent = (typeof result.answer === 'string' ? result.answer : JSON.stringify(result.answer))
+                || result.error || 'Request failed.';
+            if (result.tool_calls?.length) {
+                output.textContent += '\n\nTools used: ' + result.tool_calls.map(call => call.name).join(', ');
+            }
+        } catch (error) {
+            output.textContent = 'Unable to reach the agent. Please retry.';
+        } finally {
+            button.disabled = false;
+        }
+    });
+    </script>
+    <div class="card">
         <h2>Pending Approvals</h2>
         <table>
             <tr>
