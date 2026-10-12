@@ -63,7 +63,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GUNICORN_WORKERS=3 \
     GUNICORN_TIMEOUT=120
 
-ARG WSGI_MODULE
+ARG WSGI_MODULE=buro_first.wsgi
 ENV WSGI_MODULE=${WSGI_MODULE}
 
 WORKDIR /app
@@ -95,9 +95,11 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=appuser:appgroup . /app/
 
 RUN mkdir -p \
+        /app/logs \
         /app/staticfiles \
         /app/media \
     && chown -R appuser:appgroup \
+        /app/logs \
         /app/staticfiles \
         /app/media
 

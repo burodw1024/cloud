@@ -74,9 +74,8 @@ Add these entries to the Django container's env list (not the ContextForge pod):
 Use the exact tool name discovered from ContextForge if it differs. Restarting
 with new images can erase the live-test deployment's emptyDir database/users.
 Use a new image tag per build when importing into containerd; imagePullPolicy
-Never requires the exact image on the scheduled node. The upstream Dockerfile
-expects /app/logs to be writable; retain the live-test Dockerfile fix previously
-applied on Ubuntu. Set Gunicorn timeout at least 210 seconds if using Gunicorn.
+Never requires the exact image on the scheduled node. The repository Dockerfile creates writable /app/logs and defaults
+to buro_first.wsgi, incorporating the startup fix diagnosed on Ubuntu. Set Gunicorn timeout at least 210 seconds if using Gunicorn.
 
 Open /agentic/ as a superuser and ask a read-only question with known test inputs.
 Verify the displayed tool, real returned data, and the run log. Also verify that
