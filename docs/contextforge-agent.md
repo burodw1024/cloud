@@ -111,3 +111,22 @@ settings, explicit destination grants, and securely configured authentication.
 At the current checkpoint no VPN, private destination grants, or credentials
 are configured in Codex. The token Secret exists in Kubernetes only. ContextForge,
 NiFi and Kubernetes have not been edited directly from Codex.
+
+## Update the existing live-test image from Ubuntu
+
+With Docker, kubectl and SSH access to worker-99, run:
+
+```bash
+WORKER_SSH=dw@192.168.1.99 bash scripts/update-live-test-image.sh
+```
+
+Use your worker SSH account if different. The script snapshots the current SQLite
+DB, builds the updated Dockerfile, checks Django inside the image, saves it under
+a unique tag, transfers it through SSH, verifies its checksum, imports it into
+containerd, updates the deployment, waits for rollout, and checks homepage/login.
+SSH host verification remains enabled. It preserves deployment environment and
+node settings. It requires container name django and the existing local-image
+pull policy Never. It does not enable MCP mode or claim NiFi integration works.
+The pod's emptyDir DB/users reset; a protected backup remains on the build machine.
+Do not run this against production. cloud_test_settings.py is included for the
+existing test deployment and requires DJANGO_SECRET_KEY from its existing Secret.
