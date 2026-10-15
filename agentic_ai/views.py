@@ -4,39 +4,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render
 
-from .orchestrator import run_agentic_query
+from .agentic_api import query_api as agentic_query_api
 from .models import AgentRunLog, AgentApprovalRequest
-
-
-@csrf_exempt
-def agentic_query_api(request):
-    """
-    POST /agentic/api/query/
-    Body:
-    {
-      "message": "your question"
-    }
-    """
-    if request.method != "POST":
-        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
-
-    try:
-        body = json.loads(request.body.decode("utf-8") or "{}")
-    except Exception:
-        body = request.POST
-
-    query = body.get("message") or body.get("query") or ""
-
-    if not query.strip():
-        return JsonResponse({"ok": False, "error": "message/query is required"}, status=400)
-
-    result = run_agentic_query(
-        user=request.user,
-        query=query,
-        session_id=request.session.session_key,
-    )
-
-    return JsonResponse(result, safe=False)
 
 
 @staff_member_required

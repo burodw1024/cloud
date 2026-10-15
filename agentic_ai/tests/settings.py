@@ -1,0 +1,10 @@
+SECRET_KEY = 'agentic-isolated-tests-only'
+INSTALLED_APPS = ['django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'agentic_ai']
+DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
+ROOT_URLCONF = 'agentic_ai.tests.urls'
+MIDDLEWARE = ['django.contrib.sessions.middleware.SessionMiddleware', 'django.middleware.csrf.CsrfViewMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware']
+TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'DIRS': [], 'APP_DIRS': True}]
+USE_TZ = True
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+ALLOWED_HOSTS = ['testserver']

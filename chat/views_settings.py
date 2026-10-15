@@ -976,6 +976,13 @@ MANAGED_SETTINGS = [
 
 
 
+# MCP endpoint is an administrator-configured Streamable HTTP URL, not user input.
+MANAGED_SETTINGS.extend([
+    {"key": "MCP_SERVER_URL", "label": "ContextForge MCP endpoint", "group": "Agentic AI", "input_type": "text", "default": "", "description": "Copy the Streamable HTTP URL from the ContextForge virtual server connection settings."},
+    {"key": "AGENTIC_MODEL", "label": "Agentic tool-calling model", "group": "Agentic AI", "input_type": "text", "default": "", "description": "Installed Ollama model with tool calling support; otherwise uses OLLAMA_MODEL."},
+])
+# MCP_BEARER_TOKEN belongs in a Kubernetes Secret/env var, not an ordinary text field.
+
 # --- OPENAI_POLICY_MANAGED_SETTINGS_BEGIN ---
 # Reuse the existing settings dashboard. Existing OPENAI_API_KEY and
 # OPENAI_MODEL entries are not duplicated.

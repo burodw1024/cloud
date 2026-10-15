@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Policy Intelligence{% endblock %} · BURO</title>
+</head>
+<body>
+<div hidden>{% csrf_token %}</div>
+<nav aria-label="Workspace navigation" style="display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;padding:10px 20px;background:#102e29;color:#e9f1e6;font:12px system-ui,sans-serif">
+  <a href="/" style="color:inherit;text-decoration:none;font-weight:650">BURO Intelligence</a>
+  <a href="/" style="color:inherit;text-decoration:none">Back to AI workspace</a>
+</nav>
+{% block content %}{% endblock %}
+</body>
+</html>

@@ -23,3 +23,9 @@ class AgentApprovalRequestAdmin(admin.ModelAdmin):
     search_fields = ("tool_name", "action_type")
     list_filter = ("status", "tool_name")
     readonly_fields = ("created_at", "updated_at")
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.action_type == "mcp_tool_call":
+            # MCP approvals must execute through the reviewed API, not a status edit.
+            return self.readonly_fields + ("user", "action_type", "tool_name", "request_payload", "status", "approved_by", "response_note")
+        return self.readonly_fields

@@ -729,6 +729,7 @@
   {% include "chat/workspace_styles.html" %}
 </head>
 <body>
+<div hidden>{% csrf_token %}</div>
 <div class="app">
   <aside class="sidebar" aria-label="Assistant navigation">
     <div class="brandCard">
@@ -738,8 +739,9 @@
     </div>
 
     <div class="sideSection">
-      <div class="sideLabel"><span>Workspace</span><span>06</span></div>
+      <div class="sideLabel"><span>Workspace</span><span>07</span></div>
       <div class="moduleTabs" title="Select AI module">
+        <button type="button" class="moduleBtn" data-module="agentic">Agentic AI</button>
         <button type="button" class="moduleBtn active" data-module="auto">AI Assistant</button>
         <button type="button" class="moduleBtn" data-module="website">Website Knowledge</button>
         <button type="button" class="moduleBtn" data-module="policy">HR Policy</button>
@@ -800,6 +802,7 @@
 
       <div class="subbar">
         <div class="mobileModuleBar" title="Select AI module">
+          <button type="button" class="moduleBtn" data-module="agentic">Agentic AI</button>
           <button type="button" class="moduleBtn active" data-module="auto">Auto</button>
           <button type="button" class="moduleBtn" data-module="website">Website</button>
           <button type="button" class="moduleBtn" data-module="policy">Policy</button>
@@ -906,6 +909,7 @@
   const sidebarWorkflow = document.getElementById("sidebarWorkflow");
 
   let selectedModule = "auto";
+  let resetAgentHistory = true;
   let abortCtl = null;
   let sessionId = null;
   let currentFileId = null;
@@ -921,6 +925,7 @@
   function setModule(moduleName) {
     selectedModule = moduleName || "auto";
     updateModuleUI();
+    stopBtn.title = selectedModule === "agentic" ? "Stop waiting. Tool actions already started may continue." : "Stop response";
   }
 
   function updateModuleUI() {
@@ -971,11 +976,26 @@
       .replace(/'/g, "&#39;");
   }
 
+  function safeMarkdownHtml(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const allowed = new Set(["P","BR","STRONG","EM","B","I","UL","OL","LI","BLOCKQUOTE","PRE","CODE","H1","H2","H3","H4","H5","H6","TABLE","THEAD","TBODY","TR","TH","TD","HR","A","DEL"]);
+    doc.body.querySelectorAll("*").forEach(node => {
+      if (!allowed.has(node.tagName)) { node.replaceWith(document.createTextNode(node.textContent || "")); return; }
+      const href = node.tagName === "A" ? node.getAttribute("href") : null;
+      Array.from(node.attributes).forEach(attr => node.removeAttribute(attr.name));
+      if (href && /^(https?:|mailto:|\/|#)/i.test(href.trim()) && !href.trim().startsWith("//")) {
+        node.setAttribute("href", href);
+        node.setAttribute("rel", "noopener noreferrer");
+      }
+    });
+    return doc.body.innerHTML;
+  }
+
   function renderMarkdown(text) {
     try {
       const html = marked.parse(text || "", { breaks: true, gfm: true });
       const div = document.createElement("div");
-      div.innerHTML = html;
+      div.innerHTML = safeMarkdownHtml(html);
       div.querySelectorAll("pre code").forEach(block => {
         try { hljs.highlightElement(block); } catch(e) {}
       });
@@ -2142,6 +2162,71 @@
     }
   });
 
+  function csrfToken() {
+    return document.querySelector('[name="csrfmiddlewaretoken"]')?.value || "";
+  }
+
+  function renderAgentOutcome(bubble, data) {
+    setBubbleMarkdown(bubble, data.answer || "The agent returned no answer.");
+    const old = bubble.parentElement.querySelector(".agent-activity");
+    if (old) old.remove();
+    const activity = document.createElement("div");
+    activity.className = "agent-activity";
+    const heading = document.createElement("strong");
+    heading.textContent = "Agent activity";
+    activity.appendChild(heading);
+    const trace = Array.isArray(data.trace) ? data.trace : [];
+    const list = document.createElement("ol");
+    trace.forEach(step => {
+      const item = document.createElement("li");
+      item.textContent = `${step.tool} · ${step.status}`;
+      list.appendChild(item);
+    });
+    if (trace.length) activity.appendChild(list);
+    else {
+      const note = document.createElement("p");
+      note.textContent = data.approval_required ? "Waiting for approval before this action." : "No tools executed for this response.";
+      activity.appendChild(note);
+    }
+    if (data.approval_required && Number.isInteger(data.approval_id)) {
+      const check = document.createElement("button");
+      check.type = "button";
+      check.className = "btn secondary";
+      check.textContent = `Check approval #${data.approval_id}`;
+      check.addEventListener("click", async () => {
+        check.disabled = true;
+        try {
+          const response = await fetch(`/agentic/api/approvals/${data.approval_id}/`, {credentials: "same-origin"});
+          if (!response.ok) throw new Error("Unable to read approval. Check your login and permissions.");
+          const status = await response.json();
+          if (status.result && status.result.status !== "executing") {
+            renderAgentOutcome(bubble, status.result);
+          } else {
+            check.textContent = status.result?.status === "executing" ? "Action is running · check again" : "Still awaiting review · check again";
+          }
+        } catch(error) { check.textContent = error.message; }
+        finally { if (check.isConnected) check.disabled = false; }
+      });
+      activity.appendChild(check);
+    }
+    bubble.parentElement.appendChild(activity);
+    chatbox.scrollTop = chatbox.scrollHeight;
+  }
+
+  async function sendAgenticMessage(text, bubble) {
+    const response = await fetch("/agentic/api/query/", {
+      method: "POST", credentials: "same-origin", signal: abortCtl.signal,
+      headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken()},
+      body: JSON.stringify({message: text, reset_history: resetAgentHistory, file_id: currentFileId})
+    });
+    const type = response.headers.get("Content-Type") || "";
+    if (!type.includes("application/json")) throw new Error("Agent request was rejected. Refresh the page and check your login.");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.answer || data.error || "Agent request failed.");
+    resetAgentHistory = false;
+    renderAgentOutcome(bubble, data);
+  }
+
   async function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
@@ -2157,6 +2242,10 @@
     abortCtl = new AbortController();
 
     try {
+      if (selectedModule === "agentic") {
+        await sendAgenticMessage(text, thinkingBubble);
+        return;
+      }
       if (!workflowUploadMode && looksLikeZyplBatchFileCommand(text)) {
         await processUploadedFileWithZyplBatch(thinkingBubble);
         return;
@@ -2270,7 +2359,7 @@
         }
       }
     } catch (err) {
-      if (err && err.name === "AbortError") setBubbleMarkdown(thinkingBubble, "Stopped.");
+      if (err && err.name === "AbortError") setBubbleMarkdown(thinkingBubble, selectedModule === "agentic" ? "Stopped waiting. Any tool action already started may continue; review Agent Operations before retrying." : "Stopped.");
       else setBubbleMarkdown(thinkingBubble, "Error: " + ((err && err.message) ? err.message : String(err)));
     } finally {
       sendBtn.disabled = false;
@@ -2621,6 +2710,7 @@ clearBtn.addEventListener("click", () => {
   }
 
   // Reset chat/session state
+  resetAgentHistory = true;
   sessionId = null;
   lastPolicyActiveTopic = null;
   lastPolicyPayload = null;
@@ -2676,7 +2766,7 @@ function showWelcome() {
       <div class="prompt-grid">
         <button type="button" class="prompt-card" data-prompt="Show topics list" data-target="policy"><span class="prompt-icon" aria-hidden="true">▤</span><strong>Find an HR policy ↗</strong><small>Explore policies and get answers with context.</small></button>
         <button type="button" class="prompt-card" data-prompt="Tell about BURO Bangladesh services" data-target="website"><span class="prompt-icon" aria-hidden="true">◎</span><strong>Explore BURO ↗</strong><small>Learn about our services and organisation.</small></button>
-        <button type="button" class="prompt-card" data-prompt="What is your current capability?" data-target="auto"><span class="prompt-icon" aria-hidden="true">✧</span><strong>Discover your assistant ↗</strong><small>See how AI can help with your everyday work.</small></button>
+        <button type="button" class="prompt-card" data-prompt="What can you help me with using your available tools?" data-target="agentic"><span class="prompt-icon" aria-hidden="true">✧</span><strong>Work with an agent ↗</strong><small>Let AI choose tools and work through your question.</small></button>
       </div>
       <div class="welcome-footer">English or বাংলা · Review important answers against their sources.</div>
     </section>`;

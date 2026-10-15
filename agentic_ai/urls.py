@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, agentic_api
 
 app_name = "agentic_ai"
 
@@ -7,5 +7,6 @@ urlpatterns = [
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),
     path("", views.dashboard, name="dashboard"),
     path("api/query/", views.agentic_query_api, name="agentic_query_api"),
+    path("api/approvals/<int:approval_id>/", agentic_api.approval_api, name="approval_api"),
     path("api/logs/", views.logs_api, name="logs_api"),
 ]

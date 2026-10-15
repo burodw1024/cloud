@@ -28,6 +28,9 @@ DEFAULT_SETTINGS = {
     "QDRANT_TIMEOUT": str(APP_CONFIG.qdrant.timeout),
 
     "OLLAMA_URL": APP_CONFIG.llm.ollama_url,
+    "MCP_SERVER_URL": "",
+    "MCP_BEARER_TOKEN": "",
+    "AGENTIC_MODEL": "",
 
     # New central model setting for the whole LLM chat application
     "OLLAMA_MODEL": APP_CONFIG.llm.gen_model,

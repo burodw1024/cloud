@@ -8,9 +8,11 @@
 :root{color-scheme:light;--ink:#203d30;--muted:#6d7e70;--line:#dfe6da;--paper:#fafcf7;--green:#176b50}*{box-sizing:border-box}body{margin:0;background:#f4f6f0;color:var(--ink);font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit;text-decoration:none}button,input,select{font:inherit}button,a,input,select{outline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #78a88b}.shell{display:grid;grid-template-columns:235px minmax(0,1fr);min-height:100vh}.rail{background:#102e29;color:#b7cfc2;padding:32px 22px}.brand{color:#f0f5eb;font-size:18px;font-weight:650;display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:38px;height:38px;background:#bfe7b0;color:#153b2c;border-radius:12px}.rail p{font-size:11px;color:#a0bdad;margin:16px 0 35px}.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.15em;margin:24px 12px 10px}.nav a{display:block;padding:12px;border-radius:9px;margin-bottom:5px;font-size:13px}.nav a:hover{background:#24463b}.nav a.active{background:#bfe7b0;color:#173c2a}.rail-note{border-top:1px solid #ffffff18;padding-top:22px;margin-top:48px;font-size:11px;line-height:1.9}main{min-width:0;padding:30px 42px 60px;max-width:1600px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:22px;font-size:12px;color:var(--muted)}.top a{border:1px solid var(--line);padding:8px 14px;border-radius:8px;background:#fff}.intro{margin:38px 0 25px;display:flex;justify-content:space-between;gap:18px;align-items:end}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:#61785e}h1{font-size:36px;letter-spacing:-.045em;font-weight:550;margin:8px 0}h1 em{font-family:Georgia,serif;font-weight:400;color:#668957}.intro p{margin:0;color:var(--muted);font-size:13px}.refresh{border:1px solid var(--line);background:#fff;color:#33573b;border-radius:9px;padding:10px 16px;cursor:pointer;white-space:nowrap}.refresh:hover{background:#e5eeda}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:25px 0 32px}.metric{padding:22px 24px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}.metric:first-child{background:#e6eedb;border-color:#d4e0c6}.metric span{font-size:11px;color:#60765a}.metric strong{display:block;font-size:36px;letter-spacing:-.04em;font-weight:550;line-height:1.4}.metric small{color:var(--muted);font-size:11px}.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;margin-bottom:24px;overflow:hidden}.panel-head{padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}h2{font-size:16px;font-weight:650;margin:0}.panel-head p{font-size:11px;margin:4px 0 0;color:var(--muted)}.count{background:#eaf0e3;border:1px solid #dce5d0;padding:4px 10px;border-radius:20px;font-size:11px;color:#527147}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{background:#f0f4e9;color:#6b7d64;font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}td,th{padding:15px 24px;border-bottom:1px solid #e5ebdf}td{font-size:12px}tbody tr:last-child td{border:0}tbody tr:hover{background:#f0f5e9}.badge{display:inline-block;border-radius:6px;padding:3px 8px;background:#edf0e8;color:#53634a;font-size:10px;font-weight:600}.badge.success,.badge.low{background:#e1efdf;color:#2c653b}.badge.failed,.badge.high{background:#f8e7e2;color:#9b4a38}.badge.blocked,.badge.medium,.badge.pending,.badge.approval_required{background:#f5edd4;color:#876a23}.query{white-space:normal;min-width:220px;max-width:340px;color:#65785e}.empty{text-align:center;padding:40px 24px;color:var(--muted);font-size:13px}.empty strong{display:block;color:#426044;margin-bottom:6px;font-weight:600}.filters{display:flex;gap:8px;flex-wrap:wrap}.filters input,.filters select{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;color:#37573c;font-size:12px}.filters input{width:220px}.table-note{font-size:11px;color:var(--muted);padding:12px 24px;margin:0;border-top:1px solid var(--line)}[hidden]{display:none!important}.mobile-brand{display:none}.foot{color:#7d8b74;font-size:10px}
 @media(max-width:1100px){.shell{grid-template-columns:195px minmax(0,1fr)}main{padding:24px}.panel-head{align-items:flex-start;flex-direction:column}.brand{font-size:15px}.rail{padding:28px 14px}}
 @media(max-width:760px){.shell{display:block}.rail{display:none}main{padding:18px 14px}.mobile-brand{display:inline;font-weight:650;color:#31573b}.top{gap:12px}.crumb{display:none}.intro{margin-top:25px;align-items:start}h1{font-size:29px}.intro p{font-size:12px}.metrics{gap:8px}.metric{padding:14px 10px;border-radius:12px}.metric strong{font-size:28px}.metric small{font-size:10px}.metric span{font-size:10px}.panel-head{padding:18px}.filters{width:100%}.filters input{width:100%}.filters select{flex:1}td,th{padding:13px 18px}.refresh{padding:8px 10px;font-size:12px}}
+.approval-details{max-width:340px;white-space:normal;margin-top:8px}.approval-details pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf2e5;padding:10px;font-size:11px}.review-action{padding:7px 10px;margin:4px 4px 4px 0;border:1px solid #b9cdb0;border-radius:6px;color:#24553b;background:#e6eedb;cursor:pointer}.review-action:disabled{opacity:.5;cursor:wait}.review-result{font-size:11px}
 </style>
 </head>
 <body>
+<div hidden>{% csrf_token %}</div>
 <div class="shell">
 <aside class="rail" aria-label="Main navigation">
 <a class="brand" href="/"><span class="mark">B.</span> BURO Intelligence</a>
@@ -28,9 +30,16 @@
 <div class="metric"><span>REVIEW WINDOW</span><strong>50</strong><small>Latest records per section</small></div>
 </div>
 <section class="panel" aria-labelledby="approvalsHeading">
-<div class="panel-head"><div><h2 id="approvalsHeading">Pending approvals</h2><p>Requests awaiting a decision. Review them in administration.</p></div><a class="count" href="/admin/agentic_ai/agentapprovalrequest/">Review requests ↗</a></div>
+<div class="panel-head"><div><h2 id="approvalsHeading">Pending approvals</h2><p>Review the tool and arguments before approving an action.</p></div><a class="count" href="/admin/agentic_ai/agentapprovalrequest/">Review requests ↗</a></div>
 <div class="table-scroll"><table><thead><tr><th scope="col">Request</th><th scope="col">User</th><th scope="col">Tool</th><th scope="col">Action</th><th scope="col">Status</th><th scope="col">Created</th></tr></thead><tbody>
-{% for a in approvals %}<tr><td>#{{ a.id }}</td><td>{{ a.user|default:"Anonymous" }}</td><td>{{ a.tool_name }}</td><td>{{ a.action_type }}</td><td><span class="badge {{ a.status }}">{{ a.get_status_display }}</span></td><td>{{ a.created_at|date:"M j, Y · H:i" }}</td></tr>
+{% for a in approvals %}<tr><td>#{{ a.id }}</td><td>{{ a.user|default:"Anonymous" }}</td><td>{{ a.tool_name }}</td><td>{{ a.action_type }}</td><td><span class="badge {{ a.status }}">{{ a.get_status_display }}</span>
+{% if a.action_type == "mcp_tool_call" %}
+<details class="approval-details"><summary>Review action</summary><pre>{{ a.request_payload.arguments }}</pre>
+{% if perms.agentic_ai.change_agentapprovalrequest %}
+<button type="button" class="review-action" data-id="{{ a.id }}" data-decision="approve">Approve &amp; execute</button>
+<button type="button" class="review-action" data-id="{{ a.id }}" data-decision="reject">Reject</button>
+{% endif %}<p class="review-result" role="status"></p></details>
+{% endif %}</td><td>{{ a.created_at|date:"M j, Y · H:i" }}</td></tr>
 {% empty %}<tr><td colspan="6" class="empty"><strong>All clear for now.</strong>No pending approval requests.</td></tr>{% endfor %}
 </tbody></table></div>
 </section>
@@ -45,6 +54,33 @@
 <div class="foot">BURO INTELLIGENCE &nbsp; / &nbsp; Agent operations</div>
 </main></div>
 <script>
+document.querySelectorAll('.review-action').forEach(button => {
+  button.addEventListener('click', async () => {
+    const panel = button.closest('.approval-details');
+    const buttons = panel.querySelectorAll('button');
+    const output = panel.querySelector('.review-result');
+    buttons.forEach(b => b.disabled = true);
+    output.textContent = button.dataset.decision === 'approve' ? 'Executing approved action…' : 'Rejecting request…';
+    let complete = false;
+    try {
+      const response = await fetch(`/agentic/api/approvals/${button.dataset.id}/`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type':'application/json', 'X-CSRFToken': document.querySelector('[name="csrfmiddlewaretoken"]').value},
+        body: JSON.stringify({decision: button.dataset.decision})
+      });
+      if (!(response.headers.get('Content-Type') || '').includes('application/json')) throw new Error('Request rejected. Refresh and check your login.');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.answer || 'Review failed.');
+      complete = true;
+      output.textContent = data.result?.answer || 'Request rejected. Refresh to update the queue.';
+      if (data.result?.approval_required) output.textContent += ' Refresh to review the next requested action.';
+    } catch(error) {
+      output.textContent = error.message + ' Check the approval status before retrying.';
+    } finally {
+      if (!complete) buttons.forEach(b => b.disabled = false);
+    }
+  });
+});
 const search = document.getElementById('runSearch');
 const statusFilter = document.getElementById('runStatus');
 const rows = Array.from(document.querySelectorAll('[data-run]'));

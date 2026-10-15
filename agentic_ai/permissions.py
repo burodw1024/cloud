@@ -9,7 +9,7 @@ def get_user_role_names(user):
     if getattr(user, "is_superuser", False):
         return ["admin"]
 
-    return list(user.groups.values_list("name", flat=True)) or ["staff"]
+    return list(user.groups.values_list("name", flat=True)) or ["authenticated"]
 
 
 def has_tool_permission(user, tool_config):

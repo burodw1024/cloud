@@ -1,0 +1,17 @@
+agentic_ai/agent_runtime.py
+agentic_ai/mcp_client.py
+agentic_ai/agentic_api.py
+agentic_ai/orchestrator.py
+agentic_ai/permissions.py
+agentic_ai/views.py
+agentic_ai/urls.py
+agentic_ai/admin.py
+agentic_ai/management/commands/mcp_tools.py
+agentic_ai/templates/agentic_ai/dashboard.html
+chat/dynamic_config.py
+chat/views_settings.py
+chat/templates/chat/index.html
+chat/templates/chat/workspace_styles.html
+openai_policy/templates/openai_policy/base.html
+openai_policy/templates/openai_policy/chat.html
+openai_policy/templates/openai_policy/studio.html

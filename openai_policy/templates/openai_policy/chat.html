@@ -1,4 +1,4 @@
-{% extends "admin/index.html" %}
+{% extends "openai_policy/base.html" %}
 {% block title %}Organization Policy AI{% endblock %}
 {% block content %}
 <style>
@@ -695,7 +695,24 @@
         height:48px;
       }
     }
-  </style>
+
+    /* Standalone page: no Django admin sidebar or competing layout styles. */
+    .layout,.main,.hero-inner>div,.control-group,.message-wrap{min-width:0}
+    .page{margin:12px auto 20px}
+    .main{height:calc(100dvh - 105px);min-height:500px}
+    .sidebar{min-height:0;max-height:calc(100dvh - 105px);overflow-y:auto;position:static}
+    .hero,.top-controls,.composer{flex-shrink:0}
+    #chat{min-height:150px;max-height:none;overscroll-behavior:contain}
+    .welcome{min-height:0;padding:12px 0}
+    .control-group{flex-wrap:wrap}
+    .message-wrap{overflow-wrap:anywhere}
+    .message-wrap pre{overflow-x:auto;max-width:100%}
+    button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #6f9edb;outline-offset:3px}
+    @media(max-width:980px){.main{height:calc(100dvh - 105px);min-height:500px}}
+    @media(max-width:720px){.page{margin:0;width:100%}.main{height:calc(100dvh - 44px);min-height:550px}#chat{min-height:120px;max-height:none}.hero p{font-size:12px}.hero{padding:14px 16px}.welcome-box{padding:18px}.welcome-box h2{font-size:19px}.control-group select{max-width:100%}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+
+</style>
 
 <script>
 function policyGetCookie(name){const p=(document.cookie||'').split(';').map(x=>x.trim());const h=p.find(x=>x.startsWith(name+'='));return h?decodeURIComponent(h.slice(name.length+1)):'';}
