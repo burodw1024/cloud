@@ -126,3 +126,6 @@ htmlcov/
 # IDE and operating system
 *~
 *.swp
+
+# Private deployment snapshots and release state
+.manager-state/
