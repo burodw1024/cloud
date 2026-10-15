@@ -6,8 +6,8 @@ cd -- "$release_dir"
 namespace=test
 deployment=cloud-live-test
 container=django
-expected_base=192.168.1.224/cloud:e4eb5ef-20261012114435
-release_image="192.168.1.224/cloud:ui-$(date -u +%Y%m%dT%H%M%SZ)"
+expected_base=192.168.1.224:80/cloud:model-20261014t104535z
+release_image="192.168.1.224:80/cloud:ui-$(date -u +%Y%m%dT%H%M%SZ)"
 for binary in docker kubectl python3; do
   command -v "$binary" >/dev/null || { echo "Missing required command: $binary" >&2; exit 1; }
 done

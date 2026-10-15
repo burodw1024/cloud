@@ -3,7 +3,7 @@ Run from the repository root.
 BURO UI release for test/cloud-live-test, container django
 
 Run on a machine with Docker, Python 3, kubectl, cluster permissions,
-and existing pull/push access to 192.168.1.224:
+and existing pull/push access to 192.168.1.224:80:
 
   bash deploy/ui/deploy.sh
 
