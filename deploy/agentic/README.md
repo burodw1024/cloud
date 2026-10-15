@@ -16,7 +16,15 @@ bash deploy/agentic/deploy.sh
 The script builds from the Deployment's current image and copies only the files
 listed in `files.txt`. It pushes a unique `cloud:agentic-...` tag to
 `192.168.1.224:80` and rolls out `test/cloud-live-test` / `django` with
-`IfNotPresent`. It retains the current scheduling constraints. Existing registry
+`IfNotPresent`. It retains the current scheduling constraints. The known ConfigMap override
+`dashboard-mcp-code` at `/app/agentic_ai/orchestrator.py` (subPath
+`orchestrator.py`, ConfigMap `dashboard-mcp-display-*`) is removed in the same
+patch as the image update so the new image's orchestrator is actually used. The
+other MCP runtime/dependency, planner, NiFi and data mounts are retained. Any
+other source mount conflicting with release files still stops deployment. If
+rollout fails, rollback restores both the prior image/pull policy and the removed
+orchestrator mount. The full pod template is checked again before changing it.
+Existing registry
 reachability and HTTP trust on the assigned node remain prerequisites. If that
 node cannot pull, rollout fails and the script restores the prior image.
 
@@ -114,6 +122,7 @@ Gateway UI/base address: `http://192.168.1.99:30444`.
 
 ```bash
 DJANGO_SETTINGS_MODULE=agentic_ai.tests.settings python -m django test agentic_ai.tests
+python3 deploy/agentic/test_deploy.py
 ```
 
 Tests isolate external services and use Django's test database. A live gateway
