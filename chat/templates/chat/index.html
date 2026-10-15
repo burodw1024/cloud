@@ -726,23 +726,24 @@
       .bubble{font-size:13.5px; padding:12px 13px;}
     }
   </style>
+  {% include "chat/workspace_styles.html" %}
 </head>
 <body>
 <div class="app">
   <aside class="sidebar" aria-label="Assistant navigation">
     <div class="brandCard">
-      <div class="brandLogo">AI</div>
-      <h1 class="brandTitle">BURO Enterprise AI Assistant</h1>
-      <p class="brandSub">Private on-prem LLM, RAG, workflow automation, and internal system intelligence.</p>
+      <div class="brandLogo" aria-hidden="true">B.</div>
+      <h1 class="brandTitle">BURO Intelligence</h1>
+      <p class="brandSub">Your knowledge. Your workspace.</p>
     </div>
 
     <div class="sideSection">
-      <div class="sideLabel"><span>AI Modules</span><span>Live</span></div>
+      <div class="sideLabel"><span>Workspace</span><span>06</span></div>
       <div class="moduleTabs" title="Select AI module">
-        <button type="button" class="moduleBtn active" data-module="auto">Auto Router</button>
-        <button type="button" class="moduleBtn" data-module="website">Website RAG</button>
+        <button type="button" class="moduleBtn active" data-module="auto">AI Assistant</button>
+        <button type="button" class="moduleBtn" data-module="website">Website Knowledge</button>
         <button type="button" class="moduleBtn" data-module="policy">HR Policy</button>
-        <button type="button" class="moduleBtn" data-module="notice">Notice RAG</button>
+        <button type="button" class="moduleBtn" data-module="notice">Notices & Updates</button>
         <button type="button" class="moduleBtn" data-module="core">Core System</button>
         <button type="button" class="moduleBtn customer" data-module="customer_support">Customer Support</button>
       </div>
@@ -776,13 +777,15 @@
     <header>
       <div class="topbar">
         <div class="titleBlock">
-          <div class="eyebrow"><span class="liveDot"></span><span>Private RAG • HRM • Cashflow • Core • Customer Support</span></div>
-          <h2 class="pageTitle">BURO Enterprise Intelligence Platform</h2>
-          <p class="pageSub">A secure on-premises AI platform for policy intelligence, notice search, document analysis, customer support, and core-system interaction.</p>
+          <div class="eyebrow"><span class="liveDot"></span><span>BURO / INTELLIGENCE WORKSPACE</span></div>
+          <h2 class="pageTitle">Your AI workspace</h2>
+          <p class="pageSub">Knowledge, documents, and everyday work. Connected in one place.</p>
         </div>
 
         <div class="authArea">
-          <span class="pill">/api/auto/ask</span>
+          {% if request.user.is_staff %}
+            <a class="pill" href="{% url 'agentic_ai:dashboard' %}">Agent operations ↗</a>
+          {% endif %}
           {% if request.user.is_authenticated %}
             <span class="pill userPill" title="Logged in user">
               <span class="statusDot ok"></span>
@@ -838,7 +841,7 @@
 
       <div class="composer">
         <div class="inputRow">
-          <textarea id="input" placeholder="Ask anything… Example: Show  topics list"></textarea>
+          <textarea aria-label="Message your AI assistant" id="input" placeholder="Ask anything… Example: Show  topics list"></textarea>
 
           <input id="fileInput" type="file" style="display:none" accept=".pdf,.doc,.docx,.txt,.json,.xls,.xlsx,.csv,.png,.jpg,.jpeg" />
 
@@ -924,6 +927,7 @@
     moduleBtns.forEach(btn => {
       const isActive = btn.dataset.module === selectedModule;
       btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-pressed", String(isActive));
     });
 
     const selectedBtn = Array.from(moduleBtns).find(btn => btn.dataset.module === selectedModule && btn.offsetParent !== null) ||
@@ -1273,6 +1277,7 @@
   }
 
   function addMessage(role, content) {
+    document.getElementById("workspaceWelcome")?.remove();
     const row = document.createElement("div");
     row.className = "msg " + role;
 
@@ -2635,7 +2640,7 @@ clearBtn.addEventListener("click", () => {
   sendBtn.disabled = false;
   stopBtn.disabled = true;
 
-  addMessage("assistant", "Cleared chat. You can start a new question.");
+  showWelcome();
 });
 
   clearFileBtn.addEventListener("click", () => {
@@ -2663,20 +2668,28 @@ clearBtn.addEventListener("click", () => {
   
 
 
-addMessage(
-  "assistant",
-  `Welcome to BURO Enterprise AI Assistant
-
-A secure, on-premises Kubernetes-based enterprise AI platform designed for BURO Bangladesh.
-
-Try asking:
-- What is your current capability?
-- Show topics list
-- Tell about BURO Bangladesh services
-- নতুন সদস্য হতে কী কী কাগজ লাগে?
-- আমার কিস্তি জমা হয়েছে কিন্তু আপডেট হয়নি
-- zypl help`
-);
+function showWelcome() {
+    chatbox.innerHTML = `<section class="welcome" id="workspaceWelcome" aria-labelledby="welcomeTitle">
+      <div class="welcome-kicker">A little clarity. A lot of possibility.</div>
+      <h2 id="welcomeTitle">Good work starts with<br><em>a better question.</em></h2>
+      <p>Find the right policy, make sense of a document, or explore what’s possible. Your BURO assistant is here to help.</p>
+      <div class="prompt-grid">
+        <button type="button" class="prompt-card" data-prompt="Show topics list" data-target="policy"><span class="prompt-icon" aria-hidden="true">▤</span><strong>Find an HR policy ↗</strong><small>Explore policies and get answers with context.</small></button>
+        <button type="button" class="prompt-card" data-prompt="Tell about BURO Bangladesh services" data-target="website"><span class="prompt-icon" aria-hidden="true">◎</span><strong>Explore BURO ↗</strong><small>Learn about our services and organisation.</small></button>
+        <button type="button" class="prompt-card" data-prompt="What is your current capability?" data-target="auto"><span class="prompt-icon" aria-hidden="true">✧</span><strong>Discover your assistant ↗</strong><small>See how AI can help with your everyday work.</small></button>
+      </div>
+      <div class="welcome-footer">English or বাংলা · Review important answers against their sources.</div>
+    </section>`;
+    chatbox.querySelectorAll(".prompt-card").forEach(button => {
+      button.addEventListener("click", () => {
+        setModule(button.dataset.target);
+        input.value = button.dataset.prompt;
+        autosize();
+        input.focus();
+      });
+    });
+  }
+  showWelcome();
 
   initMic();
 </script>

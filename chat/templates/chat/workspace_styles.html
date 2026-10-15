@@ -1,0 +1,32 @@
+<style>
+/* BURO workspace: local system fonts keep English and Bangla rendering reliable. */
+:root{--text:#203b37;--text2:#36514c;--muted:#667b76;--muted2:#738780;--primary:#177a65;--primary2:#20846f;--primary3:#11624f;--border:#dce5df;--radius:20px;--shadow:0 8px 32px #173c3010}
+body{background:#f5f6f2;color:var(--text)}
+.app{grid-template-columns:260px minmax(0,1fr)}
+.sidebar{background:#102e29;border:0;padding:26px 18px;gap:22px;color:#e7f1ec}
+.brandCard{padding:4px 12px 22px;background:none;border:0;border-bottom:1px solid #ffffff18;border-radius:0;box-shadow:none}
+.brandLogo{background:#bfe7b0;color:#153b2c;box-shadow:none;width:42px;height:42px;border-radius:13px}
+.brandTitle{font-size:18px;font-weight:700;color:#f3f7ef}.brandSub{color:#a4bdb4;font-size:12px}
+.sideSection{background:none;border:0;padding:0}.sideLabel{padding:0 12px;color:#9fbab0;font-size:10px;letter-spacing:.14em}
+.moduleTabs{gap:5px}.moduleBtn{color:#b8cdc4;border-radius:10px;font-weight:500;padding:13px 14px;min-height:44px}
+.moduleBtn::before{border-radius:3px;width:7px;height:7px;background:#789f8e;box-shadow:none}
+.moduleBtn.active,.moduleBtn.customer.active{background:#bfe7b0;color:#173b2d;border-color:#bfe7b0;box-shadow:none}
+.moduleBtn.active::before,.moduleBtn.customer.active::before{background:#24745c;box-shadow:none}.moduleBtn:hover{background:#ffffff0c;border-color:#ffffff20;color:#fff;transform:none}
+.toggleMini{background:#193b33;border-color:#315147;color:#d3e1da;font-weight:500;border-radius:10px}#modePill{background:#2b5142;color:#d0edc4;border-color:#4d705d}
+.miniStatus{color:#a7c0b5;font-size:11px;overflow-wrap:anywhere}.sidebar .statusDot{background:#719986}.sidebar .statusDot.ok{background:#bfe7b0}
+header{background:#fafbf8;border-color:#e2e7e0;backdrop-filter:none;padding:24px 34px 15px}.eyebrow{color:#667b76;font-weight:500;font-size:11px;letter-spacing:.07em}.eyebrow .liveDot{background:#33866b;box-shadow:none}
+.pageTitle{font-size:22px;font-weight:650;letter-spacing:-.04em}.pageSub{max-width:680px;font-size:12px;color:#667b76;line-height:1.6}
+.pill{background:#fff;color:#476159;border-color:#dce5df;font-weight:500}.primaryPill{background:#173e32;color:#fff;border-color:#173e32}.primaryPill:hover{background:#245743}
+.subbar{margin-top:12px}.statusSummary,.micLangWrap,select{background:#eef2eb;border-color:#dce5df;color:#4f685e;font-weight:500}.statusDetails,.statusCard{background:#fff;border-color:#dce5df}
+.wrap{max-width:1100px;padding:12px 32px 22px;gap:12px}.chatbox{border:0;background:none;box-shadow:none;padding:20px 6px}.composer{background:#fff;border-color:#d5dfd5;padding:12px 16px;border-radius:20px;box-shadow:0 8px 30px #153b2c09}
+textarea{background:#fff;color:#203b37;border:0;border-radius:10px;padding:12px 4px;font-size:15px}textarea::placeholder{color:#7a8b81}textarea:focus{box-shadow:none}.composer:focus-within{border-color:#44917a;box-shadow:0 0 0 3px #20846f12}
+.iconBtn{background:#f2f5ef;border-color:#e1e8dd;border-radius:12px}.iconBtn:hover{background:#e3eddf;border-color:#8aaf98}.iconBtn svg{fill:#456556}
+.btn{background:#18745e;border-color:#18745e;border-radius:10px;font-weight:600;box-shadow:none}.btn:hover{background:#115d4a;box-shadow:none}.btn.secondary{background:#f4f6f0;color:#52685b;border-color:#e2e7dd}.btn.secondary:hover{background:#e9eee3;color:#244936}.hint{font-size:10px;color:#738273}
+.avatar{border-radius:10px}.assistant .avatar{background:#e3ecda;color:#376647;border-color:#d6e2cc}.user .avatar{background:#e7ede6;color:#466249;border-color:#d5dfd4}.bubble{box-shadow:none;line-height:1.75;font-size:14px}.assistant .bubble{background:#fff;color:#304b40;border-color:#e1e7de;border-radius:3px 16px 16px}.user .bubble{background:#1e6551;border-color:#1e6551;border-radius:16px 3px 16px 16px}
+.bubble h1,.bubble h2,.bubble h3,.bubble h4,.bubble h5,.bubble h6{color:inherit}.bubble a{color:#14765e}.bubble pre{background:#152c26;color:#e3ece6;border-radius:12px}.bubble pre code{color:inherit}.bubble th{color:#305d47}.detailsBtn,.detailsPanel,.sourceList,.topicGroupCard,.suggestionBtn,.topicChip{background:#f0f5eb;color:#365743;border-color:#d9e3d1}.detailsBtn:hover,.suggestionBtn:hover,.topicChip:hover{background:#e0ecd7;color:#224e35;border-color:#89ad7a}.topicGroupTitle{color:#30543c}
+.welcome{max-width:780px;margin:clamp(12px,5vh,70px) auto 24px;animation:fadeUp .4s ease}.welcome-kicker{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:#57735d;font-weight:650;display:flex;align-items:center;gap:10px}.welcome-kicker::before{content:'';width:25px;height:1px;background:#789779}.welcome h2{font-size:clamp(30px,3.7vw,48px);line-height:1.15;letter-spacing:-.055em;font-weight:550;margin:20px 0 16px;color:#193c2e}.welcome h2 em{color:#527b48;font-family:Georgia,serif;font-weight:400}.welcome p{color:#6b7c6b;font-size:14px;line-height:1.8;max-width:510px}.prompt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:30px}.prompt-card{text-align:left;background:#fafcf7;border:1px solid #dce5d5;border-radius:15px;padding:19px;cursor:pointer;min-height:135px;color:#2b5038;transition:transform .18s,border-color .18s}.prompt-card:hover{transform:translateY(-3px);border-color:#86a77a;background:#fff}.prompt-card strong{display:block;font-size:13px;margin:13px 0 6px;font-weight:600}.prompt-card small{display:block;font-size:11px;line-height:1.6;color:#6c7e68}.prompt-icon{font-size:18px;color:#628953}.welcome-footer{font-size:10px;color:#758770;margin-top:20px;letter-spacing:.02em}
+button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #76a58a;outline-offset:3px}button:disabled{cursor:not-allowed;opacity:.5}
+@media(max-width:1060px){.app{grid-template-columns:1fr}.mobileModuleBar .moduleBtn{color:#4a6654}.mobileModuleBar .moduleBtn:hover{background:#e4eddd;color:#224a33}}
+@media(max-width:720px){header{padding:16px}.topbar{gap:12px}.pageTitle{font-size:19px}.pageSub{display:none}.authArea{align-self:flex-end}.wrap{padding:8px 14px 14px}.welcome{margin:15px 4px}.welcome h2{font-size:33px}.prompt-grid{grid-template-columns:1fr;gap:8px;margin-top:20px}.prompt-card{min-height:0;padding:13px 16px}.prompt-icon{float:right}.prompt-card strong{margin:0 0 5px}.composer{padding:10px}.chatbox{padding:8px 0}.welcome-footer{margin-top:12px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>

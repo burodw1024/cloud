@@ -1,72 +1,65 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Enterprise Agentic AI Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
-        .card { background: white; padding: 18px; margin-bottom: 18px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { padding: 10px; border-bottom: 1px solid #ddd; font-size: 14px; }
-        th { background: #f0f0f0; text-align: left; }
-        .badge { padding: 4px 8px; border-radius: 6px; background: #eee; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Operations · BURO Intelligence</title>
+<style>
+:root{color-scheme:light;--ink:#203d30;--muted:#6d7e70;--line:#dfe6da;--paper:#fafcf7;--green:#176b50}*{box-sizing:border-box}body{margin:0;background:#f4f6f0;color:var(--ink);font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit;text-decoration:none}button,input,select{font:inherit}button,a,input,select{outline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #78a88b}.shell{display:grid;grid-template-columns:235px minmax(0,1fr);min-height:100vh}.rail{background:#102e29;color:#b7cfc2;padding:32px 22px}.brand{color:#f0f5eb;font-size:18px;font-weight:650;display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:38px;height:38px;background:#bfe7b0;color:#153b2c;border-radius:12px}.rail p{font-size:11px;color:#a0bdad;margin:16px 0 35px}.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.15em;margin:24px 12px 10px}.nav a{display:block;padding:12px;border-radius:9px;margin-bottom:5px;font-size:13px}.nav a:hover{background:#24463b}.nav a.active{background:#bfe7b0;color:#173c2a}.rail-note{border-top:1px solid #ffffff18;padding-top:22px;margin-top:48px;font-size:11px;line-height:1.9}main{min-width:0;padding:30px 42px 60px;max-width:1600px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:22px;font-size:12px;color:var(--muted)}.top a{border:1px solid var(--line);padding:8px 14px;border-radius:8px;background:#fff}.intro{margin:38px 0 25px;display:flex;justify-content:space-between;gap:18px;align-items:end}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:#61785e}h1{font-size:36px;letter-spacing:-.045em;font-weight:550;margin:8px 0}h1 em{font-family:Georgia,serif;font-weight:400;color:#668957}.intro p{margin:0;color:var(--muted);font-size:13px}.refresh{border:1px solid var(--line);background:#fff;color:#33573b;border-radius:9px;padding:10px 16px;cursor:pointer;white-space:nowrap}.refresh:hover{background:#e5eeda}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:25px 0 32px}.metric{padding:22px 24px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}.metric:first-child{background:#e6eedb;border-color:#d4e0c6}.metric span{font-size:11px;color:#60765a}.metric strong{display:block;font-size:36px;letter-spacing:-.04em;font-weight:550;line-height:1.4}.metric small{color:var(--muted);font-size:11px}.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;margin-bottom:24px;overflow:hidden}.panel-head{padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}h2{font-size:16px;font-weight:650;margin:0}.panel-head p{font-size:11px;margin:4px 0 0;color:var(--muted)}.count{background:#eaf0e3;border:1px solid #dce5d0;padding:4px 10px;border-radius:20px;font-size:11px;color:#527147}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{background:#f0f4e9;color:#6b7d64;font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}td,th{padding:15px 24px;border-bottom:1px solid #e5ebdf}td{font-size:12px}tbody tr:last-child td{border:0}tbody tr:hover{background:#f0f5e9}.badge{display:inline-block;border-radius:6px;padding:3px 8px;background:#edf0e8;color:#53634a;font-size:10px;font-weight:600}.badge.success,.badge.low{background:#e1efdf;color:#2c653b}.badge.failed,.badge.high{background:#f8e7e2;color:#9b4a38}.badge.blocked,.badge.medium,.badge.pending,.badge.approval_required{background:#f5edd4;color:#876a23}.query{white-space:normal;min-width:220px;max-width:340px;color:#65785e}.empty{text-align:center;padding:40px 24px;color:var(--muted);font-size:13px}.empty strong{display:block;color:#426044;margin-bottom:6px;font-weight:600}.filters{display:flex;gap:8px;flex-wrap:wrap}.filters input,.filters select{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;color:#37573c;font-size:12px}.filters input{width:220px}.table-note{font-size:11px;color:var(--muted);padding:12px 24px;margin:0;border-top:1px solid var(--line)}[hidden]{display:none!important}.mobile-brand{display:none}.foot{color:#7d8b74;font-size:10px}
+@media(max-width:1100px){.shell{grid-template-columns:195px minmax(0,1fr)}main{padding:24px}.panel-head{align-items:flex-start;flex-direction:column}.brand{font-size:15px}.rail{padding:28px 14px}}
+@media(max-width:760px){.shell{display:block}.rail{display:none}main{padding:18px 14px}.mobile-brand{display:inline;font-weight:650;color:#31573b}.top{gap:12px}.crumb{display:none}.intro{margin-top:25px;align-items:start}h1{font-size:29px}.intro p{font-size:12px}.metrics{gap:8px}.metric{padding:14px 10px;border-radius:12px}.metric strong{font-size:28px}.metric small{font-size:10px}.metric span{font-size:10px}.panel-head{padding:18px}.filters{width:100%}.filters input{width:100%}.filters select{flex:1}td,th{padding:13px 18px}.refresh{padding:8px 10px;font-size:12px}}
+</style>
 </head>
 <body>
-    <h1>Enterprise Agentic AI Dashboard</h1>
-
-    <div class="card">
-        <h2>Pending Approvals</h2>
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Tool</th>
-                <th>Action</th>
-                <th>Status</th>
-                <th>Created</th>
-            </tr>
-            {% for a in approvals %}
-            <tr>
-                <td>{{ a.id }}</td>
-                <td>{{ a.user }}</td>
-                <td>{{ a.tool_name }}</td>
-                <td>{{ a.action_type }}</td>
-                <td><span class="badge">{{ a.status }}</span></td>
-                <td>{{ a.created_at }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="6">No pending approval.</td></tr>
-            {% endfor %}
-        </table>
-    </div>
-
-    <div class="card">
-        <h2>Recent Agent Runs</h2>
-        <table>
-            <tr>
-                <th>Time</th>
-                <th>User</th>
-                <th>Intent</th>
-                <th>Tool</th>
-                <th>Status</th>
-                <th>Risk</th>
-                <th>Query</th>
-            </tr>
-            {% for log in logs %}
-            <tr>
-                <td>{{ log.created_at }}</td>
-                <td>{{ log.user }}</td>
-                <td>{{ log.detected_intent }}</td>
-                <td>{{ log.selected_tool }}</td>
-                <td><span class="badge">{{ log.status }}</span></td>
-                <td>{{ log.risk_level }}</td>
-                <td>{{ log.user_query|truncatechars:80 }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="7">No logs yet.</td></tr>
-            {% endfor %}
-        </table>
-    </div>
-</body>
-</html>
+<div class="shell">
+<aside class="rail" aria-label="Main navigation">
+<a class="brand" href="/"><span class="mark">B.</span> BURO Intelligence</a>
+<p>Clarity for every working day.</p>
+<div class="nav-label">Workspace</div>
+<nav class="nav"><a href="/">↗ &nbsp; AI Assistant</a><a class="active" href="{% url 'agentic_ai:dashboard' %}" aria-current="page">▦ &nbsp; Agent Operations</a><a href="/admin/">⚙ &nbsp; Administration</a></nav>
+<div class="rail-note">AGENT OVERSIGHT<br>Track activity, review requests,<br>and keep work accountable.</div>
+</aside>
+<main>
+<div class="top"><span class="crumb">Workspace &nbsp; / &nbsp; Agent Operations</span><span class="mobile-brand">BURO Intelligence</span><a href="/">Back to assistant ↗</a></div>
+<div class="intro"><div><div class="eyebrow">Intelligence, with oversight</div><h1>Your agents. <em>In view.</em></h1><p>Follow recent activity and see what needs your attention.</p></div><button class="refresh" type="button" onclick="window.location.reload()">↻ &nbsp; Refresh</button></div>
+<div class="metrics" aria-label="Dashboard summary">
+<div class="metric"><span>AWAITING REVIEW</span><strong>{{ approvals|length }}</strong><small>Pending requests shown</small></div>
+<div class="metric"><span>RECENT ACTIVITY</span><strong>{{ logs|length }}</strong><small>Latest runs shown</small></div>
+<div class="metric"><span>REVIEW WINDOW</span><strong>50</strong><small>Latest records per section</small></div>
+</div>
+<section class="panel" aria-labelledby="approvalsHeading">
+<div class="panel-head"><div><h2 id="approvalsHeading">Pending approvals</h2><p>Requests awaiting a decision. Review them in administration.</p></div><a class="count" href="/admin/agentic_ai/agentapprovalrequest/">Review requests ↗</a></div>
+<div class="table-scroll"><table><thead><tr><th scope="col">Request</th><th scope="col">User</th><th scope="col">Tool</th><th scope="col">Action</th><th scope="col">Status</th><th scope="col">Created</th></tr></thead><tbody>
+{% for a in approvals %}<tr><td>#{{ a.id }}</td><td>{{ a.user|default:"Anonymous" }}</td><td>{{ a.tool_name }}</td><td>{{ a.action_type }}</td><td><span class="badge {{ a.status }}">{{ a.get_status_display }}</span></td><td>{{ a.created_at|date:"M j, Y · H:i" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty"><strong>All clear for now.</strong>No pending approval requests.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+<section class="panel" aria-labelledby="runsHeading">
+<div class="panel-head"><div><h2 id="runsHeading">Recent agent runs</h2><p>Understand what ran, who asked, and how it finished.</p></div><div class="filters"><input id="runSearch" type="search" aria-label="Search recent runs" placeholder="Search user, tool, or question…"><select id="runStatus" aria-label="Filter runs by status"><option value="">All statuses</option><option value="success">Success</option><option value="failed">Failed</option><option value="blocked">Blocked</option><option value="approval_required">Approval required</option></select></div></div>
+<div class="table-scroll"><table><thead><tr><th scope="col">Time</th><th scope="col">User</th><th scope="col">Intent / Tool</th><th scope="col">Status</th><th scope="col">Risk</th><th scope="col">Question</th></tr></thead><tbody id="runRows">
+{% for log in logs %}<tr data-run data-status="{{ log.status }}"><td>{{ log.created_at|date:"M j · H:i" }}</td><td>{{ log.user|default:"Anonymous" }}</td><td>{{ log.detected_intent|default:"—" }}<br><small>{{ log.selected_tool|default:"No tool" }}</small></td><td><span class="badge {{ log.status }}">{{ log.get_status_display }}</span></td><td><span class="badge {{ log.risk_level }}">{{ log.get_risk_level_display }}</span></td><td class="query" title="{{ log.user_query }}">{{ log.user_query|truncatechars:110 }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty"><strong>Your activity will appear here.</strong>Agent runs are recorded as people use the assistant.</td></tr>{% endfor %}
+<tr id="noMatches" hidden><td colspan="6" class="empty">No runs match these filters. Try another search or status.</td></tr>
+</tbody></table></div><p class="table-note" id="filterSummary" aria-live="polite">Showing the latest {{ logs|length }} runs. Times use the application’s configured timezone.</p>
+</section>
+<div class="foot">BURO INTELLIGENCE &nbsp; / &nbsp; Agent operations</div>
+</main></div>
+<script>
+const search = document.getElementById('runSearch');
+const statusFilter = document.getElementById('runStatus');
+const rows = Array.from(document.querySelectorAll('[data-run]'));
+function filterRuns() {
+  const term = search.value.trim().toLocaleLowerCase();
+  let visible = 0;
+  rows.forEach(row => {
+    const match = (!statusFilter.value || row.dataset.status === statusFilter.value) && row.textContent.toLocaleLowerCase().includes(term);
+    row.hidden = !match;
+    if (match) visible++;
+  });
+  document.getElementById('noMatches').hidden = !rows.length || visible > 0;
+  document.getElementById('filterSummary').textContent = `Showing ${visible} of ${rows.length} loaded runs. Times use the application’s configured timezone.`;
+}
+search.addEventListener('input', filterRuns);
+statusFilter.addEventListener('change', filterRuns);
+</script>
+</body></html>
