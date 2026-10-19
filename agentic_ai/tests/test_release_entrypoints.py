@@ -29,7 +29,9 @@ class ReleaseEntrypointTests(unittest.TestCase):
                 wrapper = '''
 import pathlib, runpy, subprocess, sys
 from unittest.mock import patch
-real_path = pathlib.Path
+# Capture the concrete path class before mocking the Path factory.
+# Python 3.11 Path.__new__ reads the patched module-level Path name.
+real_path = type(pathlib.Path())
 data, target = sys.argv[1:]
 def mapped(value, *args):
     return real_path(data) if str(value) == '/data' else real_path(value, *args)
