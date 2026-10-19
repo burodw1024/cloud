@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 
+@unittest.skipUnless(shutil.which("git"), "Git checkout checks require the build host; runtime images do not need Git.")
 class PulledSourceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
