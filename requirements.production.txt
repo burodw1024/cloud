@@ -1,0 +1,2 @@
+-r requirements.docker.txt
+# SQLite and the shared SQLite cache require no external database/cache drivers.

@@ -784,11 +784,12 @@
         <div class="authArea">
           <span class="pill">/api/auto/ask</span>
           {% if request.user.is_authenticated %}
+            <a class="pill primaryPill" href="{% url 'agentic_ai:query_page' %}">Data assistant</a>
             <span class="pill userPill" title="Logged in user">
               <span class="statusDot ok"></span>
               {{ request.user.username }}
             </span>
-            <a class="pill primaryPill" href="/logout/">Logout</a>
+            <form action="{% url 'logout' %}" method="post" style="display:inline">{% csrf_token %}<button class="pill primaryPill" type="submit">Logout</button></form>
           {% else %}
             <a class="pill primaryPill" href="/login/">Login</a>
           {% endif %}

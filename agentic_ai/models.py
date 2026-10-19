@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 
 
@@ -8,6 +9,14 @@ class AgentTool(models.Model):
     is_active = models.BooleanField(default=True)
     requires_approval = models.BooleanField(default=False)
     allowed_roles = models.JSONField(default=list, blank=True)
+
+    def clean(self):
+        super().clean()
+        if self.name != self.name.strip() or not self.name.strip():
+            raise ValidationError({"name": "Use the exact nonempty gateway tool name without surrounding whitespace."})
+        roles = self.allowed_roles
+        if not isinstance(roles, list) or any(not isinstance(role, str) or not role.strip() or role != role.strip() for role in roles):
+            raise ValidationError({"allowed_roles": 'Use a JSON list of exact group names, for example ["manager", "cashflow"].'})
 
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -1,12 +1,29 @@
-from .planner import plan_query
-from .tool_registry import TOOL_REGISTRY
+from .planner import plan_query, PlanningError
+from .tool_registry import TOOL_REGISTRY, available_tool_catalog
 from .permissions import has_tool_permission
 from .audit import write_agent_log
 from .models import AgentApprovalRequest
 
 
 def run_agentic_query(user=None, query="", session_id=None):
-    plan = plan_query(query)
+    from .mcp_gateway import gateway_enabled, run_mcp_query
+    if gateway_enabled():
+        return run_mcp_query(user=user, query=query, session_id=session_id)
+    try:
+        plan = plan_query(query, tools=available_tool_catalog(user))
+    except (PlanningError, ValueError) as exc:
+        answer = str(exc)
+        write_agent_log(user=user, query=query, intent="planning_failed",
+                        tool="", final_answer=answer, status="failed",
+                        risk_level="low", session_id=session_id)
+        return {"ok": False, "answer": answer, "error_code": "planning_failed"}
+    if plan.get("clarification"):
+        answer = plan["clarification"]
+        write_agent_log(user=user, query=query, intent="clarification", tool="",
+                        final_answer=answer, status="blocked", risk_level="low",
+                        session_id=session_id)
+        return {"ok": False, "clarification_required": True, "answer": answer,
+                "plan": plan}
     tool_name = plan.get("tool")
     tool_config = TOOL_REGISTRY.get(tool_name)
 

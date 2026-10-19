@@ -126,3 +126,16 @@ htmlcov/
 # IDE and operating system
 *~
 *.swp
+
+# Private runtime files never belong in source or images
+.zypl.env
+*.env
+.env*
+*.sqlite3*
+*.key
+*.pem
+*.crt
+.manager-state/
+media/
+logs/
+work/

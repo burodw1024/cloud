@@ -1,5 +1,6 @@
 # project/urls.py
 from django.contrib import admin
+from .health import live, ready
 from django.urls import path, include
 #from chat.views import upload_jsonl
 from django.contrib.auth import views as auth_views
@@ -8,6 +9,8 @@ from django.conf.urls.static import static
 
 
 urlpatterns = [
+    path("healthz/live/", live, name="health_live"),
+    path("healthz/ready/", ready, name="health_ready"),
     path('agentic/', include('agentic_ai.urls')),
     path("admin/", admin.site.urls),
 

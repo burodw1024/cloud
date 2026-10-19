@@ -15,6 +15,8 @@ from chat.app_config import APP_CONFIG, strip_url
 # Central fallback values.
 # IPs remain centralized in app_config.py.
 DEFAULT_SETTINGS = {
+    "AGENT_PLANNER_MODEL": "",
+    "AGENT_PLANNER_TIMEOUT": "60",
     "QDRANT_URL": APP_CONFIG.qdrant.qdrant_url,
     "QDRANT_PRIMARY_URL": getattr(APP_CONFIG.qdrant, "primary_url", APP_CONFIG.qdrant.qdrant_url),
     "QDRANT_SECONDARY_URL": getattr(APP_CONFIG.qdrant, "secondary_url", ""),
@@ -67,6 +69,19 @@ DEFAULT_SETTINGS.update({
     "GOOGLE_TTS_VOICE": os.getenv("GOOGLE_TTS_VOICE", "Kore"),
 })
 # --- OPENAI_POLICY_DYNAMIC_SETTINGS_END ---
+
+# MCP gateway settings use the same database -> environment -> default priority.
+DEFAULT_SETTINGS.update({
+    "MCP_GATEWAY_ENABLED": "false",
+    "MCP_GATEWAY_URL": "http://192.168.1.99:30444/mcp",
+    "MCP_GATEWAY_TOKEN": "",
+    "MCP_MODEL_PROVIDER": "ollama",
+    "MCP_MODEL": "",
+    "MCP_MODEL_BASE_URL": "",
+    "MCP_MODEL_API_KEY": "",
+    "MCP_TIMEOUT": "30",
+    "MCP_REQUEST_TIMEOUT": "90",
+})
 
 URL_KEYS = {
     "QDRANT_URL",

@@ -14,7 +14,16 @@ class AgentRunLogAdmin(admin.ModelAdmin):
     list_display = ("created_at", "user", "detected_intent", "selected_tool", "status", "risk_level")
     search_fields = ("user_query", "final_answer", "selected_tool", "detected_intent")
     list_filter = ("status", "risk_level", "selected_tool")
-    readonly_fields = ("created_at",)
+    readonly_fields = tuple(field.name for field in AgentRunLog._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AgentApprovalRequest)

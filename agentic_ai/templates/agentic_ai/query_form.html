@@ -1,0 +1,41 @@
+    <div class="card">
+        <h2>Ask the agent</h2>
+        <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
+            {% csrf_token %}
+            <label for="agent-message">Your question</label><br>
+            <textarea id="agent-message" name="message" rows="3" maxlength="16000" required style="width:100%;box-sizing:border-box"></textarea>
+            <button type="submit">Run query</button>
+        </form>
+        <pre id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+    </div>
+<script>
+    document.getElementById('agent-query-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const button = this.querySelector('button');
+        if (button.disabled) return;
+        const result = document.getElementById('agent-result');
+        button.disabled = true;
+        result.textContent = 'Running your query…';
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST', credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Idempotency-Key': globalThis.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2)
+                },
+                body: JSON.stringify({message: this.elements.message.value})
+            });
+            if (!(response.headers.get('content-type') || '').includes('application/json')) {
+                throw new Error('Request rejected. Refresh the page and sign in again.');
+            }
+            const body = await response.json();
+            const answer = body.answer ?? body.error ?? 'No response was returned.';
+            result.textContent = typeof answer === 'string' ? answer : JSON.stringify(answer, null, 2);
+        } catch (error) {
+            result.textContent = 'The request could not be completed. Check the run log before retrying.';
+        } finally {
+            button.disabled = false;
+        }
+    });
+</script>

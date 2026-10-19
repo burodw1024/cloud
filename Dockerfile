@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 ARG PYTHON_VERSION=3.11
 
 # ============================================================
@@ -31,11 +32,13 @@ RUN apt-get update \
         libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.docker.txt /build/requirements.txt
+COPY requirements.production.lock.txt /build/requirements.txt
 
 # Create one isolated Python environment and install/check all
 # packages inside that same environment.
-RUN /usr/local/bin/python -m venv "${VIRTUAL_ENV}" \
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi \
+    && /usr/local/bin/python -m venv "${VIRTUAL_ENV}" \
     && "${VIRTUAL_ENV}/bin/python" -m pip install --upgrade \
         pip \
         setuptools \
@@ -60,10 +63,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:${PATH}" \
     PORT=8000 \
-    GUNICORN_WORKERS=3 \
-    GUNICORN_TIMEOUT=120
+    GUNICORN_WORKERS=1 \
+    GUNICORN_TIMEOUT=660 \
+    DJANGO_SETTINGS_MODULE=buro_first.settings_production
 
-ARG WSGI_MODULE
+ARG WSGI_MODULE=buro_first.wsgi
 ENV WSGI_MODULE=${WSGI_MODULE}
 
 WORKDIR /app
@@ -80,9 +84,10 @@ RUN apt-get update \
         libffi8 \
         libssl3 \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system appgroup \
+    && groupadd --system --gid 10001 appgroup \
     && useradd \
         --system \
+        --uid 10001 \
         --gid appgroup \
         --home-dir /app \
         --shell /usr/sbin/nologin \
@@ -97,9 +102,11 @@ COPY --chown=appuser:appgroup . /app/
 RUN mkdir -p \
         /app/staticfiles \
         /app/media \
+        /app/logs \
     && chown -R appuser:appgroup \
         /app/staticfiles \
-        /app/media
+        /app/media \
+        /app/logs
 
 # Fail the image build early if core imports are unavailable.
 RUN python -c "\
@@ -110,8 +117,8 @@ print('Django:', django.get_version()); \
 print('Gunicorn import: OK'); \
 print('ZoneInfo import: OK')"
 
-USER appuser
+USER 10001:10001
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "exec gunicorn ${WSGI_MODULE}:application --bind 0.0.0.0:${PORT:-8000} --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "exec gunicorn ${WSGI_MODULE}:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --worker-class gthread --threads 4 --timeout 660 --access-logfile - --error-logfile -"]

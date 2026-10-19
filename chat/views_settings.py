@@ -81,6 +81,24 @@ AI_PROVIDER_CHOICES = [
 # ---------------------------------------------------------------------
 
 MANAGED_SETTINGS = [
+    {
+        "key": "AGENT_PLANNER_MODEL",
+        "label": "Agent Planner Model (Ollama)",
+        "description": "Model for structured tool selection. Blank uses the default Ollama model; requires JSON schema output support.",
+        "input_type": "text",
+        "default": "",
+        "group": "Agent Tools",
+    },
+    {
+        "key": "AGENT_PLANNER_TIMEOUT",
+        "label": "Agent Planner Timeout (seconds)",
+        "description": "Read timeout for tool selection, from 1 to 180 seconds.",
+        "input_type": "number",
+        "default": "60",
+        "group": "Agent Tools",
+    },
+
+
 
     # =================================================================
     # GENERAL AI SETTINGS
@@ -975,6 +993,35 @@ MANAGED_SETTINGS = [
 ]
 
 
+
+# MCP uses the same project model; only gateway access needs configuration.
+MANAGED_SETTINGS.extend([
+    {
+        "key": "MCP_GATEWAY_ENABLED", "label": "Enable MCP tool selection",
+        "description": "Set true to let the project model select role-permitted gateway tools; false uses the local router.",
+        "input_type": "select", "choices": ["false", "true"], "default": "false", "group": "MCP Gateway",
+    },
+    {
+        "key": "MCP_GATEWAY_URL", "label": "MCP gateway endpoint",
+        "description": "Full Streamable HTTP MCP endpoint. Verify whether your server uses /mcp.",
+        "input_type": "text", "default": "http://192.168.1.99:30444/mcp", "group": "MCP Gateway",
+    },
+    {
+        "key": "MCP_REQUEST_TIMEOUT", "label": "MCP request deadline (seconds)",
+        "description": "Overall discovery, model selection and execution deadline. Keep below the web worker timeout.",
+        "input_type": "number", "default": "90", "group": "MCP Gateway",
+    },
+    {
+        "key": "MCP_TIMEOUT", "label": "MCP operation timeout (seconds)",
+        "description": "Timeout for each network operation; the overall request deadline still applies.",
+        "input_type": "number", "default": "30", "group": "MCP Gateway",
+    },
+    {
+        "key": "MCP_GATEWAY_TOKEN", "label": "MCP gateway bearer token",
+        "description": "Optional gateway credential. Leave blank to keep the saved value.",
+        "input_type": "password", "sensitive": True, "default": "", "group": "MCP Gateway",
+    },
+])
 
 # --- OPENAI_POLICY_MANAGED_SETTINGS_BEGIN ---
 # Reuse the existing settings dashboard. Existing OPENAI_API_KEY and

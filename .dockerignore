@@ -46,3 +46,16 @@ Dockerfile.backup.*
 docker-compose.override.yml
 .manager.env
 .manager-state
+
+# Private runtime files never belong in source or images
+.zypl.env
+*.env
+.env*
+*.sqlite3*
+*.key
+*.pem
+*.crt
+.manager-state/
+media/
+logs/
+work/

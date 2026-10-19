@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ask your data assistant</title>
+<style>
+body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:0}main{max-width:850px;margin:48px auto;padding:24px}nav{display:flex;gap:20px;flex-wrap:wrap}a{color:#146b65}.card{background:white;border:1px solid #dae5eb;padding:24px;margin-top:24px;border-radius:12px}textarea{font:inherit;border:1px solid #9eb5c2;border-radius:6px;padding:12px}button{font:inherit;background:#146b65;color:white;border:0;border-radius:6px;padding:10px 18px;margin-top:12px;cursor:pointer}button:disabled{opacity:.6}pre{font:inherit}h1{line-height:1.2}.muted{color:#546b7b}
+</style></head>
+<body><main>
+<nav><a href="/">Main chat</a>{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Set up tools</a>{% endif %}
+{% if user.is_staff and perms.agentic_ai.view_agentrunlog and perms.agentic_ai.view_agentapprovalrequest %}<a href="{% url 'agentic_ai:dashboard' %}">Run history</a>{% endif %}</nav>
+<h1>Ask your data assistant</h1>
+<p class="muted">Ask a question in plain language. Your assistant will use the tools available to your role.</p>
+<p><button id="loan-example" type="button">Try a loan aging question</button></p>
+{% include 'agentic_ai/query_form.html' %}
+<p class="muted">Include the branch code and report date for a specific loan report.</p>
+</main>
+<script>document.getElementById('loan-example').addEventListener('click',()=>{const field=document.getElementById('agent-message');field.value='Show the loan aging report for branch 0253 as of 2026-09-30.';field.focus();});</script>
+</body></html>

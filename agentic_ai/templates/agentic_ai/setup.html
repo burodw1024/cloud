@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Set up assistant tools</title><style>
+body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:0}main{max-width:900px;margin:32px auto;padding:24px}a{color:#146b65}.card{background:white;border:1px solid #dae5eb;padding:24px;margin:20px 0;border-radius:12px}h1,h2{line-height:1.25}label{display:block;margin:10px 0}input[type=url],input[type=password]{width:100%;box-sizing:border-box;border:1px solid #9eb5c2;padding:10px;font:inherit;border-radius:6px}button{font:inherit;background:#146b65;color:white;border:0;border-radius:6px;padding:10px 16px;margin:8px 10px 0 0;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.muted{color:#546b7b}.status{background:#e7f3ef;padding:14px;border-radius:8px;min-height:24px}.tool{border-top:1px solid #dae5eb;padding:18px 0}.roles{display:flex;gap:8px 20px;flex-wrap:wrap}.roles label{margin:4px 0}fieldset{border:0;padding:0}legend{font-weight:600}small{display:block;color:#546b7b}code{overflow-wrap:anywhere}
+</style></head><body><main>
+<a href="{% url 'agentic_ai:query_page' %}">← Ask your assistant</a>
+<h1>Set up assistant tools</h1>
+<p>Connect your gateway, choose who can use each tool, then test a question.</p>
+<p id="setup-status" class="status" role="status" aria-live="polite">{% if enabled %}Gateway tools are enabled.{% else %}Complete these steps to enable gateway tools.{% endif %}</p>
+{% csrf_token %}
+<section class="card"><h2>1. Connect your gateway</h2>
+<label for="gateway-url">Gateway endpoint</label><input id="gateway-url" type="url" value="{{ gateway_url }}" required>
+<small>Use the complete MCP endpoint, including its path. The current /mcp path still needs verification.</small>
+<label for="gateway-token">Access token (only if your gateway requires one)</label><input id="gateway-token" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved token">
+<button type="button" id="save-connection">Save connection</button><button type="button" id="discover">Find tools</button>
+</section>
+<section class="card"><h2>2. Check your project model</h2>
+<p>Your current project model is <strong>{{ model }}</strong>. It will choose a tool from the gateway.</p>
+<button type="button" id="check-model">Check model</button> <a href="/admin-tools/settings/">Change the project model</a><small>This is a harmless test of tool selection. It does not run a report or change data.</small>
+</section>
+<section class="card"><h2>3. Choose tools and roles</h2>
+<p>Select a tool, then choose the roles that may use it.</p>
+<div id="tool-list"><p class="muted">Click “Find tools” to load available tools.</p></div>
+<small>Roles come from Django groups. <a href="/admin/auth/group/">Manage groups</a>. Keep approval enabled for tools that change data.</small>
+<button type="button" id="save-tools" disabled>Save and enable tools</button>
+<p><a href="{% url 'agentic_ai:query_page' %}">Test a question →</a></p>
+</section>
+</main><script>
+const statusBox=document.getElementById('setup-status');
+let catalog=[], modelReady=false, busy=false;
+function refreshButtons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);document.getElementById('save-tools').disabled=busy||!modelReady||catalog.length===0;}
+async function action(payload){
+ if(busy)return null;busy=true;refreshButtons();statusBox.textContent='Working…';
+ try{
+  const r=await fetch(location.pathname,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify(payload)});
+  if(!(r.headers.get('content-type')||'').includes('application/json'))throw new Error('Refresh the page and sign in with an administrator account.');
+  const body=await r.json();if(!body.ok)throw new Error(body.error||'The check did not pass.');
+  statusBox.textContent=body.message;return body;
+ }catch(e){statusBox.textContent=e.message||'Connection failed. Check the gateway address and network access.';return null;}
+ finally{busy=false;refreshButtons();}
+}
+function checkbox(text,checked){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.checked=checked;label.append(input,document.createTextNode(' '+text));return {label,input};}
+function renderTools(tools,roles){
+ const list=document.getElementById('tool-list');list.replaceChildren();catalog=[];
+ if(!tools.length){list.textContent='The gateway has no tools available.';return;}
+ tools.forEach(tool=>{
+  const card=document.createElement('div');card.className='tool';
+  const enabled=checkbox(tool.name,tool.enabled);card.append(enabled.label);
+  const desc=document.createElement('p');desc.textContent=tool.description;card.append(desc);
+  const fieldset=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Who can use this tool?';fieldset.append(legend);
+  const roleList=document.createElement('div');roleList.className='roles';const choices=[];
+  roles.forEach(role=>{const choice=checkbox(role,tool.roles.includes(role));roleList.append(choice.label);choices.push({role,input:choice.input});});
+  fieldset.append(roleList);card.append(fieldset);
+  const approval=checkbox('Ask for approval before running',tool.requires_approval);card.append(approval.label);list.append(card);
+  catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,choices});
+ });
+}
+document.getElementById('save-connection').onclick=async()=>{const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});if(body){document.getElementById('gateway-token').value='';modelReady=false;catalog=[];document.getElementById('tool-list').textContent='Click “Find tools” to refresh the tool list.';refreshButtons();}};
+document.getElementById('discover').onclick=async()=>{const body=await action({action:'discover'});if(body){renderTools(body.tools,body.roles);refreshButtons();}};
+document.getElementById('check-model').onclick=async()=>{modelReady=false;const body=await action({action:'check_model'});modelReady=!!body;refreshButtons();};
+document.getElementById('save-tools').onclick=()=>action({action:'save_tools',tools:catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}))});
+</script></body></html>
