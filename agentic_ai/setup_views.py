@@ -56,6 +56,16 @@ def query_page(request):
     return response
 
 
+def _pricing_context():
+    from .usage_meter import parse_prices
+    provider = get_setting("MCP_MODEL_PROVIDER", "ollama").lower()
+    model = get_setting("MCP_MODEL") or (get_llm_model() if provider == "ollama" else "")
+    prices = parse_prices(get_setting("MCP_MODEL_PRICING", "{}"))
+    price = prices.get(provider + ":" + model, {})
+    return {"pricing_provider": provider, "pricing_model": model,
+            "model_price": price if isinstance(price, dict) else {}}
+
+
 @staff_member_required
 @permission_required(SETUP_PERMISSIONS, raise_exception=True)
 @ensure_csrf_cookie
@@ -65,7 +75,7 @@ def setup_page(request):
     if request.method == "GET":
         response = render(request, "agentic_ai/setup.html", {
             "gateway_url": get_setting("MCP_GATEWAY_URL"), "model": get_llm_model(),
-            "enabled": gateway_enabled(),
+            "enabled": gateway_enabled(), **_pricing_context(),
         })
         response["Cache-Control"] = "no-store"
         return response
@@ -78,6 +88,25 @@ def setup_page(request):
         if not isinstance(body, dict):
             raise ValueError
         action = body.get("action")
+        if action == "save_pricing":
+            from .usage_meter import parse_prices, validate_price
+            current = _pricing_context()
+            if (body.get("provider") != current["pricing_provider"]
+                    or body.get("model") != current["pricing_model"] or not current["pricing_model"]):
+                return _reply({"ok": False, "error": "The model changed. Refresh before saving its price."}, 409)
+            prices = parse_prices(get_setting("MCP_MODEL_PRICING", "{}"))
+            key = current["pricing_provider"] + ":" + current["pricing_model"]
+            inputs, outputs = body.get("input_rate"), body.get("output_rate")
+            if inputs == "" and outputs == "":
+                prices.pop(key, None)
+            else:
+                price = {"currency": body.get("currency", "USD"),
+                         "input_per_million": inputs, "output_per_million": outputs}
+                if body.get("cached_rate") not in (None, ""):
+                    price["cached_input_per_million"] = body["cached_rate"]
+                prices[key] = validate_price(price)
+            _save_settings({"MCP_MODEL_PRICING": json.dumps(prices)})
+            return _reply({"ok": True, "message": "Model pricing saved. Future requests use these estimated rates; historical requests are unchanged."})
         if action == "save_connection":
             url = body.get("url")
             token = body.get("token", "")

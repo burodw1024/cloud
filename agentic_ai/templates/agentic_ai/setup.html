@@ -17,6 +17,16 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <p>Your current project model is <strong>{{ model }}</strong>. It will choose a tool from the gateway.</p>
 <button type="button" id="check-model">Check model</button> <a href="/admin-tools/settings/">Change the project model</a><small>This is a harmless test of tool selection. It does not run a report or change data.</small>
 </section>
+<section class="card"><h2>Model usage & estimated cost</h2>
+<p>Pricing for <strong>{{ pricing_provider }} / {{ pricing_model|default:"no model selected" }}</strong>. Set rates from your provider's current price list. No vendor prices are built into the application.</p>
+<small>For a local Ollama model, these can be your own estimated hosting rates. Leaving rates blank means cost is unconfigured, not free. This excludes NiFi, Oracle and other infrastructure charges.</small>
+<div id="model-pricing" data-provider="{{ pricing_provider }}" data-model="{{ pricing_model }}">
+<label for="input-rate">Input price per 1 million tokens</label><input id="input-rate" type="number" min="0" step="any" value="{{ model_price.input_per_million|default_if_none:'' }}" placeholder="Not configured">
+<label for="output-rate">Output price per 1 million tokens</label><input id="output-rate" type="number" min="0" step="any" value="{{ model_price.output_per_million|default_if_none:'' }}" placeholder="Not configured">
+<label for="cached-rate">Cached input price per 1 million tokens (optional)</label><input id="cached-rate" type="number" min="0" step="any" value="{{ model_price.cached_input_per_million|default_if_none:'' }}" placeholder="Uses ordinary input rate when blank">
+<label for="price-currency">Currency code</label><input id="price-currency" type="text" maxlength="3" value="{{ model_price.currency|default:'USD' }}">
+<button type="button" id="save-pricing">Save model pricing</button><small>Clear both input and output rates to remove this model's price. Counts are taken from model responses, including selection and presentation calls.</small>
+</div></section>
 <section class="card"><h2>3. Choose tools and roles</h2>
 <p>Select a tool, organize how it appears in the workspace, then choose the roles that may use it.</p>
 <div id="tool-list"><p class="muted">Click “Find tools” to load available tools.</p></div>
@@ -61,6 +71,7 @@ function renderTools(tools,roles){
   catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,choices,metadata});
  });
 }
+document.getElementById('save-pricing').onclick=()=>{const identity=document.getElementById('model-pricing');return action({action:'save_pricing',provider:identity.dataset.provider,model:identity.dataset.model,input_rate:document.getElementById('input-rate').value,output_rate:document.getElementById('output-rate').value,cached_rate:document.getElementById('cached-rate').value,currency:document.getElementById('price-currency').value.trim().toUpperCase()});};
 document.getElementById('save-connection').onclick=async()=>{const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});if(body){document.getElementById('gateway-token').value='';modelReady=false;catalog=[];document.getElementById('tool-list').textContent='Click “Find tools” to refresh the tool list.';refreshButtons();}};
 document.getElementById('discover').onclick=async()=>{const body=await action({action:'discover'});if(body){renderTools(body.tools,body.roles);refreshButtons();}};
 document.getElementById('check-model').onclick=async()=>{modelReady=false;const body=await action({action:'check_model'});modelReady=!!body;refreshButtons();};

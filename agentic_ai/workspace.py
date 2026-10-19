@@ -29,7 +29,7 @@ def workspace_context(user):
                 'example': record.example_question if record else '',
                 'requires_approval': TOOL_REGISTRY[name].get('requires_approval', False)})
     activity = list(AgentRunLog.objects.filter(user=user).order_by('-created_at').values(
-        'user_query', 'status', 'created_at')[:5])
+        'user_query', 'status', 'created_at', 'usage_summary')[:5])
     approvals = list(AgentApprovalRequest.objects.filter(user=user, status='pending').order_by('-created_at').values(
         'tool_name', 'created_at')[:3])
     return {'capabilities': catalog, 'capability_count': len(catalog),

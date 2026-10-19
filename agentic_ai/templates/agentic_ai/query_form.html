@@ -18,6 +18,15 @@
         </div>
         <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
         <div class="result-details" id="agent-details"></div>
+        <details class="usage-panel" id="request-usage" hidden>
+            <summary><span>Usage & estimated model cost</span><span id="usage-summary">Usage unavailable</span></summary>
+            <div class="usage-body"><p id="usage-context"></p><div class="usage-metrics">
+                <div><span>Input tokens</span><strong id="usage-input">—</strong></div>
+                <div><span>Output tokens</span><strong id="usage-output">—</strong></div>
+                <div><span>Model calls</span><strong id="usage-calls">—</strong></div>
+                <div><span id="usage-cost-label">Estimated token cost</span><strong id="usage-cost">Not configured</strong></div>
+            </div><p id="usage-completeness"></p><div class="table-wrap" id="usage-breakdown" hidden></div><p class="usage-note">Cost = (uncached input × input rate + cached input × cached rate + output × output rate) ÷ 1,000,000. Cached tokens are part of the input count.</p><p class="usage-note" id="usage-note"></p></div>
+        </details>
     </section>
 </section>
 <script>
@@ -51,6 +60,44 @@
         expandButton.setAttribute('aria-expanded', String(expanded));
         expandButton.textContent = expanded ? 'Collapse table' : 'Expand table';
     });
+    const usagePanel=document.getElementById('request-usage');
+    function renderUsage(usage,replayed) {
+        usagePanel.hidden=false;
+        const message=document.getElementById('usage-context');
+        const note=document.getElementById('usage-note');
+        const breakdown=document.getElementById('usage-breakdown');
+        breakdown.replaceChildren();breakdown.hidden=true;
+        ['usage-input','usage-output','usage-calls'].forEach(id=>document.getElementById(id).textContent='—');
+        document.getElementById('usage-cost').textContent='Unavailable';
+        document.getElementById('usage-completeness').textContent='';
+        document.getElementById('usage-cost-label').textContent='Estimated token cost';
+        if(!usage || !Array.isArray(usage.calls)) {
+            document.getElementById('usage-summary').textContent='Usage not reported';
+            message.textContent='This response did not include model usage. Its cost cannot be calculated here.';
+            note.textContent='An interrupted request or another integration can have usage that this application cannot observe.';
+            return;
+        }
+        const amount=(value,currency)=>value==null?'Not configured':String(value)+(currency?' '+currency:'');
+        const measured=usage.reported_calls>0;
+        document.getElementById('usage-input').textContent=measured?usage.input_tokens.toLocaleString():'Not reported';
+        document.getElementById('usage-output').textContent=measured?usage.output_tokens.toLocaleString():'Not reported';
+        document.getElementById('usage-calls').textContent=String(usage.model_calls);
+        let cost=amount(usage.estimated_cost,usage.currency);
+        if(usage.cost_status==='no_model_calls')cost='No model calls';
+        if(usage.cost_status==='mixed_currencies')cost='See per-call estimates';
+        if(usage.cost_status==='partial_estimate')document.getElementById('usage-cost-label').textContent='Known usage only · incomplete';
+        document.getElementById('usage-cost').textContent=cost;
+        document.getElementById('usage-summary').textContent=usage.cost_status==='estimated'?'Estimated '+cost:(usage.cost_status==='partial_estimate'?'Partial estimate '+cost:(usage.cost_status==='no_model_calls'?'No model calls':'Token usage · cost unconfigured'));
+        message.textContent=replayed?'Stored result: this shows the original request usage. Replaying it did not make a new model call.':'Totals include the model calls made for this request: selection, presentation and any optional introduction.';
+        document.getElementById('usage-completeness').textContent=usage.reported_calls+' of '+usage.model_calls+' model calls reported token usage.'+(usage.complete?'':' Actual usage or cost may be higher.');
+        note.textContent=usage.note||'Configured token-price estimate only; infrastructure and other service costs are excluded.';
+        if(usage.calls.length) {
+            const table=document.createElement('table'),head=table.createTHead().insertRow(),tbody=table.createTBody();
+            ['Model','Input','Output','Cached input','Rates per 1M tokens','Estimated cost'].forEach(label=>{const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);});
+            usage.calls.forEach(call=>{const row=tbody.insertRow();[call.provider+' / '+call.model,call.input_tokens??'Not reported',call.output_tokens??'Not reported',call.input_tokens==null?'Not reported':call.cached_input_tokens,call.rates?('Input '+call.rates.input_per_million+' / Output '+call.rates.output_per_million+' / Cached '+(call.rates.cached_input_per_million??call.rates.input_per_million)+' '+call.rates.currency):'Not configured',amount(call.estimated_cost,call.currency)].forEach(value=>{row.insertCell().textContent=String(value);});});
+            breakdown.append(table);breakdown.hidden=false;
+        }
+    }
     let copyText = '';
     copyButton.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(copyText); copyButton.textContent = 'Copied'; }
@@ -74,7 +121,7 @@
         tableWrap.hidden = true; tableWrap.replaceChildren(); tableWrap.classList.remove('expanded');
         toolbar.hidden = true; search.value = ''; searchCount.textContent = '';
         expandButton.setAttribute('aria-expanded', 'false'); expandButton.textContent = 'Expand table';
-        details.textContent = ''; copyButton.hidden = true;
+        details.textContent = ''; copyButton.hidden = true; usagePanel.hidden=true;
         result.textContent = 'Your request is running. Larger reports may take a few minutes.';
         const started = Date.now();
         const clock = setInterval(() => { details.textContent = 'Waiting for a response · ' + Math.floor((Date.now()-started)/1000) + 's elapsed'; }, 1000);
@@ -91,6 +138,7 @@
                     : 'The server returned HTTP '+response.status+'. Check the run log before retrying.');
             }
             const body = await response.json();
+            renderUsage(body.usage,body.replayed);
             const answer = body.answer ?? body.error ?? 'No response was returned.';
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
             result.textContent = copyText;
@@ -139,6 +187,7 @@
             details.textContent = info.join(' · ');
             copyButton.hidden = false; copyButton.textContent = 'Copy full answer';
         } catch(error) {
+            renderUsage(null,false);
             status.dataset.state='error'; status.textContent='Response unavailable';
             result.textContent=error.message || 'The request could not be completed. Check the run log before retrying.';
             details.textContent='No automatic retry was sent. Check the run log before submitting again.';

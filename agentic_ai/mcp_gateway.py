@@ -183,6 +183,8 @@ def _validate_call(message, name_map, schemas):
 
 
 async def _model_response(config, payload):
+    from .usage_meter import begin_call, finish_call
+    usage_entry = begin_call(config)
     headers = {}
     if config["model_key"]:
         headers["Authorization"] = "Bearer " + config["model_key"]
@@ -208,7 +210,9 @@ async def _model_response(config, payload):
                 if len(data) > MAX_MODEL_BYTES:
                     raise GatewayError("response_too_large", "The model response exceeded the allowed size.")
     try:
-        return json.loads(data)
+        body = json.loads(data)
+        finish_call(usage_entry, body)
+        return body
     except (ValueError, UnicodeError):
         raise GatewayError("invalid_model_response", "The model returned invalid JSON.") from None
 
@@ -461,6 +465,7 @@ def run_mcp_query(user=None, query="", session_id=None):
     request_id = uuid.uuid4().hex
     started = time.monotonic()
     state, audit = {}, None
+    meter = []
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY_CHARS:
         return {"ok": False, "code": "invalid_query", "http_status": 400, "request_id": request_id,
                 "answer": f"Provide a nonempty query of at most {MAX_QUERY_CHARS} characters."}
@@ -481,7 +486,7 @@ def run_mcp_query(user=None, query="", session_id=None):
             result = {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
         else:
             config = load_config()
-            config.update(state=state, audit_id=audit.pk)
+            config.update(state=state, audit_id=audit.pk, usage_meter=meter)
             result = async_to_sync(_bounded_run)(config, user, query, allowed)
     except Exception as exc:
         code, answer, status = _failure(exc, state)
@@ -491,10 +496,17 @@ def run_mcp_query(user=None, query="", session_id=None):
         result.pop("completed", None)
         if state.get("dispatched") and not state.get("completed"):
             result.update(outcome_unknown=True, answer=answer + " Execution may have started. Check the backend before retrying.")
+    from .usage_meter import parse_prices, summarize_usage
+    try:
+        prices = parse_prices(get_setting("MCP_MODEL_PRICING", "{}"))
+    except Exception:
+        prices = {}
+    result["usage"] = summarize_usage(meter, prices)
     result["request_id"] = request_id
     result["duration_ms"] = round((time.monotonic() - started) * 1000)
     try:
         AgentRunLog.objects.filter(pk=audit.pk).update(
+            usage_summary=result["usage"],
             selected_tool=result.get("tool"), tool_input=result.get("plan", {}).get("params", {}),
             final_answer=str(result["answer"])[:5000],
             tool_output_summary=f"duration_ms={result['duration_ms']}; dispatched={bool(state.get('dispatched'))}; completed={bool(state.get('completed'))}",

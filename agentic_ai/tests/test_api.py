@@ -71,11 +71,11 @@ class AgentApiTests(TestCase):
         self.assertEqual(response["X-Request-ID"], "test-request")
         run.assert_called_once()
 
-    @patch.object(api, "execute_query", side_effect=lambda **kw: {"ok": True, "answer": "report"})
+    @patch.object(api, "execute_query", side_effect=lambda **kw: {"ok": True, "answer": "report", "usage": {"model_calls": 1, "total_tokens": 120}})
     def test_duplicate_idempotency_key_executes_once(self, run):
         first = self.post(HTTP_IDEMPOTENCY_KEY="same-key")
         second = self.post(HTTP_IDEMPOTENCY_KEY="same-key")
-        self.assertEqual(first.json(), second.json())
+        self.assertEqual({**first.json(), "replayed": True}, second.json())
         self.assertEqual(run.call_count, 1)
 
     @patch.object(api, "execute_query", side_effect=lambda **kw: {"ok": True, "answer": "report"})

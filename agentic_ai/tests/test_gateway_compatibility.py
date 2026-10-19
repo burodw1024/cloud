@@ -46,3 +46,9 @@ class GatewayCompatibilityTests(unittest.TestCase):
 
     def test_legacy_deployed_projection_source_is_still_accepted(self):
         self.verifier['verify'](self.legacy, self.baked, self.baseline)
+
+    def test_previously_published_member_gateway_is_exactly_recognized(self):
+        previous = (Path(__file__).resolve().parent / 'fixtures/member_gateway.py.txt').read_text()
+        self.verifier['verify'](previous, self.baked, self.baseline)
+        with self.assertRaises(ValueError):
+            self.verifier['verify'](previous + "\n# unknown edit\n", self.baked, self.baseline)

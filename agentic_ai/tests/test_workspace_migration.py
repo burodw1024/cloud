@@ -13,6 +13,7 @@ class WorkspaceMigrationTests(TransactionTestCase):
             Tool=old.get_model('agentic_ai','AgentTool')
             record=Tool.objects.create(name='existing-service', description='Existing description',
                 allowed_roles=['manager','staff'], is_active=False, requires_approval=True)
+            old_log=old.get_model('agentic_ai','AgentRunLog').objects.create(user_query='Existing request', final_answer='Existing answer', status='success')
             executor=MigrationExecutor(connection)
             executor.migrate([target])
             new=executor.loader.project_state([target]).apps.get_model('agentic_ai','AgentTool')
@@ -24,5 +25,13 @@ class WorkspaceMigrationTests(TransactionTestCase):
             self.assertEqual(upgraded.category,'General')
             self.assertEqual(upgraded.display_name,'')
             self.assertEqual(upgraded.example_question,'')
+            usage_target=('agentic_ai','0003_agentrunlog_usage_summary')
+            executor=MigrationExecutor(connection)
+            executor.migrate([usage_target])
+            Log=executor.loader.project_state([usage_target]).apps.get_model('agentic_ai','AgentRunLog')
+            upgraded_log=Log.objects.get(pk=old_log.pk)
+            self.assertEqual(upgraded_log.final_answer,'Existing answer')
+            self.assertEqual(upgraded_log.usage_summary,{})
         finally:
-            MigrationExecutor(connection).migrate([target])
+            restore = MigrationExecutor(connection)
+            restore.migrate(restore.loader.graph.leaf_nodes())
