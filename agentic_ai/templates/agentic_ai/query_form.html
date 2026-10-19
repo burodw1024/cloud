@@ -3,12 +3,12 @@
     <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
         {% csrf_token %}
         <label class="field-label" for="agent-message">Your question</label>
-        <textarea id="agent-message" name="message" rows="3" maxlength="16000" required placeholder="e.g. Show outstanding balances for branch 0253 as of 2026-09-30." aria-describedby="query-hint"></textarea>
-        <div class="composer-footer"><span class="composer-hint" id="query-hint">Include a branch code and report date.<br>Ctrl / ⌘ + Enter to run</span><button class="run-button" type="submit">Ask assistant &nbsp; →</button></div>
+        <textarea id="agent-message" name="message" rows="3" maxlength="16000" required placeholder="Ask a question, find information, or describe what you need help with…" aria-describedby="query-hint"></textarea>
+        <div class="composer-footer"><span class="composer-hint" id="query-hint">Add the details that matter.<br>Ctrl / ⌘ + Enter to run</span><button class="run-button" type="submit">Ask assistant &nbsp; →</button></div>
     </form>
     <section class="result-panel" aria-labelledby="result-title" aria-busy="false">
         <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy full answer</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
-        <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to explore your report.</div>
+        <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to get started.</div>
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>

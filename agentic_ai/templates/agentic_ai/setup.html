@@ -18,7 +18,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <button type="button" id="check-model">Check model</button> <a href="/admin-tools/settings/">Change the project model</a><small>This is a harmless test of tool selection. It does not run a report or change data.</small>
 </section>
 <section class="card"><h2>3. Choose tools and roles</h2>
-<p>Select a tool, then choose the roles that may use it.</p>
+<p>Select a tool, organize how it appears in the workspace, then choose the roles that may use it.</p>
 <div id="tool-list"><p class="muted">Click “Find tools” to load available tools.</p></div>
 <small>Roles come from Django groups. <a href="/admin/auth/group/">Manage groups</a>. Keep approval enabled for tools that change data.</small>
 <button type="button" id="save-tools" disabled>Save and enable tools</button>
@@ -46,16 +46,23 @@ function renderTools(tools,roles){
   const card=document.createElement('div');card.className='tool';
   const enabled=checkbox(tool.name,tool.enabled);card.append(enabled.label);
   const desc=document.createElement('p');desc.textContent=tool.description;card.append(desc);
+  const metadata={};
+  [['display_name','Display name',150],['category','Category',80],['example_question','Example question (optional)',2000]].forEach(([key,title,maximum])=>{
+    const label=document.createElement('label');label.textContent=title;
+    const input=document.createElement('input');input.type='text';input.maxLength=maximum;input.value=tool[key]||'';
+    input.style.width='100%';input.style.boxSizing='border-box';input.style.padding='9px';
+    label.append(input);card.append(label);metadata[key]=input;
+  });
   const fieldset=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Who can use this tool?';fieldset.append(legend);
   const roleList=document.createElement('div');roleList.className='roles';const choices=[];
   roles.forEach(role=>{const choice=checkbox(role,tool.roles.includes(role));roleList.append(choice.label);choices.push({role,input:choice.input});});
   fieldset.append(roleList);card.append(fieldset);
   const approval=checkbox('Ask for approval before running',tool.requires_approval);card.append(approval.label);list.append(card);
-  catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,choices});
+  catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,choices,metadata});
  });
 }
 document.getElementById('save-connection').onclick=async()=>{const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});if(body){document.getElementById('gateway-token').value='';modelReady=false;catalog=[];document.getElementById('tool-list').textContent='Click “Find tools” to refresh the tool list.';refreshButtons();}};
 document.getElementById('discover').onclick=async()=>{const body=await action({action:'discover'});if(body){renderTools(body.tools,body.roles);refreshButtons();}};
 document.getElementById('check-model').onclick=async()=>{modelReady=false;const body=await action({action:'check_model'});modelReady=!!body;refreshButtons();};
-document.getElementById('save-tools').onclick=()=>action({action:'save_tools',tools:catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}))});
+document.getElementById('save-tools').onclick=()=>action({action:'save_tools',tools:catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,display_name:t.metadata.display_name.value,category:t.metadata.category.value,example_question:t.metadata.example_question.value,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}))});
 </script></body></html>

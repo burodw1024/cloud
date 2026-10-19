@@ -36,10 +36,12 @@ class GuidedSetupTests(TestCase):
     def tool(self, **kwargs):
         return dict(name=TOOL.name, roles=["manager"], enabled=True, requires_approval=False, **kwargs)
 
-    def test_main_page_has_simple_loan_example_and_csrf(self):
+    def test_main_page_has_universal_workspace_and_csrf(self):
         response = self.client.get("/agentic/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "0253")
+        self.assertContains(response, "Your organization. Connected.")
+        self.assertContains(response, "workspace-capabilities")
+        self.assertNotContains(response, "Show the loan aging report for branch 0253")
         self.assertContains(response, "csrfmiddlewaretoken")
         self.assertContains(response, "Set up tools")
 

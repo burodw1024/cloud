@@ -6,6 +6,9 @@ from django.contrib.auth.models import User
 class AgentTool(models.Model):
     name = models.CharField(max_length=150, unique=True)
     description = models.TextField(blank=True)
+    display_name = models.CharField(max_length=150, blank=True)
+    category = models.CharField(max_length=80, default="General")
+    example_question = models.TextField(blank=True, max_length=2000)
     is_active = models.BooleanField(default=True)
     requires_approval = models.BooleanField(default=False)
     allowed_roles = models.JSONField(default=list, blank=True)

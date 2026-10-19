@@ -50,7 +50,8 @@ def _reply(body, status=200):
 @login_required
 @ensure_csrf_cookie
 def query_page(request):
-    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model()})
+    from .workspace import workspace_context
+    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model(), **workspace_context(request.user)})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -97,6 +98,9 @@ def setup_page(request):
                 record = known.get(tool.name)
                 catalog.append({
                     "name": tool.name, "description": tool.description or "",
+                    "display_name": record.display_name if record else "",
+                    "category": record.category if record else "General",
+                    "example_question": record.example_question if record else "",
                     "enabled": bool(record and record.is_active),
                     "roles": record.allowed_roles if record else [],
                     "requires_approval": record.requires_approval if record else not bool(tool.annotations and tool.annotations.readOnlyHint),
@@ -132,6 +136,10 @@ def setup_page(request):
                     or not isinstance(item.get("enabled"), bool)
                     or not isinstance(item.get("requires_approval"), bool)):
                     raise ValueError
+                for field, maximum in (("display_name", 150), ("category", 80), ("example_question", 2000)):
+                    value = item.get(field)
+                    if field in item and (not isinstance(value, str) or len(value) > maximum):
+                        raise ValueError
                 if item["enabled"] and not selected:
                     return _reply({"ok": False, "error": f"Choose at least one role for {name}."}, 400)
                 names.add(name)
@@ -144,10 +152,13 @@ def setup_page(request):
                     record.is_active = item["enabled"]
                     record.allowed_roles = item["roles"]
                     record.requires_approval = item["requires_approval"]
+                    for field in ("display_name", "category", "example_question"):
+                        if field in item:
+                            setattr(record, field, item[field].strip() or ("General" if field == "category" else ""))
                     record.full_clean()
                     record.save()
                 _save_settings({"MCP_GATEWAY_ENABLED": "true"})
-            return _reply({"ok": True, "message": "Tools are enabled. You can now test your loan report."})
+            return _reply({"ok": True, "message": "Capabilities are enabled. You can now ask a question in your workspace."})
         return _reply({"ok": False, "error": "Choose a valid setup action."}, 400)
     except (ValueError, UnicodeError, TypeError):
         return _reply({"ok": False, "error": "Check the submitted settings and try again."}, 400)

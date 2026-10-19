@@ -4,9 +4,9 @@ from .models import AgentTool, AgentRunLog, AgentApprovalRequest
 
 @admin.register(AgentTool)
 class AgentToolAdmin(admin.ModelAdmin):
-    list_display = ("name", "is_active", "requires_approval", "created_at")
-    search_fields = ("name", "description")
-    list_filter = ("is_active", "requires_approval")
+    list_display = ("name", "display_name", "category", "is_active", "requires_approval", "created_at")
+    search_fields = ("name", "display_name", "description", "category")
+    list_filter = ("category", "is_active", "requires_approval")
 
 
 @admin.register(AgentRunLog)
