@@ -1,9 +1,24 @@
 """Verify known live hotfixes are included; never rewrite pulled code on-prem."""
 import ast
 import hashlib
+import json
 from pathlib import Path
 import re
 import sys
+
+
+def canonical_node(node):
+    """Ignore absent/empty AST metadata added between Python minor versions."""
+    if isinstance(node, ast.AST):
+        return [type(node).__name__, [
+            [name, canonical_node(value)] for name, value in ast.iter_fields(node)
+            if value is not None and value != []
+        ]]
+    if isinstance(node, list):
+        return [canonical_node(value) for value in node]
+    if isinstance(node, bytes):
+        return {"bytes": node.hex()}
+    return node
 
 
 def normalize(source):
@@ -34,7 +49,7 @@ def normalize(source):
             self.generic_visit(node)
             return node if node.body or node.orelse else None
     tree = RemoveEmpty().visit(tree)
-    return hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(canonical_node(tree), ensure_ascii=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def verify(live, baked, baseline):
