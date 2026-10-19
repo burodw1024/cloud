@@ -1,41 +1,98 @@
-    <div class="card">
-        <h2>Ask the agent</h2>
-        <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
-            {% csrf_token %}
-            <label for="agent-message">Your question</label><br>
-            <textarea id="agent-message" name="message" rows="3" maxlength="16000" required style="width:100%;box-sizing:border-box"></textarea>
-            <button type="submit">Run query</button>
-        </form>
-        <pre id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
-    </div>
+<section class="card query-card" aria-labelledby="query-title">
+    <div class="query-heading"><span class="spark" aria-hidden="true">✧</span><h2 id="query-title">What would you like to know?</h2></div>
+    <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
+        {% csrf_token %}
+        <label class="field-label" for="agent-message">Your question</label>
+        <textarea id="agent-message" name="message" rows="3" maxlength="16000" required placeholder="e.g. Show outstanding balances for branch 0253 as of 2026-09-30." aria-describedby="query-hint"></textarea>
+        <div class="composer-footer"><span class="composer-hint" id="query-hint">Include a branch code and report date.<br>Ctrl / ⌘ + Enter to run</span><button class="run-button" type="submit">Ask assistant &nbsp; →</button></div>
+    </form>
+    <section class="result-panel" aria-labelledby="result-title" aria-busy="false">
+        <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy results</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
+        <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to explore your report.</div>
+        <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
+        <div class="result-details" id="agent-details"></div>
+    </section>
+</section>
 <script>
-    document.getElementById('agent-query-form').addEventListener('submit', async function (event) {
+(() => {
+    const form = document.getElementById('agent-query-form');
+    const result = document.getElementById('agent-result');
+    const status = document.getElementById('agent-status');
+    const tableWrap = document.getElementById('agent-table');
+    const details = document.getElementById('agent-details');
+    const copyButton = document.getElementById('copy-result');
+    const panel = document.querySelector('.result-panel');
+    let copyText = '';
+    copyButton.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(copyText); copyButton.textContent = 'Copied'; }
+        catch (_) { copyButton.textContent = 'Select result text to copy'; }
+    });
+    form.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault(); form.requestSubmit();
+        }
+    });
+    form.addEventListener('submit', async function(event) {
         event.preventDefault();
-        const button = this.querySelector('button');
+        const button = form.querySelector('[type=submit]');
         if (button.disabled) return;
-        const result = document.getElementById('agent-result');
-        button.disabled = true;
-        result.textContent = 'Running your query…';
+        const question = form.elements.message.value.trim();
+        if (!question) return;
+        button.disabled = true; form.elements.message.disabled = true;
+        button.textContent = 'Working…'; status.dataset.state = 'working'; status.textContent = 'Request in progress';
+        panel.setAttribute('aria-busy', 'true');
+        document.getElementById('result-empty').hidden = true;
+        tableWrap.hidden = true; tableWrap.replaceChildren(); details.textContent = ''; copyButton.hidden = true;
+        result.textContent = 'Your request is running. Larger reports may take a few minutes.';
+        const started = Date.now();
+        const clock = setInterval(() => { details.textContent = 'Waiting for a response · ' + Math.floor((Date.now()-started)/1000) + 's elapsed'; }, 1000);
         try {
-            const response = await fetch(this.action, {
+            const response = await fetch(form.action, {
                 method: 'POST', credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.querySelector('[name=csrfmiddlewaretoken]').value,
-                    'Idempotency-Key': globalThis.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2)
-                },
-                body: JSON.stringify({message: this.elements.message.value})
+                headers: {'Content-Type':'application/json', 'X-CSRFToken':form.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Idempotency-Key':globalThis.crypto?.randomUUID?.() || String(Date.now())+'-'+Math.random().toString(36).slice(2)},
+                body: JSON.stringify({message:question})
             });
             if (!(response.headers.get('content-type') || '').includes('application/json')) {
-                throw new Error('Request rejected. Refresh the page and sign in again.');
+                throw new Error(response.status === 504
+                    ? 'The proxy timed out. The backend may still be running; check the run log before retrying.'
+                    : 'The server returned HTTP '+response.status+'. Check the run log before retrying.');
             }
             const body = await response.json();
             const answer = body.answer ?? body.error ?? 'No response was returned.';
-            result.textContent = typeof answer === 'string' ? answer : JSON.stringify(answer, null, 2);
-        } catch (error) {
-            result.textContent = 'The request could not be completed. Check the run log before retrying.';
+            copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
+            result.textContent = copyText;
+            const report = body.raw?.structuredContent;
+            if (body.ok && report && Array.isArray(report.columns) && report.columns.length && Array.isArray(report.rows)) {
+                const table = document.createElement('table');
+                const caption = document.createElement('caption'); caption.textContent = 'Returned report values'; caption.hidden = true; table.append(caption);
+                const head = table.createTHead().insertRow();
+                report.columns.forEach(column => { const th = document.createElement('th'); th.scope='col'; th.textContent=column; head.append(th); });
+                const tbody = table.createTBody();
+                report.rows.forEach(row => { const tr=tbody.insertRow(); report.columns.forEach(column => { tr.insertCell().textContent = row[column] == null ? 'Not provided' : String(row[column]); }); });
+                tableWrap.append(table); tableWrap.hidden = false;
+                result.textContent = body.summary || (typeof answer === 'string' ? answer.split('\n')[0] : 'Report returned.');
+            }
+            status.dataset.state = body.ok ? 'success' : (body.approval_required ? 'working' : 'error');
+            status.textContent = body.ok ? (body.kind === 'clarification' ? 'More detail needed' : 'Response received') : (body.approval_required ? 'Approval required' : 'Request unsuccessful');
+            clearInterval(clock);
+            const info = [];
+            if (report?.rows) info.push(report.rows.length+' displayed'+(report.truncated?' · More records available':''));
+            if (report?.scope) info.push(report.scope);
+            if (report?.order) info.push(report.order);
+            if (body.duration_ms != null) info.push((body.duration_ms/1000).toFixed(1)+'s');
+            if (body.request_id) info.push('Request '+body.request_id);
+            details.textContent = info.join(' · ');
+            copyButton.hidden = false; copyButton.textContent = 'Copy results';
+        } catch(error) {
+            status.dataset.state='error'; status.textContent='Response unavailable';
+            result.textContent=error.message || 'The request could not be completed. Check the run log before retrying.';
+            details.textContent='No automatic retry was sent. Check the run log before submitting again.';
         } finally {
-            button.disabled = false;
+            clearInterval(clock); button.disabled=false; form.elements.message.disabled=false;
+            button.textContent='Ask assistant →'; panel.setAttribute('aria-busy','false');
         }
     });
+})();
 </script>
