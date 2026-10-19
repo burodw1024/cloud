@@ -7,9 +7,15 @@
         <div class="composer-footer"><span class="composer-hint" id="query-hint">Include a branch code and report date.<br>Ctrl / ⌘ + Enter to run</span><button class="run-button" type="submit">Ask assistant &nbsp; →</button></div>
     </form>
     <section class="result-panel" aria-labelledby="result-title" aria-busy="false">
-        <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy results</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
+        <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy full answer</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
         <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to explore your report.</div>
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        <div class="report-toolbar" id="report-toolbar" hidden>
+            <label class="sr-only" for="report-search">Find in displayed rows</label>
+            <input class="report-search" id="report-search" type="search" placeholder="Find in displayed rows…" autocomplete="off" aria-controls="agent-table">
+            <span class="search-count" id="search-count" role="status" aria-live="polite"></span>
+            <button class="copy-button" id="expand-report" type="button" aria-controls="agent-table" aria-expanded="false">Expand table</button>
+        </div>
         <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
         <div class="result-details" id="agent-details"></div>
     </section>
@@ -23,6 +29,28 @@
     const details = document.getElementById('agent-details');
     const copyButton = document.getElementById('copy-result');
     const panel = document.querySelector('.result-panel');
+    const toolbar = document.getElementById('report-toolbar');
+    const search = document.getElementById('report-search');
+    const searchCount = document.getElementById('search-count');
+    const expandButton = document.getElementById('expand-report');
+    const labels = {MEMBERID:'Member ID',BRANCHCODE:'Branch code',BRANCHNAME:'Branch name',
+        PRODUCTNAME:'Loan product',DISBURSE_AMOUNT:'Disbursed amount',DISBURSEDATE:'Disbursement date',
+        MATURITYDATE:'Maturity date',OUTSTANDINGP:'Outstanding principal','Outstanding(P+I)':'Outstanding incl. interest',
+        DUEAMOUNT:'Due amount',DUE_DAYS:'Overdue days',DUEINSTNO_U:'Overdue installments',
+        INSTALLMENT_AMOUNT:'Installment amount',PAYMENTFREQUENCY:'Payment frequency',
+        GS_BALANCE:'General savings',CS_BALANCE:'Compulsory savings'};
+    search.addEventListener('input', () => {
+        const term = search.value.trim().toLocaleLowerCase();
+        const rows = [...tableWrap.querySelectorAll('tbody tr')];
+        let visible = 0;
+        rows.forEach(row => { row.hidden = !row.textContent.toLocaleLowerCase().includes(term); if (!row.hidden) visible++; });
+        searchCount.textContent = visible + ' of ' + rows.length + ' displayed rows';
+    });
+    expandButton.addEventListener('click', () => {
+        const expanded = tableWrap.classList.toggle('expanded');
+        expandButton.setAttribute('aria-expanded', String(expanded));
+        expandButton.textContent = expanded ? 'Collapse table' : 'Expand table';
+    });
     let copyText = '';
     copyButton.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(copyText); copyButton.textContent = 'Copied'; }
@@ -43,7 +71,10 @@
         button.textContent = 'Working…'; status.dataset.state = 'working'; status.textContent = 'Request in progress';
         panel.setAttribute('aria-busy', 'true');
         document.getElementById('result-empty').hidden = true;
-        tableWrap.hidden = true; tableWrap.replaceChildren(); details.textContent = ''; copyButton.hidden = true;
+        tableWrap.hidden = true; tableWrap.replaceChildren(); tableWrap.classList.remove('expanded');
+        toolbar.hidden = true; search.value = ''; searchCount.textContent = '';
+        expandButton.setAttribute('aria-expanded', 'false'); expandButton.textContent = 'Expand table';
+        details.textContent = ''; copyButton.hidden = true;
         result.textContent = 'Your request is running. Larger reports may take a few minutes.';
         const started = Date.now();
         const clock = setInterval(() => { details.textContent = 'Waiting for a response · ' + Math.floor((Date.now()-started)/1000) + 's elapsed'; }, 1000);
@@ -68,7 +99,7 @@
                 const table = document.createElement('table');
                 const caption = document.createElement('caption'); caption.textContent = 'Returned report values'; caption.hidden = true; table.append(caption);
                 const head = table.createTHead().insertRow();
-                report.columns.forEach(column => { const th = document.createElement('th'); th.scope='col'; th.textContent=column; head.append(th); });
+                report.columns.forEach(column => { const th = document.createElement('th'); th.scope='col'; th.textContent=labels[column] || column.replace(/_/g,' '); th.title=column; head.append(th); });
                 const tbody = table.createTBody();
                 report.rows.forEach(row => {
                     const tr = tbody.insertRow();
@@ -92,7 +123,8 @@
                         } else { cell.textContent = value; }
                     });
                 });
-                tableWrap.append(table); tableWrap.hidden = false;
+                tableWrap.append(table); tableWrap.hidden = false; toolbar.hidden = false;
+                searchCount.textContent = report.rows.length + ' displayed rows';
                 result.textContent = body.summary || (typeof answer === 'string' ? answer.split('\n')[0] : 'Report returned.');
             }
             status.dataset.state = body.ok ? 'success' : (body.approval_required ? 'working' : 'error');
@@ -105,7 +137,7 @@
             if (body.duration_ms != null) info.push((body.duration_ms/1000).toFixed(1)+'s');
             if (body.request_id) info.push('Request '+body.request_id);
             details.textContent = info.join(' · ');
-            copyButton.hidden = false; copyButton.textContent = 'Copy results';
+            copyButton.hidden = false; copyButton.textContent = 'Copy full answer';
         } catch(error) {
             status.dataset.state='error'; status.textContent='Response unavailable';
             result.textContent=error.message || 'The request could not be completed. Check the run log before retrying.';
