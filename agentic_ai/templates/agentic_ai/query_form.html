@@ -70,7 +70,28 @@
                 const head = table.createTHead().insertRow();
                 report.columns.forEach(column => { const th = document.createElement('th'); th.scope='col'; th.textContent=column; head.append(th); });
                 const tbody = table.createTBody();
-                report.rows.forEach(row => { const tr=tbody.insertRow(); report.columns.forEach(column => { tr.insertCell().textContent = row[column] == null ? 'Not provided' : String(row[column]); }); });
+                report.rows.forEach(row => {
+                    const tr = tbody.insertRow();
+                    report.columns.forEach(column => {
+                        const cell = tr.insertCell();
+                        const value = row[column] == null ? 'Not provided' : String(row[column]);
+                        const params = body.plan?.params || {};
+                        if (column === 'MEMBERID' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value)
+                            && typeof params.branchCode === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.reportDate || '')) {
+                            const memberButton = document.createElement('button');
+                            memberButton.type = 'button'; memberButton.className = 'member-link';
+                            memberButton.textContent = value;
+                            memberButton.title = 'Prepare a loan inquiry for this member';
+                            memberButton.addEventListener('click', () => {
+                                if (form.elements.message.disabled) return;
+                                form.elements.message.value = 'Show loan products, disbursed amounts, maturity dates, outstanding principal and overdue amounts for member '
+                                    + value + ' in branch ' + params.branchCode + ' as of ' + params.reportDate + '.';
+                                form.elements.message.focus();
+                            });
+                            cell.append(memberButton);
+                        } else { cell.textContent = value; }
+                    });
+                });
                 tableWrap.append(table); tableWrap.hidden = false;
                 result.textContent = body.summary || (typeof answer === 'string' ? answer.split('\n')[0] : 'Report returned.');
             }

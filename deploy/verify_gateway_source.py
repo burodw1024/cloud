@@ -53,7 +53,7 @@ def normalize(source):
 
 
 def verify(live, baked, baseline):
-    if normalize(live) != baseline:
+    if live != baked and normalize(live) != baseline:
         raise ValueError('Live MCP code contains an unrecognized change. Snapshot retained; incorporate that change in the cloud source before deployment. No code was overwritten.')
     tree = ast.parse(baked)
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)

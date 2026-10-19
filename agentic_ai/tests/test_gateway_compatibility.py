@@ -11,10 +11,11 @@ class GatewayCompatibilityTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         cls.verifier = runpy.run_path(str(root/'deploy/verify_gateway_source.py'))
         cls.baked = (root/'agentic_ai/mcp_gateway.py').read_text()
+        cls.legacy = (root/"agentic_ai/tests/fixtures/legacy_gateway.py.txt").read_text()
         cls.baseline = (root/'deploy/gateway_baseline.sha256').read_text().strip()
 
     def reported_live(self):
-        live = self.baked.replace('    # BEGIN_AGENTIC_OLLAMA_OPTIONS\n', '').replace('    # END_AGENTIC_OLLAMA_OPTIONS\n', '')
+        live = self.legacy.replace('    # BEGIN_AGENTIC_OLLAMA_OPTIONS\n', '').replace('    # END_AGENTIC_OLLAMA_OPTIONS\n', '')
         return re.sub(r'(?m)^ *# BEGIN_AGENTIC_REPORT_PROJECTION\n.*?^ *# END_AGENTIC_REPORT_PROJECTION\n', '', live, flags=re.S|re.M)
 
     def test_reported_live_diff_is_accepted(self):
@@ -37,3 +38,11 @@ class GatewayCompatibilityTests(unittest.TestCase):
     def test_changed_hotfix_options_remain_blocked(self):
         with self.assertRaises(ValueError):
             self.verifier['verify'](self.reported_live().replace('think=False', 'think=True'), self.baked, self.baseline)
+
+    def test_exact_upgraded_source_is_accepted_but_a_modified_copy_is_not(self):
+        self.verifier['verify'](self.baked, self.baked, self.baseline)
+        with self.assertRaises(ValueError):
+            self.verifier['verify'](self.baked + "\n# local unreviewed edit\n", self.baked, self.baseline)
+
+    def test_legacy_deployed_projection_source_is_still_accepted(self):
+        self.verifier['verify'](self.legacy, self.baked, self.baseline)
