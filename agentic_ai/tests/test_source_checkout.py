@@ -15,13 +15,14 @@ class PulledSourceTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.project = Path(__file__).resolve().parents[2]
         (self.root/'deploy').mkdir()
-        for name in ('deploy/source_checkout.py', 'deploy-agentic-updated.sh'):
+        for name in ('deploy/source_checkout.py', 'deploy-agentic-updated.sh', '.gitignore'):
             shutil.copy2(self.project/name, self.root/name)
         self.git('init', '-q')
         self.git('config', 'user.name', 'Test')
         self.git('config', 'user.email', 'test@example.invalid')
         self.git('remote', 'add', 'origin', 'https://github.com/burodw1024/cloud.git')
         self.git('add', '.')
+        self.git('add', '-f', 'deploy-agentic-updated.sh')
         self.git('commit', '-qm', 'test source')
 
     def git(self, *args):
@@ -61,3 +62,11 @@ class PulledSourceTests(unittest.TestCase):
         verifier['verify'](baked, baked, baseline)
         with self.assertRaises(ValueError):
             verifier['verify'](baked + '\nUNREVIEWED_CHANGE = True\n', baked, baseline)
+
+    def test_old_release_snapshots_do_not_block_the_next_deployment(self):
+        snapshot = self.root/'agentic-release.test'/'private'/'deployment.json'
+        snapshot.parent.mkdir(parents=True)
+        snapshot.write_text('private snapshot retained')
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(snapshot.read_text(), 'private snapshot retained')

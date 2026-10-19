@@ -139,3 +139,6 @@ htmlcov/
 media/
 logs/
 work/
+
+# Private snapshots from this deployment launcher
+/agentic-release.*/
