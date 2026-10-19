@@ -2,6 +2,12 @@
 import json
 import os
 from pathlib import Path
+import sys
+
+# Absolute-file execution starts in /app/deploy, not the Django project root.
+APP_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(APP_ROOT))
+os.chdir(APP_ROOT)
 import sqlite3
 import subprocess
 
