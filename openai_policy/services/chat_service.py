@@ -8,7 +8,7 @@ from chat.dynamic_config import get_int_setting, get_setting
 
 
 POLICY_INSTRUCTIONS = """
-You are the Organization Policy AI assistant.
+You are the BURO Insight AI policy assistant.
 
 Rules:
 1. Answer policy questions using the configured File Search knowledge base.

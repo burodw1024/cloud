@@ -2459,7 +2459,7 @@ def _handle_capability_request(request, question: str) -> JsonResponse:
     user = getattr(request, "user", None)
     is_auth = bool(user and user.is_authenticated)
 
-    answer = """আমি BURO Enterprise AI Assistant। সহজভাবে বললে, আমার বর্তমান সক্ষমতাগুলো হলো:
+    answer = """আমি BURO Insight AI। সহজভাবে বললে, আমার বর্তমান সক্ষমতাগুলো হলো:
 
 ১. BURO ওয়েবসাইট সম্পর্কিত প্রশ্নের উত্তর দিতে পারি
    - যেমন: BURO কী কী সেবা দেয়, ঋণ সেবা, সঞ্চয়, সদস্যপদ, remittance, অফিস/যোগাযোগ ইত্যাদি।

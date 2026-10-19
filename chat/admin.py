@@ -28,8 +28,8 @@ def get_admin_urls(original_get_urls):
     return urls
 
 admin.site.get_urls = get_admin_urls(admin.site.get_urls)
-admin.site.site_header = "Buro Admin"
-admin.site.site_title = "Buro Admin"
+admin.site.site_header = "BURO Insight AI"
+admin.site.site_title = "BURO Insight AI"
 
 
 

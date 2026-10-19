@@ -17,7 +17,7 @@ class PolicyTemplateTests(SimpleTestCase):
     def test_policy_pages_render_without_admin_log_entries(self):
         root = Path(__file__).resolve().parents[2]
         engine = Engine(dirs=[str(root / "openai_policy/templates")])
-        for page, title in (("chat", "Organization Policy AI"), ("studio", "Policy RAG Studio")):
+        for page, title in (("chat", "Policy Assistant | BURO Insight AI"), ("studio", "Policy Studio | BURO Insight AI")):
             for admin in (False, True):
                 with self.subTest(page=page, admin=admin):
                     context = Context({"request": SimpleNamespace(user=SimpleNamespace(is_superuser=admin)),
