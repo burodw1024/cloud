@@ -36,4 +36,6 @@ editable member inquiry; it does not automatically execute another request.
 
 Optional model-written introductions receive report metadata only, never IDs,
 financial values or original rows. Exact projected values are rendered directly.
-No sums, averages, ranking or financial analysis are added by this upgrade.
+Ordinary member inquiries remain projections without sums, averages or ranking.
+The separate `rank_overdue_members` operation on this same tool is documented in
+ZONE_RANKING.md; it requires the native backend contract and verified scope.

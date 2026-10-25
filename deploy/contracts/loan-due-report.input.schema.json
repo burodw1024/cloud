@@ -1,0 +1,109 @@
+{
+  "type": "object",
+  "properties": {
+    "branchCode": {
+      "type": "string"
+    },
+    "reportDate": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string",
+      "enum": [
+        "report",
+        "rank_overdue_members"
+      ],
+      "default": "report"
+    },
+    "zoneCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "zoneName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 150
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "rank_overdue_members"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "reportDate",
+          "limit"
+        ],
+        "properties": {
+          "reportDate": {
+            "format": "date"
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "zoneCode"
+            ],
+            "not": {
+              "required": [
+                "zoneName"
+              ]
+            }
+          },
+          {
+            "required": [
+              "zoneName"
+            ],
+            "not": {
+              "required": [
+                "zoneCode"
+              ]
+            }
+          }
+        ],
+        "not": {
+          "required": [
+            "branchCode"
+          ]
+        }
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "zoneCode"
+              ]
+            },
+            {
+              "required": [
+                "zoneName"
+              ]
+            },
+            {
+              "required": [
+                "limit"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

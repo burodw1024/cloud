@@ -63,7 +63,7 @@ MCP loan-due-report output uses the same project model to select approved report
 columns from column names, never customer values. Django validates that selection
 and presents exact financial values, excludes personal/contact fields, and bounds
 output to 100 rows with explicit truncation. Unsupported shapes fail without
-returning unfiltered data. Ranking, aggregation, arbitrary SQL, comparisons and
+returning unfiltered data. Outside the explicit zone-ranking operation, aggregation, arbitrary SQL, comparisons and
 new member-filtering capabilities are not invented. Existing AgentTool roles and
 approval flags are preserved; write-tool approval is not removed. Direct NiFi
 member tools remain available when MCP mode is disabled and require their approved
@@ -119,7 +119,8 @@ verification fails. Failures after migration dispatch and before rollout checks
 retain their lock. Existing locks are inspected and never automatically cleared.
 The script cannot fix SCOTT.GET_LOAN_DUE_REPORT SQLTimeoutException/ORA-01013.
 
-Zone ranking is packaged but stays inactive until its Oracle/NiFi endpoint and
-employee scope enforcement are supplied. See ZONE_RANKING.md. The ordinary
+Zone ranking uses a declared operation on the existing loan report tool. Extend
+its NiFi handler and MCP schema with completeness and employee-scope enforcement
+before activation; no second tool or endpoint is required. See ZONE_RANKING.md. The ordinary
 branch loan-report presentation/table and model metadata introduction already
 exist and are preserved.

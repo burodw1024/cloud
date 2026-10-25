@@ -120,6 +120,13 @@ async def summarize_report(config, presentation, model_response):
 
 
 async def present_report(config, query, raw, model_response):
+    from .zone_ranking import is_ranking_request
+    if is_ranking_request(query):
+        return {'kind': 'clarification', 'clarification_required': True,
+                'answer': 'This ordinary report cannot verify a ranked result. '
+                          'Use the dedicated authorized ranking capability. '
+                          'No ranked financial answer was produced.',
+                'raw': {'structuredContent': {'rows': []}}}
     rows = report_rows(raw)
     scope = config.get("member_scope")
     if scope:

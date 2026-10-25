@@ -393,22 +393,36 @@ async def _run(config, user, query, allowed_names):
                 return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
             from .member_scope import scoped_tools, member_call
             projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
-            message, selection = await _select_tool(config, query, scoped_tools(tools, projection_tools))
+            from .zone_ranking import (is_zone_due_ranking, is_ranking_request, unavailable_ranking)
+            from .loan_report_contract import (prepare_tools, ranking_candidates,
+                                                is_ranking_call, validate_ranking_call)
+            candidates = prepare_tools(tools, projection_tools)
+            if is_zone_due_ranking(query):
+                candidates = ranking_candidates(candidates, projection_tools)
+                if not candidates:
+                    return unavailable_ranking()
+            message, selection = await _select_tool(config, query, scoped_tools(candidates, projection_tools))
             if selection is None:
                 content = message.get("content")
                 return {"ok": True, "tool_executed": False, "kind": "clarification",
                         "answer": content if isinstance(content, str) and content else "Please provide more details."}
             name, arguments = selection
-            try:
-                backend_arguments, member_scope = member_call(name, arguments, tools, projection_tools, query)
-            except (ValueError, ValidationError) as exc:
-                raise GatewayError("invalid_member_scope", "Provide the exact member ID, branch code and report date in your question. No tool was executed.", 422) from exc
-            from .zone_ranking import TOOL_NAME as ZONE_TOOL, validate_request
-            if name == ZONE_TOOL:
+            ranking_call = is_ranking_call(name, arguments, tools, projection_tools)
+            if (is_zone_due_ranking(query) and not ranking_call
+                    or name in projection_tools and is_ranking_request(query) and not ranking_call):
+                return unavailable_ranking()
+            ranking_arguments = None
+            if ranking_call:
                 try:
-                    validate_request(arguments, query)
+                    ranking_arguments = validate_ranking_call(name, arguments, tools, projection_tools, query)
                 except (ValueError, ValidationError) as exc:
-                    raise GatewayError("invalid_zone_scope", "Provide a zone code or exact zone name, ISO report date, and a top count between 1 and 100. No tool was executed.", 422) from exc
+                    raise GatewayError("invalid_zone_scope", "Provide a zone code or exact zone name, ISO date, and top count 1–100. This operation ranks members by highest overdue amount across the zone; other metrics or branch filters need a supported operation. No tool was executed.", 422) from exc
+                backend_arguments, member_scope = dict(arguments), None
+            else:
+                try:
+                    backend_arguments, member_scope = member_call(name, arguments, tools, projection_tools, query)
+                except (ValueError, ValidationError) as exc:
+                    raise GatewayError("invalid_member_scope", "Provide the exact member ID, branch code and report date in your question. No tool was executed.", 422) from exc
             report_config = {**config, "member_scope": member_scope}
             plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
             state.update(tool=name, plan=plan)
@@ -428,10 +442,14 @@ async def _run(config, user, query, allowed_names):
             raw = result.model_dump(mode="json", by_alias=True, exclude_none=True)
             if len(json.dumps(raw).encode()) > MAX_RESULT_BYTES:
                 raise GatewayError("response_too_large", "The tool result exceeded the response limit. Request a narrower report.")
-            if name == ZONE_TOOL and not result.isError:
+            if ranking_call:
+                if result.isError:
+                    raise GatewayError("ranking_backend_error", "The loan report endpoint could not complete the ranking operation. No partial financial report was displayed. Check the audit log before retrying.")
                 from .zone_ranking import present_ranking
+                from .report_presentation import summarize_report
                 try:
-                    presentation = present_ranking(raw, arguments)
+                    presentation = present_ranking(raw, ranking_arguments)
+                    presentation = await summarize_report(report_config, presentation, _model_response)
                 except (ValueError, TypeError, KeyError) as exc:
                     raise GatewayError("invalid_zone_ranking", "The zone report could not be verified. No financial data was displayed. Check the backend ranking contract.") from exc
                 return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}

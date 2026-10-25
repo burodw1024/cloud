@@ -29,7 +29,40 @@ COLUMNS = ['RANK', 'ZONECODE', 'ZONENAME', 'BRANCHCODE', 'BRANCHNAME', 'MEMBERID
            'DUEAMOUNT', 'OUTSTANDINGP', 'DUE_DAYS']
 
 
+
+def is_ranking_request(query):
+    """Recognize explicit ranking language, independently of any zone/member IDs."""
+    return bool(re.search(
+        r'\b(?:top|bottom|rank(?:ed|ing)?|highest|largest|smallest|lowest)\b'
+        r'|\bmost\s+(?:overdue|delinquent)\b|শীর্ষ|সর্বোচ্চ', query, re.I))
+
+
+def is_zone_due_ranking(query):
+    return (is_ranking_request(query)
+            and bool(re.search(r'\bzon(?:e|es|al)\b|জোন', query, re.I))
+            and bool(re.search(r'\b(?:overdue|due|arrears|delinquent|loan|loans|borrowers?|loanees?)\b'
+                               r'|বকেয়া|বকেয়া|ঋণ', query, re.I)))
+
+
+def unavailable_ranking():
+    return {'ok': False, 'http_status': 422, 'code': 'zone_ranking_unavailable',
+            'kind': 'clarification', 'clarification_required': True, 'tool_executed': False,
+            'answer': 'Zone-wide overdue ranking is not available to your account. '
+                      'An administrator must enable operation=rank_overdue_members on the existing loan report '
+                      'with the Oracle/NiFi ranking endpoint and authorized branch scope. '
+                      'The ordinary branch report cannot answer this request. No report was executed.',
+            'raw': {'structuredContent': {'rows': []}}}
+
 def validate_request(arguments, query):
+    if not is_ranking_request(query):
+        raise ValueError('An explicit ranking request is required')
+    if re.search(r'\b(?:bottom|lowest|smallest|ascending)\b'
+                 r'|\b(?:by|highest|largest)\s+(?:outstanding(?:\s+principal)?|principal|savings|overdue\s+days|due\s+days)\b', query, re.I):
+        raise ValueError('Only highest overdue amount ranking is supported')
+    if re.search(r'\bbranch(?:\s+code)?\s*[:=]?\s+[0-9]+\b', query, re.I):
+        raise ValueError('Branch filters are not part of this zone-wide ranking operation')
+    if re.search(r'\b(?:top|bottom|rank)\s+(?:the\s+)?(?:[0-9]+\s+)?(?:overdue\s+)?(?:branches|zones)\b', query, re.I):
+        raise ValueError('This tool ranks members, not branches or zones')
     from .mcp_gateway import _validator
     _validator(INPUT_SCHEMA).validate(arguments)
     if date.fromisoformat(arguments['reportDate']).isoformat() != arguments['reportDate']:
@@ -39,6 +72,12 @@ def validate_request(arguments, query):
             value = arguments[key]
             if value != value.strip() or not re.search(r'(?<!\w)' + re.escape(value) + r'(?!\w)', query, re.I):
                 raise ValueError('State the exact zone and ISO date in the question')
+            if key == 'zoneCode':
+                zone = r'(?:zone(?:\s+(?:code|name))?|জোন)'
+                escaped = re.escape(value)
+                if not re.search(zone + r'\s*[:=]?\s*[\"\']?' + escaped + r'(?!\w)'
+                                 + r'|(?<!\w)' + escaped + r'\s+' + zone + r'\b', query, re.I):
+                    raise ValueError('Zone must be supplied explicitly, not inferred from a date or branch')
     counts = re.findall(r'\btop\s+(\d+)\b', query, re.I)
     if counts and (len(set(counts)) != 1 or int(counts[0]) != arguments['limit']):
         raise ValueError('Requested limit does not match the question')
@@ -75,8 +114,33 @@ def present_ranking(raw, arguments):
         if len(texts) != 1:
             raise ValueError('Expected ranking envelope')
         data = json.loads(texts[0])
+    for _ in range(8):
+        if isinstance(data, str):
+            data = json.loads(data)
+        elif isinstance(data, dict) and not any(key in data for key in ('status', 'rows', 'resultType')):
+            if data.get('isError') or data.get('error') or data.get('success') is False:
+                raise ValueError('Report adapter returned an error')
+            content = data.get('content')
+            if isinstance(content, list) and len(content) == 1 and content[0].get('type') == 'text':
+                data = content[0].get('text', '')
+                continue
+            for key in ('data', 'result', 'report', 'structuredContent'):
+                if key in data:
+                    data = data[key]
+                    break
+            else:
+                break
+        else:
+            break
     if not isinstance(data, dict):
         raise ValueError('Expected ranking envelope')
+    if data.get('isError') or data.get('error') or data.get('success') is False:
+        raise ValueError('Report returned an error')
+    calculation_mode = 'database_ranked'
+    if data.get('resultType') == 'complete_loan_report':
+        from .report_ranking import aggregate_complete_report
+        data = aggregate_complete_report(data, arguments)
+        calculation_mode = 'application_complete_report'
     if data.get('status') == 'ambiguous_zone':
         return {'kind': 'clarification', 'clarification_required': True,
                 'answer': 'More than one zone matches that name. Please provide the unique zone code.',
@@ -105,7 +169,8 @@ def present_ranking(raw, arguments):
         if due <= 0 or type(row['DUE_DAYS']) is not int or row['DUE_DAYS'] < 0 or (branch, member) in seen:
             raise ValueError('Invalid member aggregate')
         seen.add((branch, member))
-        keys.append((-due, branch, member))
+        # Decimal.copy_negate is exact and independent of the ambient precision.
+        keys.append((due.copy_negate(), branch, member))
         displayed.append({column: row[column] for column in COLUMNS})
     if keys != sorted(keys):
         raise ValueError('Ranking order mismatch')
@@ -113,8 +178,12 @@ def present_ranking(raw, arguments):
               f'as of {arguments["reportDate"]}, within your authorized branches. '
               'Ranked by combined overdue amount per branch/member; ties use branch code then member ID. '
               'These are review priorities, not findings of misconduct.')
+    if calculation_mode == 'application_complete_report':
+        answer += f' Exact totals calculated from all {data["sourceRowCount"]} verified loan rows in {data["currency"]} before selecting the top members.'
     for row in displayed:
         answer += f'\n{row["RANK"]}. Branch {row["BRANCHCODE"]} · member {row["MEMBERID"]} · due {row["DUEAMOUNT"]} · overdue days {row["DUE_DAYS"]}'
     return {'answer': answer, 'raw': {'structuredContent': {'columns': COLUMNS, 'rows': displayed,
             'row_count': count, 'truncated': count > len(rows), 'scope': 'authorized zone overdue members',
-            'ranking': 'member_due_desc', 'report_date': arguments['reportDate']}}}
+            'ranking': 'member_due_desc', 'report_date': arguments['reportDate'],
+            'calculation_mode': calculation_mode,
+            **({key: data[key] for key in ('currency', 'sourceRowCount') if key in data})}}}
