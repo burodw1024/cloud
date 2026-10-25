@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build reviewed GitHub source, mirror a non-force Gitea release ref, then deploy.
+# Build reviewed GitHub source and deploy through the registry and worker import.
 set -Eeuo pipefail
 set +x
 umask 077
@@ -61,9 +61,7 @@ docker info >/dev/null
 docker buildx version >/dev/null
 k get namespace rag >/dev/null
 k get secret "$TLS_SECRET" >/dev/null
-# Mirror only the exact reviewed source; never force or overwrite Gitea main.
-echo "Mirroring reviewed source to Gitea at 192.168.1.222; Git may prompt for Gitea credentials."
-python3 "$SOURCE_DIR/deploy/push_gitea_source.py" "$SOURCE_DIR" "$SOURCE_COMMIT"
+echo 'Using reviewed GitHub source directly; Gitea is not part of this deployment.'
 RELEASE_DIR="$(mktemp -d "$PWD/agentic-release.XXXXXXXX")"
 STAGE="$RELEASE_DIR/private"
 PROJECT="$RELEASE_DIR/project"

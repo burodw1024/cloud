@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 TEMPLATE = '''#!/usr/bin/env bash
-# BURO Insight AI: reviewed GitHub -> Gitea mirror -> image -> worker -> Kubernetes.
+# BURO Insight AI: reviewed GitHub -> image -> registry -> worker -> Kubernetes.
 set -Eeuo pipefail
 set +x
 umask 077

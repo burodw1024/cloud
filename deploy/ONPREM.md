@@ -1,10 +1,10 @@
 # Cloud source → GitHub pull → image build → registry → worker → Kubernetes
 
 The cloud repository contains the actual application code and deployment helpers.
-The on-prem machine pulls reviewed GitHub code and mirrors that exact commit to
-a new Gitea release reference without force, before building and deploying. It
-does not commit local files, overwrite Gitea main, restore an embedded production
-archive, or rewrite Python code from a live pod.
+The on-prem machine pulls reviewed GitHub code, builds/tests the image locally,
+pushes it to the registry and copies/imports it on worker-99 before deployment.
+Gitea is not contacted. Local files are not committed, and Python source is not
+rewritten from a live pod.
 
 First use a clean GitHub checkout:
 
@@ -96,12 +96,10 @@ checked-in launcher. It refuses missing/unpublished source. Existing user
 checkouts are never reset. The script itself contains no credentials. Use the
 published immutable URL and externally supplied SHA-256 to verify it first.
 
-The deployment mirrors the exact source commit to
-`http://192.168.1.222/admin/agentic.git` as
-`refs/heads/agentic/releases/<full-commit>` without force. This preserves Gitea's
-existing main history and refuses a conflicting release ref. Git, Docker and SSH
+The deployment does not contact Gitea or request Gitea credentials. Docker and SSH
 use their normal credential handling; Django report-test credentials are read
-privately and are never written to a file. Existing production.env is mandatory.
+privately and never written to a file. Existing production.env is mandatory.
+The older Gitea mirroring helper is retained for manual use, outside deployment.
 
 After verified 2/2 readiness and TLS checks, the launcher prompts for an existing
 Django login and a report question (a branch/date example is offered). It sends
