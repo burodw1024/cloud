@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# BURO Insight AI: reviewed GitHub -> Gitea mirror -> image -> worker -> Kubernetes.
+# BURO Insight AI: reviewed GitHub -> image -> registry -> worker -> Kubernetes.
 set -Eeuo pipefail
 set +x
 umask 077
-REVIEWED_TREE='bdc8c923867ec5f36998f54972245d4f1ac70e34'
+REVIEWED_TREE='bc8ba544bec51d7cebfccb5c876e7a73bfc26b62'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
 if [[ "${1:-}" == --describe ]]; then
   printf 'BURO Insight AI reviewed source tree: %s\n' "$REVIEWED_TREE"
