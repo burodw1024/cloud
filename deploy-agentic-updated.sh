@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and deploy the cloud code already pulled from GitHub. No Gitea or Git writes.
+# Build reviewed GitHub source, mirror a non-force Gitea release ref, then deploy.
 set -Eeuo pipefail
 set +x
 umask 077
@@ -11,7 +11,8 @@ export MIGRATION_JOB="buro-django-release-$RELEASE_ID"
 export APP_IMAGE="192.168.1.224:80/buro-django:$RELEASE_ID"
 export NGINX_IMAGE="192.168.1.224:80/buro-nginx:$RELEASE_ID"
 ENV_FILE="${ENV_FILE:-/actual/full/path/production.env}"
-TLS_CERT="${TLS_CERT:-$HOME/.config/agentic/tls/tls.crt}"
+TLS_CERT="${PUBLIC_CA_FILE:-${TLS_CERT:-$HOME/.config/agentic/tls/tls.crt}}"
+TLS_SECRET="${TLS_SECRET:-buro-django-tls}"
 WORKER_SSH=dw@192.168.1.99
 PUBLIC_URL=https://192.168.1.144:31135
 NGINX_SOURCE=docker.io/library/nginx@sha256:ec4ed8b5299e5e90694af7750eb6dffd2627317d30544d056b0371f8082f7bce
@@ -35,11 +36,9 @@ for tool in git docker kubectl python3 tar gzip sha256sum ssh scp curl openssl; 
   command -v "$tool" >/dev/null || fail "Missing required command: $tool"
 done
 python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ required"'
+[[ "$TLS_SECRET" == buro-django-tls ]] || fail "Unexpected TLS Secret; existing buro-django-tls must be preserved."
 [[ "$KUBE_CONTEXT" == mamun ]] || fail 'This release is prepared for context mamun; no other context is selected automatically.'
 [[ -t 0 && -t 1 ]] || fail 'Run in an interactive terminal for Git/registry/SSH credentials and worker sudo.'
-if [[ ! -r "$ENV_FILE" ]]; then
-  read -r -p 'Existing production.env absolute path: ' ENV_FILE
-fi
 [[ -r "$ENV_FILE" && "$ENV_FILE" == /* ]] || fail 'The existing production.env must exist at an absolute readable path. No replacement is generated.'
 [[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
 export ENV_FILE
@@ -61,7 +60,10 @@ PY
 docker info >/dev/null
 docker buildx version >/dev/null
 k get namespace rag >/dev/null
-k get secret buro-django-tls >/dev/null
+k get secret "$TLS_SECRET" >/dev/null
+# Mirror only the exact reviewed source; never force or overwrite Gitea main.
+echo "Mirroring reviewed source to Gitea at 192.168.1.222; Git may prompt for Gitea credentials."
+python3 "$SOURCE_DIR/deploy/push_gitea_source.py" "$SOURCE_DIR" "$SOURCE_COMMIT"
 RELEASE_DIR="$(mktemp -d "$PWD/agentic-release.XXXXXXXX")"
 STAGE="$RELEASE_DIR/private"
 PROJECT="$RELEASE_DIR/project"
@@ -114,6 +116,13 @@ fi
 k create configmap "$LOCK_NAME" --from-literal="release=$RELEASE_ID" --from-literal="job=$MIGRATION_JOB" >/dev/null
 LOCKED=1
 k get deployment buro-django -o json > "$STAGE/deployment.before.json"
+k get services -o json > "$STAGE/services.before.json"
+python3 - "$STAGE/services.before.json" <<'WEBUI'
+import json,sys
+assert any(p.get('nodePort')==30888 for s in json.load(open(sys.argv[1]))['items']
+           for p in s.get('spec',{}).get('ports',[])), 'Expected Open WebUI service on 30888 was not found.'
+print('Existing Open WebUI service on 30888 recorded for preservation.')
+WEBUI
 k get node worker-99 -o json > "$STAGE/node.json"
 SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(k+"="+v for k,v in d["spec"]["selector"]["matchLabels"].items()))' "$STAGE/deployment.before.json")"
 [[ -n "$SELECTOR" ]] || fail 'Empty deployment selector.'
@@ -123,12 +132,12 @@ k get pods -o json > "$STAGE/all-pods.before.json"
 k get cronjobs -o json > "$STAGE/cronjobs.before.json"
 kg get deployment contextforge -o json > "$STAGE/contextforge.before.json"
 k get configmap buro-django-router-fix --ignore-not-found -o json > "$STAGE/router-fix.before.json"
-k get secret buro-django-tls -o 'jsonpath={.data.tls\.crt}' | python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))' > "$STAGE/public-tls.crt"
+k get secret "$TLS_SECRET" -o 'jsonpath={.data.tls\.crt}' | python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))' > "$STAGE/public-tls.crt"
 openssl x509 -in "$TLS_CERT" -noout -fingerprint -sha256 > "$STAGE/local-cert.fingerprint"
 openssl x509 -in "$STAGE/public-tls.crt" -noout -fingerprint -sha256 > "$STAGE/cluster-cert.fingerprint"
 cmp -s "$STAGE/local-cert.fingerprint" "$STAGE/cluster-cert.fingerprint" || fail 'The supplied public certificate differs from the existing TLS Secret.'
 curl --fail --silent --show-error --cacert "$TLS_CERT" --connect-timeout 5 --max-time 20 "$PUBLIC_URL/healthz/ready/" >/dev/null
-# Build only the committed cloud source; no checkout mutation, commit, push or code overlay.
+# Build only committed cloud source; no local edits or code overlay enter the image.
 git -C "$SOURCE_DIR" archive "$SOURCE_COMMIT" | tar -x -C "$PROJECT"
 cd "$PROJECT"
 echo "Building pulled cloud commit: $SOURCE_COMMIT"
@@ -138,6 +147,19 @@ NGINX_CM="$(cat "$STAGE/nginx-name")"
 k get configmap "$NGINX_CM" -o json > "$STAGE/nginx.before.json"
 k exec "$LIVE_POD" -c django -- cat /app/agentic_ai/mcp_gateway.py > "$STAGE/live-mcp_gateway.py"
 python3 deploy/verify_gateway_source.py "$STAGE/live-mcp_gateway.py" "$PROJECT"
+# Inspect retained ConfigMap code as well, even when it is no longer mounted.
+if [[ -s "$STAGE/router-fix.before.json" ]]; then
+  python3 - "$STAGE" <<'OVERLAY'
+import json,sys
+from pathlib import Path
+stage=Path(sys.argv[1])
+cm=json.loads((stage/'router-fix.before.json').read_text())
+source=cm.get('data',{}).get('mcp_gateway.py')
+assert isinstance(source,str) and source, 'Unrecognized router-fix ConfigMap; review before release.'
+(stage/'configmap-mcp_gateway.py').write_text(source)
+OVERLAY
+  python3 deploy/verify_gateway_source.py "$STAGE/configmap-mcp_gateway.py" "$PROJECT"
+fi
 # Check for any other known Kubernetes writer to the same HostPath.
 python3 - "$STAGE" <<'PY'
 import json,sys
@@ -182,14 +204,27 @@ fi
 docker tag "$NGINX_SOURCE" "$NGINX_IMAGE"
 for image in "$APP_IMAGE" "$NGINX_IMAGE"; do
   [[ "$(docker image inspect --format '{{.Architecture}}' "$image")" == amd64 ]] || fail "Wrong image architecture: $image"
-  docker push "$image"
+  if ! docker push "$image" > "$STAGE/registry-push.log" 2>&1; then
+    if grep -Eiq 'unauthorized|authentication required|denied' "$STAGE/registry-push.log"; then
+      echo 'Registry authentication required; Docker will prompt privately.'
+      docker login 192.168.1.224:80
+      docker push "$image"
+    else
+      cat "$STAGE/registry-push.log" >&2
+      fail "Registry push failed: $image"
+    fi
+  else
+    cat "$STAGE/registry-push.log"
+  fi
 done
+APP_CONFIG_ID="$(docker image inspect --format '{{.Id}}' "$APP_IMAGE")"
+NGINX_CONFIG_ID="$(docker image inspect --format '{{.Id}}' "$NGINX_IMAGE")"
 docker save "$APP_IMAGE" "$NGINX_IMAGE" | gzip -1 > "$STAGE/images.tar.gz"
 (cd "$STAGE" && sha256sum images.tar.gz > images.tar.gz.sha256)
 REMOTE_DIR="/tmp/agentic-$RELEASE_ID"
 # shellcheck disable=SC2029 # REMOTE_DIR is generated locally from a restricted release ID.
 ssh "$WORKER_SSH" "umask 077; mkdir '$REMOTE_DIR'"
-scp "$STAGE/images.tar.gz" "$STAGE/images.tar.gz.sha256" "$WORKER_SSH:$REMOTE_DIR/"
+scp "$STAGE/images.tar.gz" "$STAGE/images.tar.gz.sha256" deploy/verify_imported_images.py "$WORKER_SSH:$REMOTE_DIR/"
 cat > "$STAGE/import-images.sh" <<IMPORT
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -200,6 +235,7 @@ ctr --address /run/containerd/containerd.sock --namespace k8s.io images import i
 for ref in '$APP_IMAGE' '$NGINX_IMAGE'; do
   ctr --address /run/containerd/containerd.sock --namespace k8s.io images ls -q | grep -Fx -- "\$ref" >/dev/null
 done
+python3 verify_imported_images.py '$APP_IMAGE' '$APP_CONFIG_ID' '$NGINX_IMAGE' '$NGINX_CONFIG_ID'
 rm images.tar
 printf '%s\n' 'Exact app and Nginx references are present in worker containerd.'
 IMPORT
@@ -258,9 +294,34 @@ PY
 curl --fail --silent --show-error --cacert "$TLS_CERT" --connect-timeout 5 --max-time 30 "$PUBLIC_URL/healthz/live/" >/dev/null
 curl --fail --silent --show-error --cacert "$TLS_CERT" --connect-timeout 5 --max-time 30 "$PUBLIC_URL/healthz/ready/" >/dev/null
 # Keep the old overlay ConfigMap for rollback; the new Deployment no longer mounts it.
+k get services -o json > "$STAGE/services.after.json"
+python3 - "$STAGE" <<'SERVICES'
+import json,sys
+from pathlib import Path
+stage=Path(sys.argv[1])
+def webui(name):
+    return [(x['metadata']['uid'],x['spec']) for x in json.loads((stage/name).read_text())['items']
+            if any(p.get('nodePort')==30888 for p in x.get('spec',{}).get('ports',[]))]
+before=webui('services.before.json');after=webui('services.after.json')
+assert before and before==after, 'Open WebUI service on 30888 could not be verified unchanged.'
+print('Open WebUI service on 30888 preserved unchanged.')
+SERVICES
 SUCCEEDED=1
 echo 'Deployment and HTTPS readiness verified. Existing gateway overlay ConfigMap retained, unmounted.'
 k get pods -l "$SELECTOR" -o wide
 printf '\nURL: %s\nRelease: %s\nSnapshots: %s\n' "$PUBLIC_URL" "$RELEASE_ID" "$STAGE"
-echo 'No real loan report was run. Oracle/JDBC cancellation and NiFi HTTP-context issues still require backend verification.'
-exit 0
+echo 'Deployment verified. Running one authenticated HTTPS report test; no automatic report retries.'
+REPORT_RC=0
+python3 deploy/verify_report_flow.py --url "$PUBLIC_URL" --cert "$TLS_CERT" --stage "$STAGE" || REPORT_RC=$?
+python3 - "$STAGE" "$REPORT_RC" "$PUBLIC_URL" "$RELEASE_ID" "$SOURCE_COMMIT" <<'RESULTS'
+import json,sys
+from pathlib import Path
+stage=Path(sys.argv[1]);report=stage/'report-verification.json'
+summary={'deployment_verified':True,'https_readiness_verified':True,'pod_ready':'2/2',
+         'url':sys.argv[3]+'/agentic/','release':sys.argv[4],'source_commit':sys.argv[5],
+         'report':json.loads(report.read_text()) if report.exists() else {'verified':False,'error':'verification interrupted'}}
+(stage/'release-results.json').write_text(json.dumps(summary,indent=2))
+print('EXACT RELEASE RESULTS:',json.dumps(summary))
+RESULTS
+echo 'Deployment does not resolve Oracle/JDBC SQLTimeoutException, ORA-01013, or NiFi HTTP-context errors.'
+exit "$REPORT_RC"

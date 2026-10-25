@@ -403,6 +403,12 @@ async def _run(config, user, query, allowed_names):
                 backend_arguments, member_scope = member_call(name, arguments, tools, projection_tools, query)
             except (ValueError, ValidationError) as exc:
                 raise GatewayError("invalid_member_scope", "Provide the exact member ID, branch code and report date in your question. No tool was executed.", 422) from exc
+            from .zone_ranking import TOOL_NAME as ZONE_TOOL, validate_request
+            if name == ZONE_TOOL:
+                try:
+                    validate_request(arguments, query)
+                except (ValueError, ValidationError) as exc:
+                    raise GatewayError("invalid_zone_scope", "Provide a zone code or exact zone name, ISO report date, and a top count between 1 and 100. No tool was executed.", 422) from exc
             report_config = {**config, "member_scope": member_scope}
             plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
             state.update(tool=name, plan=plan)
@@ -422,6 +428,13 @@ async def _run(config, user, query, allowed_names):
             raw = result.model_dump(mode="json", by_alias=True, exclude_none=True)
             if len(json.dumps(raw).encode()) > MAX_RESULT_BYTES:
                 raise GatewayError("response_too_large", "The tool result exceeded the response limit. Request a narrower report.")
+            if name == ZONE_TOOL and not result.isError:
+                from .zone_ranking import present_ranking
+                try:
+                    presentation = present_ranking(raw, arguments)
+                except (ValueError, TypeError, KeyError) as exc:
+                    raise GatewayError("invalid_zone_ranking", "The zone report could not be verified. No financial data was displayed. Check the backend ranking contract.") from exc
+                return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
             # BEGIN_AGENTIC_REPORT_PROJECTION
             projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
             if name in projection_tools and not result.isError:

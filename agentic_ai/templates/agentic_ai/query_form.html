@@ -16,6 +16,7 @@
             <span class="search-count" id="search-count" role="status" aria-live="polite"></span>
             <button class="copy-button" id="expand-report" type="button" aria-controls="agent-table" aria-expanded="false">Expand table</button>
         </div>
+        <p class="result-details" id="table-scroll-hint" hidden>Scroll horizontally to see all selected fields.</p>
         <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
         <div class="result-details" id="agent-details"></div>
         <details class="usage-panel" id="request-usage" hidden>
@@ -36,13 +37,16 @@
     const status = document.getElementById('agent-status');
     const tableWrap = document.getElementById('agent-table');
     const details = document.getElementById('agent-details');
+    const tableHint = document.getElementById('table-scroll-hint');
+    function updateTableHint(){tableHint.hidden=tableWrap.hidden || tableWrap.scrollWidth<=tableWrap.clientWidth;}
+    window.addEventListener('resize',updateTableHint);
     const copyButton = document.getElementById('copy-result');
     const panel = document.querySelector('.result-panel');
     const toolbar = document.getElementById('report-toolbar');
     const search = document.getElementById('report-search');
     const searchCount = document.getElementById('search-count');
     const expandButton = document.getElementById('expand-report');
-    const labels = {MEMBERID:'Member ID',BRANCHCODE:'Branch code',BRANCHNAME:'Branch name',
+    const labels = {RANK:'Rank',ZONECODE:'Zone code',ZONENAME:'Zone name',MEMBERID:'Member ID',BRANCHCODE:'Branch code',BRANCHNAME:'Branch name',
         PRODUCTNAME:'Loan product',DISBURSE_AMOUNT:'Disbursed amount',DISBURSEDATE:'Disbursement date',
         MATURITYDATE:'Maturity date',OUTSTANDINGP:'Outstanding principal','Outstanding(P+I)':'Outstanding incl. interest',
         DUEAMOUNT:'Due amount',DUE_DAYS:'Overdue days',DUEINSTNO_U:'Overdue installments',
@@ -118,7 +122,7 @@
         button.textContent = 'Working…'; status.dataset.state = 'working'; status.textContent = 'Request in progress';
         panel.setAttribute('aria-busy', 'true');
         document.getElementById('result-empty').hidden = true;
-        tableWrap.hidden = true; tableWrap.replaceChildren(); tableWrap.classList.remove('expanded');
+        tableHint.hidden=true; tableWrap.hidden = true; tableWrap.replaceChildren(); tableWrap.classList.remove('expanded');
         toolbar.hidden = true; search.value = ''; searchCount.textContent = '';
         expandButton.setAttribute('aria-expanded', 'false'); expandButton.textContent = 'Expand table';
         details.textContent = ''; copyButton.hidden = true; usagePanel.hidden=true;
@@ -172,6 +176,7 @@
                     });
                 });
                 tableWrap.append(table); tableWrap.hidden = false; toolbar.hidden = false;
+                requestAnimationFrame(updateTableHint);
                 searchCount.textContent = report.rows.length + ' displayed rows';
                 result.textContent = body.summary || (typeof answer === 'string' ? answer.split('\n')[0] : 'Report returned.');
             }
@@ -179,6 +184,7 @@
             status.textContent = body.ok ? (body.kind === 'clarification' ? 'More detail needed' : 'Response received') : (body.approval_required ? 'Approval required' : 'Request unsuccessful');
             clearInterval(clock);
             const info = [];
+            if (Array.isArray(report?.columns)) info.push(report.columns.length+' fields');
             if (report?.rows) info.push(report.rows.length+' displayed'+(report.truncated?' · More records available':''));
             if (report?.scope) info.push(report.scope);
             if (report?.order) info.push(report.order);

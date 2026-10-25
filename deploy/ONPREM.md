@@ -1,9 +1,10 @@
 # Cloud source → GitHub pull → image build → registry → worker → Kubernetes
 
 The cloud repository contains the actual application code and deployment helpers.
-The on-prem machine only pulls, builds and deploys that committed code. It does
-not commit, push, contact Gitea, restore an embedded source archive, or rewrite
-Python code from a live pod.
+The on-prem machine pulls reviewed GitHub code and mirrors that exact commit to
+a new Gitea release reference without force, before building and deploying. It
+does not commit local files, overwrite Gitea main, restore an embedded production
+archive, or rewrite Python code from a live pod.
 
 First use a clean GitHub checkout:
 
@@ -85,3 +86,42 @@ Validate the actual backend response and account authorization on staging before
 production. Unit/synthetic tests do not establish real-model accuracy or Oracle,
 JDBC and NiFi health. The cloud cannot reach this private cluster; a published
 source commit is not a completed on-prem deployment.
+
+
+## One-file reviewed deployment package
+
+`deploy-buro-portable.sh` is generated for an exact reviewed Git tree. It creates
+an isolated checkout, pulls GitHub main, locates that published tree and runs the
+checked-in launcher. It refuses missing/unpublished source. Existing user
+checkouts are never reset. The script itself contains no credentials. Use the
+published immutable URL and externally supplied SHA-256 to verify it first.
+
+The deployment mirrors the exact source commit to
+`http://192.168.1.222/admin/agentic.git` as
+`refs/heads/agentic/releases/<full-commit>` without force. This preserves Gitea's
+existing main history and refuses a conflicting release ref. Git, Docker and SSH
+use their normal credential handling; Django report-test credentials are read
+privately and are never written to a file. Existing production.env is mandatory.
+
+After verified 2/2 readiness and TLS checks, the launcher prompts for an existing
+Django login and a report question (a branch/date example is offered). It sends
+one CSRF-protected HTTPS request with a unique idempotency key, with no automatic
+report retry. It requires actual loan tool execution and a structured report
+response. Private response and sanitized exact results are retained in the
+release snapshot directory. HTTP success without tool execution is not enough.
+A legitimate empty report is explicitly recorded; it does not prove financial
+correctness. Financial reconciliation and an actual browser visual check remain
+separate from the HTTPS API verification.
+
+Exit 0 means application checks and the real report request passed. Exit 2 after
+`deployment_verified: true` means the application was deployed but the report
+check failed; inspect the retained audit/results before retrying. A successful
+application rollout releases its own completed migration lock even if report
+verification fails. Failures after migration dispatch and before rollout checks
+retain their lock. Existing locks are inspected and never automatically cleared.
+The script cannot fix SCOTT.GET_LOAN_DUE_REPORT SQLTimeoutException/ORA-01013.
+
+Zone ranking is packaged but stays inactive until its Oracle/NiFi endpoint and
+employee scope enforcement are supplied. See ZONE_RANKING.md. The ordinary
+branch loan-report presentation/table and model metadata introduction already
+exist and are preserved.

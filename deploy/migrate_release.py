@@ -41,8 +41,7 @@ assert settings.CACHES['default']['BACKEND']=='agentic_ai.sqlite_cache.SQLiteCac
 assert get_user_model().objects.filter(username='root_123',is_active=True,is_staff=True).exists(), 'Existing root_123 administrator not found.'
 updates={'MCP_GATEWAY_URL':'http://192.168.1.99:30444/servers/3af4c69246314595a30043f0b8d8b654/mcp',
          'MCP_TIMEOUT':'300','MCP_REQUEST_TIMEOUT':'600','POLICY_WORK_DIR':'/data/policy_rag',
-         'OLLAMA_URL':'http://192.168.1.144:31134',
-         'MCP_REPORT_PROJECTION_TOOLS':'loan-due-report'}
+         'OLLAMA_URL':'http://192.168.1.144:31134'}
 with transaction.atomic():
     for key,value in updates.items():
         SystemSetting.objects.update_or_create(key=key,defaults={'value':value,'is_active':True})

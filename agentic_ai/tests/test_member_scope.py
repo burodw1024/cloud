@@ -77,8 +77,8 @@ class MemberScopeTests(SimpleTestCase):
         self.assertNotIn('99999', str(result))
         self.assertNotIn('PRIVATE', str(result))
         self.assertEqual(result['raw']['structuredContent']['row_count'], 1)
-        self.assertNotIn('125.50', str(model.call_args))
-        self.assertIn('already exactly filtered', str(model.call_args))
+        model.assert_not_awaited()
+        self.assertEqual(result['raw']['structuredContent']['field_selection'], 'explicit_contract')
 
     def test_no_match_never_claims_zero_balance_and_skips_inference(self):
         model = AsyncMock()

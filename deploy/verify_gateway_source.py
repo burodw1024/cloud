@@ -54,8 +54,8 @@ def normalize(source):
 
 def verify(live, baked, baseline):
     previous_file = Path(__file__).with_name('gateway_previous.sha256')
-    previous = previous_file.read_text().strip() if previous_file.is_file() else ''
-    recognized_previous = bool(previous) and hashlib.sha256(live.encode()).hexdigest() == previous
+    previous = previous_file.read_text().splitlines() if previous_file.is_file() else []
+    recognized_previous = bool(previous) and hashlib.sha256(live.encode()).hexdigest() in previous
     if live != baked and not recognized_previous and normalize(live) != baseline:
         raise ValueError('Live MCP code contains an unrecognized change. Snapshot retained; incorporate that change in the cloud source before deployment. No code was overwritten.')
     tree = ast.parse(baked)
