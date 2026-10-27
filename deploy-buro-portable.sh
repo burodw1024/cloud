@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 set +x
 umask 077
-REVIEWED_TREE='e76d8ba35d2148cebb053f521854e09f1c7f27a2'
+REVIEWED_TREE='dc200ade7bc1bbe1064410c5471603df2bc95a14'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
 if [[ "${1:-}" == --describe ]]; then
   printf 'BURO Insight AI reviewed source tree: %s\n' "$REVIEWED_TREE"
