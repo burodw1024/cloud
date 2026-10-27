@@ -15,7 +15,7 @@ from .mcp_gateway import MAX_QUERY_CHARS
 logger = logging.getLogger(__name__)
 MAX_BODY_BYTES = 65536
 RATE_LIMIT = 20
-IDEMPOTENCY_TTL = 900
+IDEMPOTENCY_TTL = 2400
 
 
 def execute_query(**kwargs):

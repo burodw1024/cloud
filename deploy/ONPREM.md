@@ -53,10 +53,10 @@ mount is removed only in the new replacement Deployment. Running code hashes are
 verified after rollout.
 
 The project-selected model and gateway credentials are preserved. The
-server-scoped MCP endpoint, 300/600-second MCP timeouts and /data/policy_rag are
-verified. Gunicorn uses one gthread worker/four threads and timeout 660; Nginx
-read/send timeouts are 670s. ContextForge's effective HTTPX read timeout is checked
-at 300 before Django downtime; an unsupported configuration interface fails
+server-scoped MCP endpoint, 1500/1800-second MCP timeouts and /data/policy_rag are
+verified. Gunicorn uses one gthread worker/four threads and timeout 1860; Nginx
+read/send timeouts are 1900s. ContextForge's effective HTTPX read timeout is checked
+at 1500 before Django downtime; an unsupported configuration interface fails
 explicitly. This does not resolve Oracle/JDBC ORA-01013 or NiFi HTTP-context errors.
 
 MCP loan-due-report output uses the same project model to select approved report
@@ -130,3 +130,11 @@ exist and are preserved.
 The snake_case QueryLoanDue contract is now supported alongside the legacy
 operation-based zone report. See [NATIVE_LOAN_QUERY.md](NATIVE_LOAN_QUERY.md)
 for the gateway schema, disbursement-range member ranking and verification.
+
+## Long NiFi reports
+
+The current release supports a 1200-second NiFi query with a 1500-second
+gateway read deadline and 1800-second Django overall deadline. It updates
+database overrides as well as deployment environment values. See
+[LONG_REPORT_TIMEOUTS.md](LONG_REPORT_TIMEOUTS.md) for the full timeout chain,
+on-prem commands and post-rollout checks.

@@ -70,11 +70,11 @@ elif sys.argv[1] == 'render':
     dep['spec'].update(replicas=1, strategy={'type':'Recreate'}, progressDeadlineSeconds=900)
     spec=dep['spec']['template']['spec']
     spec['nodeName']='worker-99'
-    spec['terminationGracePeriodSeconds']=720
+    spec['terminationGracePeriodSeconds']=1920
     containers={c['name']:c for c in spec['containers']}
     django=containers['django']; https=containers['https']
     updates={'DJANGO_SETTINGS_MODULE':'buro_first.settings_production','DJANGO_DATA_DIR':'/data',
-             'POLICY_WORK_DIR':'/data/policy_rag','MCP_TIMEOUT':'300','MCP_REQUEST_TIMEOUT':'600',
+             'POLICY_WORK_DIR':'/data/policy_rag','MCP_TIMEOUT':'1500','MCP_REQUEST_TIMEOUT':'1800',
              'AGENT_RELEASE_ID':release}
     for c in spec['containers']+spec.get('initContainers',[]):
         if c['name'] in ('django','collect-static'):
@@ -88,8 +88,8 @@ elif sys.argv[1] == 'render':
                        for m in c.get('volumeMounts',[]) if m['mountPath']=='/app/agentic_ai/mcp_gateway.py'}
     spec['volumes']=[v for v in spec['volumes'] if v['name'] not in old_overlay_names or v['name'] in used]
     django['command']=['gunicorn','buro_first.wsgi:application','--bind','127.0.0.1:8000',
-                       '--workers','1','--worker-class','gthread','--threads','4','--timeout','660',
-                       '--graceful-timeout','660','--access-logfile','-','--error-logfile','-']
+                       '--workers','1','--worker-class','gthread','--threads','4','--timeout','1860',
+                       '--graceful-timeout','1860','--access-logfile','-','--error-logfile','-']
     django.pop('args',None)
     https['image']=os.environ['NGINX_IMAGE'];https['imagePullPolicy']='Never'
     # Preserve probe commands while allowing enough response time under load.
@@ -105,7 +105,7 @@ elif sys.argv[1] == 'render':
     for key,text in cm.get('data',{}).items():
         if 'proxy_pass' in text:
             for directive in ('proxy_read_timeout','proxy_send_timeout'):
-                text,count=re.subn(r'\b'+directive+r'\s+[^;]+;',directive+' 670s;',text)
+                text,count=re.subn(r'\b'+directive+r'\s+[^;]+;',directive+' 1900s;',text)
                 require(count>0,'Missing '+directive+'; cannot safely update this Nginx configuration.')
             cm['data'][key]=text;found=True
     require(found,'No proxy configuration found in the existing Nginx ConfigMap.')
@@ -126,7 +126,7 @@ elif sys.argv[1] == 'render':
     pod['terminationGracePeriodSeconds']=60
     pod['volumes']=[v for v in pod['volumes'] if v['name'] in {m['name'] for m in migration.get('volumeMounts',[])}]
     job={'apiVersion':'batch/v1','kind':'Job','metadata':{'name':os.environ['MIGRATION_JOB'],'namespace':'rag'},
-         'spec':{'backoffLimit':0,'activeDeadlineSeconds':1200,'ttlSecondsAfterFinished':604800,
+         'spec':{'backoffLimit':0,'activeDeadlineSeconds':2100,'ttlSecondsAfterFinished':604800,
                  'template':{'metadata':{'labels':{'agentic-release-job':os.environ['MIGRATION_JOB']}},'spec':pod}}}
     write('migration.json',job)
     print('Rendered one-replica Recreate deployment and stopped-writer migration Job.')

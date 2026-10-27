@@ -69,8 +69,8 @@ def load_gateway_config():
     return {
         "url": _http_url(get_setting("MCP_GATEWAY_URL"), "MCP gateway"),
         "token": get_setting("MCP_GATEWAY_TOKEN"),
-        "timeout": _number_setting("MCP_TIMEOUT", 30, 1, 300),
-        "request_timeout": _number_setting("MCP_REQUEST_TIMEOUT", 90, 1, 600),
+        "timeout": _number_setting("MCP_TIMEOUT", 1500, 1, 1500),
+        "request_timeout": _number_setting("MCP_REQUEST_TIMEOUT", 1800, 1, 1800),
     }
 
 

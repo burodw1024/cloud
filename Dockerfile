@@ -64,7 +64,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:${PATH}" \
     PORT=8000 \
     GUNICORN_WORKERS=1 \
-    GUNICORN_TIMEOUT=660 \
+    GUNICORN_TIMEOUT=1860 \
     DJANGO_SETTINGS_MODULE=buro_first.settings_production
 
 ARG WSGI_MODULE=buro_first.wsgi
@@ -121,4 +121,4 @@ USER 10001:10001
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "exec gunicorn ${WSGI_MODULE}:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --worker-class gthread --threads 4 --timeout 660 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "exec gunicorn ${WSGI_MODULE}:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --worker-class gthread --threads 4 --timeout 1860 --access-logfile - --error-logfile -"]

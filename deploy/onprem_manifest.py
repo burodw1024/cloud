@@ -52,8 +52,8 @@ def prepare(stage):
     values.setdefault('OLLAMA_URL', 'http://192.168.1.144:31134')
     values.setdefault('MCP_GATEWAY_URL', 'http://192.168.1.99:30444/mcp')
     values.setdefault('MCP_GATEWAY_ENABLED', 'false')
-    values.setdefault('MCP_TIMEOUT', '30')
-    values.setdefault('MCP_REQUEST_TIMEOUT', '90')
+    values.setdefault('MCP_TIMEOUT', '1500')
+    values.setdefault('MCP_REQUEST_TIMEOUT', '1800')
     bootstrap = {k: v for k, v in values.items() if k.startswith('DJANGO_SUPERUSER_')}
     require(not any(value.startswith('REPLACE_') for value in bootstrap.values()), 'Replace bootstrap administrator placeholders in ENV_FILE.')
     app = {k: v for k, v in values.items() if not k.startswith('DJANGO_SUPERUSER_')}
@@ -122,8 +122,8 @@ http {
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-For $remote_addr;
       proxy_connect_timeout 5s;
-      proxy_read_timeout 130s;
-      proxy_send_timeout 130s;
+      proxy_read_timeout 1900s;
+      proxy_send_timeout 1900s;
     }
   }
 }
@@ -189,7 +189,7 @@ else:
     collect = app_container('collect-static', ['python', 'manage.py', 'collectstatic', '--noinput'])
     collect['volumeMounts'] = [{'name': 'media', 'mountPath': '/data'}, {'name': 'static', 'mountPath': '/app/staticfiles'}, {'name': 'app-tmp', 'mountPath': '/tmp'}]
     app = app_container('django', ['gunicorn', 'buro_first.wsgi:application', '--bind', '127.0.0.1:8000', '--workers', '1',
-                                    '--timeout', '120', '--access-logfile', '-', '--error-logfile', '-'])
+                                    '--timeout', '1860', '--access-logfile', '-', '--error-logfile', '-'])
     app['volumeMounts'] = [{'name': 'media', 'mountPath': '/data'}, {'name': 'app-tmp', 'mountPath': '/tmp'}]
     def app_probe(path, period, failures):
         code = ("import urllib.request; "
