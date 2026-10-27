@@ -186,6 +186,16 @@ print(candidates[0]['name'])
 PY
 )"
 [[ "$GATEWAY_CONTAINER" =~ ^[a-z0-9][a-z0-9-]*$ ]] || fail 'Invalid gateway container name.'
+GATEWAY_SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(k+"="+v for k,v in d["spec"]["selector"]["matchLabels"].items()))' "$STAGE/contextforge.before.json")"
+kg get pods -l "$GATEWAY_SELECTOR" -o json > "$STAGE/contextforge-pods.json"
+GATEWAY_POD="$(python3 -c 'import json,sys; p=[p for p in json.load(open(sys.argv[1]))["items"] if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]; assert p; print(p[0]["metadata"]["name"])' "$STAGE/contextforge-pods.json")"
+# Probe in a temporary process before changing the Deployment. v1.0.10 caps
+# this field at 600; testing the override must not crash the working gateway.
+if ! kg exec "$GATEWAY_POD" -c "$GATEWAY_CONTAINER" -- env HTTPX_READ_TIMEOUT=1500 \
+  python -c 'from mcpgateway.config import settings; assert float(settings.httpx_read_timeout) == 1500' \
+  > "$STAGE/contextforge-timeout-preflight.log" 2>&1; then
+  fail "The running ContextForge image does not accept HTTPX_READ_TIMEOUT=1500. No gateway deployment change was made. Inspect $STAGE/contextforge-timeout-preflight.log and deploy a compatible image first; see deploy/CONTEXTFORGE_TIMEOUT_COMPATIBILITY.md."
+fi
 kg set env deployment/contextforge --containers="$GATEWAY_CONTAINER" HTTPX_READ_TIMEOUT=1500 >/dev/null
 kg rollout status deployment/contextforge --timeout=600s
 GATEWAY_SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(k+"="+v for k,v in d["spec"]["selector"]["matchLabels"].items()))' "$STAGE/contextforge.before.json")"

@@ -4,6 +4,16 @@ This release is prepared for the existing QueryLoanDue processor configured with
 Query Timeout Seconds = 1200. It does not change NiFi or contact the private cluster
 from the cloud.
 
+## Required gateway compatibility
+
+**The original ContextForge v1.0.10 image caps HTTPX_READ_TIMEOUT at 600.**
+Do not set it to 1500 on that image: it fails startup. The launcher now probes
+compatibility before changing the Deployment and stops safely when unsupported.
+Build and deploy the reviewed derived image described in
+[CONTEXTFORGE_TIMEOUT_COMPATIBILITY.md](CONTEXTFORGE_TIMEOUT_COMPATIBILITY.md)
+first. Its timeout field ceiling is 1800; authentication and existing Secrets
+are unchanged. The profile below requires that compatible gateway image.
+
 ## Effective timeout profile
 
 | Layer | Seconds |
