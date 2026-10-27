@@ -124,3 +124,9 @@ its NiFi handler and MCP schema with completeness and employee-scope enforcement
 before activation; no second tool or endpoint is required. See ZONE_RANKING.md. The ordinary
 branch loan-report presentation/table and model metadata introduction already
 exist and are preserved.
+
+## Native QueryLoanDue compatibility
+
+The snake_case QueryLoanDue contract is now supported alongside the legacy
+operation-based zone report. See [NATIVE_LOAN_QUERY.md](NATIVE_LOAN_QUERY.md)
+for the gateway schema, disbursement-range member ranking and verification.

@@ -50,14 +50,19 @@ def supports_ranking(tool, report_names):
 
 def prepare_tools(tools, report_names):
     """Improve native operation discovery; never invent unsupported backend inputs."""
-    return [tool.model_copy(update={'description': (tool.description or '') + ' ' + DESCRIPTION})
+    from .native_loan_query import supports_native_query, DESCRIPTION as NATIVE_DESCRIPTION
+    return [tool.model_copy(update={'description': (tool.description or '') + NATIVE_DESCRIPTION})
+            if supports_native_query(tool, report_names) else
+            tool.model_copy(update={'description': (tool.description or '') + ' ' + DESCRIPTION})
             if supports_ranking(tool, report_names) else tool for tool in tools]
 
 
 def ranking_candidates(tools, report_names):
     # Prefer the existing loan report. Keep explicitly registered legacy tools working.
     from .zone_ranking import TOOL_NAME
-    native = [tool for tool in tools if supports_ranking(tool, report_names)]
+    from .native_loan_query import supports_native_query
+    native = [tool for tool in tools if supports_ranking(tool, report_names)
+              or supports_native_query(tool, report_names)]
     return native or [tool for tool in tools if tool.name == TOOL_NAME]
 
 
