@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 set +x
 umask 077
-REVIEWED_TREE='b585dd4a2f1b555b2a23440003a5535901b50e1a'
+REVIEWED_TREE='be3b0768508ebe4d853142682eb0a556f3101c24'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
 SOURCE_BRANCH='release/bangla-report-summary-20261028'
 if [[ "${1:-}" == --describe ]]; then
@@ -18,11 +18,9 @@ for tool in git python3 mktemp; do
 done
 if [[ "${1:-}" != --check-source ]]; then
   [[ -t 0 && -t 1 ]] || { echo 'Use an interactive terminal for private credential prompts.' >&2; exit 1; }
-  ENV_FILE="${ENV_FILE:-/actual/full/path/production.env}"
   PUBLIC_CA_FILE="${PUBLIC_CA_FILE:-$HOME/.config/agentic/tls/tls.crt}"
-  [[ -r "$ENV_FILE" ]] || { echo 'Existing production.env is missing; no replacement is generated.' >&2; exit 1; }
   [[ -r "$PUBLIC_CA_FILE" ]] || { echo 'Existing public TLS certificate is missing.' >&2; exit 1; }
-  export ENV_FILE PUBLIC_CA_FILE
+  export PUBLIC_CA_FILE
 fi
 RUN_ROOT="$(mktemp -d "$PWD/buro-deploy.XXXXXXXX")"
 echo "Private deployment checkout and records: $RUN_ROOT"
