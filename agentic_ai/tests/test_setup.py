@@ -86,3 +86,11 @@ class GuidedSetupTests(TestCase):
         response = self.post("save_connection", url="https://gateway.example/mcp", token="")
         self.assertEqual(response.status_code, 200)
         save.assert_called_once_with({"MCP_GATEWAY_URL": "https://gateway.example/mcp", "MCP_GATEWAY_ENABLED": "false"})
+
+    @patch.object(setup_views, '_save_settings')
+    @patch.object(setup_views, 'get_setting', return_value='http://gateway:4444/servers/x/mcp')
+    def test_summary_settings_keep_gateway_token_on_same_origin(self, setting, save):
+        response = self.post('save_summary', base='http://gateway:4444/v1', model='openrouter/auto')
+        self.assertEqual(response.status_code, 200)
+        save.assert_called_once_with({'MCP_SUMMARY_BASE_URL': 'http://gateway:4444/v1', 'MCP_SUMMARY_MODEL': 'openrouter/auto'})
+        self.assertEqual(self.post('save_summary', base='https://other.example/v1', model='openrouter/auto').status_code, 400)

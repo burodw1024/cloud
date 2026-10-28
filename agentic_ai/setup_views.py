@@ -76,6 +76,8 @@ def setup_page(request):
         response = render(request, "agentic_ai/setup.html", {
             "gateway_url": get_setting("MCP_GATEWAY_URL"), "model": get_llm_model(),
             "enabled": gateway_enabled(), **_pricing_context(),
+            "summary_model": get_setting("MCP_SUMMARY_MODEL", "openrouter/auto"),
+            "summary_base": get_setting("MCP_SUMMARY_BASE_URL"),
         })
         response["Cache-Control"] = "no-store"
         return response
@@ -88,6 +90,18 @@ def setup_page(request):
         if not isinstance(body, dict):
             raise ValueError
         action = body.get("action")
+        if action == "save_summary":
+            from urllib.parse import urlsplit
+            base, model = body.get("base", ""), body.get("model", "")
+            if not isinstance(base, str) or not isinstance(model, str) or not model.strip() or len(model) > 200:
+                raise ValueError
+            if base.strip():
+                parsed = urlsplit(_http_url(base.strip(), "summary base"))
+                gateway = urlsplit(_http_url(get_setting("MCP_GATEWAY_URL"), "gateway"))
+                if (parsed.scheme, parsed.netloc) != (gateway.scheme, gateway.netloc):
+                    return _reply({"ok": False, "error": "Use the same ContextForge origin as the gateway connection."}, 400)
+            _save_settings({"MCP_SUMMARY_BASE_URL": base.strip(), "MCP_SUMMARY_MODEL": model.strip()})
+            return _reply({"ok": True, "message": "Bangla summary settings saved. The gateway token is reused; its role needs llm.invoke."})
         if action == "save_pricing":
             from .usage_meter import parse_prices, validate_price
             current = _pricing_context()

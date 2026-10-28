@@ -27,6 +27,14 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <label for="price-currency">Currency code</label><input id="price-currency" type="text" maxlength="3" value="{{ model_price.currency|default:'USD' }}">
 <button type="button" id="save-pricing">Save model pricing</button><small>Clear both input and output rates to remove this model's price. Counts are taken from model responses, including selection and presentation calls.</small>
 </div></section>
+<section class="card"><h2>Bangla report analysis</h2>
+<p>The report’s “বাংলায় বিশ্লেষণ” button uses your registered ContextForge model. Only the displayed report projection is summarized; the loan query is not run again. Model processing follows your configured provider, including external providers.</p>
+<label for="summary-base">ContextForge model API base URL (optional)</label>
+<input id="summary-base" type="url" value="{{ summary_base }}" placeholder="http://192.168.1.99:30444/v1">
+<small>Blank uses the gateway origin plus /v1. If ContextForge uses a custom LLM API prefix, enter that base path. The gateway access token must have llm.invoke permission.</small>
+<label for="summary-model">Registered model ID</label><input id="summary-model" type="text" maxlength="200" value="{{ summary_model }}">
+<button type="button" id="save-summary">Save summary settings</button>
+</section>
 <section class="card"><h2>3. Choose tools and roles</h2>
 <p>Select a tool, organize how it appears in the workspace, then choose the roles that may use it.</p>
 <div id="tool-list"><p class="muted">Click “Find tools” to load available tools.</p></div>
@@ -36,6 +44,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 </section>
 </main><script>
 const statusBox=document.getElementById('setup-status');
+document.getElementById('save-summary').addEventListener('click',()=>action({action:'save_summary',base:document.getElementById('summary-base').value,model:document.getElementById('summary-model').value}));
 let catalog=[], modelReady=false, busy=false;
 function refreshButtons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);document.getElementById('save-tools').disabled=busy||!modelReady||catalog.length===0;}
 async function action(payload){

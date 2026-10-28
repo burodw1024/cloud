@@ -1,10 +1,12 @@
 from django.urls import path
 from . import views
+from .bangla_summary import summary_api
 from .setup_views import query_page, setup_page
 
 app_name = "agentic_ai"
 
 urlpatterns = [
+    path("api/summary/", summary_api, name="summary_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),
     path("", query_page, name="query_page"),
     path("dashboard/", views.dashboard, name="dashboard"),

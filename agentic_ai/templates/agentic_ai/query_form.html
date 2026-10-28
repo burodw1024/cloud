@@ -19,6 +19,13 @@
         <p class="result-details" id="table-scroll-hint" hidden>Scroll horizontally to see all selected fields.</p>
         <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
         <div class="result-details" id="agent-details"></div>
+        <button class="copy-button" id="bangla-summary-button" type="button" hidden aria-controls="bangla-summary">বাংলায় বিশ্লেষণ</button>
+        <section id="bangla-summary-panel" hidden lang="bn" aria-busy="false">
+            <h4>বাংলায় বিশ্লেষণ</h4>
+            <p class="result-details">প্রদর্শিত ফলাফলের AI বিশ্লেষণ। গুরুত্বপূর্ণ সিদ্ধান্তের আগে মূল অঙ্ক যাচাই করুন।</p>
+            <pre id="bangla-summary" class="result-text" style="white-space:pre-wrap;overflow-wrap:anywhere" role="status" aria-live="polite"></pre>
+            <p id="bangla-summary-usage" class="result-details"></p>
+        </section>
         <details class="usage-panel" id="request-usage" hidden>
             <summary><span>Usage & estimated model cost</span><span id="usage-summary">Usage unavailable</span></summary>
             <div class="usage-body"><p id="usage-context"></p><div class="usage-metrics">
@@ -102,6 +109,37 @@
             breakdown.append(table);breakdown.hidden=false;
         }
     }
+    const summaryButton = document.getElementById('bangla-summary-button');
+    const summaryPanel = document.getElementById('bangla-summary-panel');
+    const summaryText = document.getElementById('bangla-summary');
+    const summaryUsage = document.getElementById('bangla-summary-usage');
+    let summaryToken = null, reportGeneration = 0;
+    summaryButton.addEventListener('click', async () => {
+        if (!summaryToken || summaryButton.disabled) return;
+        const generation = reportGeneration;
+        summaryButton.disabled = true; summaryPanel.hidden = false;
+        summaryPanel.setAttribute('aria-busy', 'true');
+        summaryText.textContent = 'বাংলা বিশ্লেষণ তৈরি হচ্ছে…'; summaryUsage.textContent = '';
+        try {
+            const response = await fetch("{% url 'agentic_ai:summary_api' %}", {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value},
+                body: JSON.stringify({summary_token: summaryToken})
+            });
+            if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('সার্ভারের উত্তর পাওয়া যায়নি।');
+            const body = await response.json();
+            if (generation !== reportGeneration) return;
+            if (!response.ok || !body.ok) throw new Error(body.error || 'বিশ্লেষণ তৈরি করা যায়নি।');
+            summaryText.textContent = body.summary;
+            const usage = body.usage || {};
+            summaryUsage.textContent = 'মডেল: ' + body.model + (body.replayed ? ' · সংরক্ষিত বিশ্লেষণ' : '')
+                + (Number.isInteger(usage.total_tokens) ? ' · টোকেন: ' + usage.total_tokens : ' · টোকেন ব্যবহার জানানো হয়নি');
+        } catch (error) {
+            if (generation === reportGeneration) summaryText.textContent = error.message || 'বিশ্লেষণ তৈরি করা যায়নি।';
+        } finally {
+            if (generation === reportGeneration) { summaryButton.disabled = false; summaryPanel.setAttribute('aria-busy', 'false'); }
+        }
+    });
     let copyText = '';
     copyButton.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(copyText); copyButton.textContent = 'Copied'; }
@@ -118,6 +156,8 @@
         if (button.disabled) return;
         const question = form.elements.message.value.trim();
         if (!question) return;
+        reportGeneration++; summaryToken = null; summaryButton.hidden = true; summaryButton.disabled = false;
+        summaryPanel.hidden = true; summaryText.textContent = ''; summaryUsage.textContent = '';
         button.disabled = true; form.elements.message.disabled = true;
         button.textContent = 'Working…'; status.dataset.state = 'working'; status.textContent = 'Request in progress';
         panel.setAttribute('aria-busy', 'true');
@@ -147,6 +187,7 @@
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
             result.textContent = copyText;
             const report = body.raw?.structuredContent;
+            summaryToken = body.ok ? body.summary_token || null : null; summaryButton.hidden = !summaryToken;
             if (body.ok && report && Array.isArray(report.columns) && report.columns.length && Array.isArray(report.rows)) {
                 const table = document.createElement('table');
                 const caption = document.createElement('caption'); caption.textContent = 'Returned report values'; caption.hidden = true; table.append(caption);

@@ -79,6 +79,8 @@ DEFAULT_SETTINGS.update({
     "MCP_MODEL": "",
     "MCP_MODEL_BASE_URL": "",
     "MCP_MODEL_API_KEY": "",
+    "MCP_SUMMARY_MODEL": "openrouter/auto",
+    "MCP_SUMMARY_BASE_URL": "",
     "MCP_TIMEOUT": "1500",
     "MCP_REQUEST_TIMEOUT": "1800",
 })
