@@ -57,3 +57,23 @@ or Redis), rather than a process-local LocMemCache.
 
 Cloud tests mock inference. Real on-prem gateway authentication and model responses
 must be verified after deployment; the cloud workspace has no on-prem route.
+
+## Friendly explanations and charts
+
+The Bangla summary uses financial field labels and separates the main observation,
+possible follow-up and report scope. It distinguishes outstanding principal from
+overdue amount and does not turn a ranking by principal into an overdue ranking.
+The model may suggest checking account status or collection history, but may not
+invent causes, risk classifications or new financial calculations.
+
+**চার্টে দেখুন** opens an accessible bar chart of the first 20 displayed rows in
+their original order. The metric dropdown uses only available numeric financial
+fields. Exact source values appear beside each bar; clicking a bar or activating
+it with the keyboard gives a Bangla explanation. Switching metrics does not
+re-rank the report. Empty/invalid values are not converted to zero. No model,
+Oracle request, chart library or external service is used for the chart. A line
+chart is deliberately omitted because these results are a single-date snapshot,
+not a historical series. Chart labels reference table row positions rather than
+personal details.
+
+Additional chart checks: `node --test agentic_ai/tests/js/report_chart.test.cjs`.

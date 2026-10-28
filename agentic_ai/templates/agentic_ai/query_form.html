@@ -1,3 +1,4 @@
+{% load static %}
 <section class="card query-card" aria-labelledby="query-title">
     <div class="query-heading"><span class="spark" aria-hidden="true">✧</span><h2 id="query-title">What would you like to know?</h2></div>
     <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
@@ -20,6 +21,15 @@
         <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
         <div class="result-details" id="agent-details"></div>
         <button class="copy-button" id="bangla-summary-button" type="button" hidden aria-controls="bangla-summary">বাংলায় বিশ্লেষণ</button>
+        <button class="copy-button" id="report-chart-button" type="button" hidden aria-controls="report-chart-panel" aria-expanded="false">চার্টে দেখুন</button>
+        <section id="report-chart-panel" hidden lang="bn">
+            <h4>প্রদর্শিত ফলাফলের তুলনা</h4>
+            <label for="chart-metric">কোন মান দেখতে চান?</label> <select id="chart-metric"></select>
+            <p id="chart-scope" class="result-details"></p>
+            <div id="report-bars"></div>
+            <p id="chart-explanation" role="status" aria-live="polite" style="white-space:pre-wrap"></p>
+            <p class="result-details">বারে ক্লিক করুন বা কীবোর্ডে নির্বাচন করুন। এটি একই তারিখের তুলনা; সময়ের প্রবণতা নয়।</p>
+        </section>
         <section id="bangla-summary-panel" hidden lang="bn" aria-busy="false">
             <h4>বাংলায় বিশ্লেষণ</h4>
             <p class="result-details">প্রদর্শিত ফলাফলের AI বিশ্লেষণ। গুরুত্বপূর্ণ সিদ্ধান্তের আগে মূল অঙ্ক যাচাই করুন।</p>
@@ -37,6 +47,16 @@
         </details>
     </section>
 </section>
+<style>
+#report-bars{display:grid;gap:10px;margin:16px 0}
+.report-bar{display:grid;grid-template-columns:80px minmax(50px,1fr) minmax(90px,auto);align-items:center;gap:12px;background:transparent;border:1px solid #d1dce5;border-radius:8px;padding:10px;color:inherit;font:inherit;text-align:left;cursor:pointer;width:100%}
+.report-bar:focus-visible{outline:3px solid #146b65;outline-offset:2px}
+.report-bar[aria-pressed=true]{background:#edf8f5;border-color:#146b65}
+.report-bar-track{height:20px;background:#e5edf1;border-radius:4px;overflow:hidden}
+.report-bar-fill{height:100%;background:#168176;border-radius:4px}
+@media(max-width:480px){.report-bar{grid-template-columns:55px minmax(30px,1fr) 85px;gap:6px;font-size:13px}}
+</style>
+<script src="{% static 'agentic_ai/report_chart.js' %}"></script>
 <script>
 (() => {
     const form = document.getElementById('agent-query-form');
@@ -114,6 +134,47 @@
     const summaryText = document.getElementById('bangla-summary');
     const summaryUsage = document.getElementById('bangla-summary-usage');
     let summaryToken = null, reportGeneration = 0;
+    const chartButton = document.getElementById('report-chart-button');
+    const chartPanel = document.getElementById('report-chart-panel');
+    const chartMetric = document.getElementById('chart-metric');
+    const chartBars = document.getElementById('report-bars');
+    const chartExplanation = document.getElementById('chart-explanation');
+    let chartReport = null;
+    function renderChart() {
+        const chart = window.BuroReportChart;
+        if (!chart || !chartReport) return;
+        const key = chartMetric.value, points = chart.series(chartReport, key);
+        const max = Math.max(0, ...points.map(p => p.value ?? 0));
+        chartBars.replaceChildren(); chartExplanation.textContent = 'কোনো বারে ক্লিক করলে সেই মানের ব্যাখ্যা এখানে দেখা যাবে।';
+        document.getElementById('chart-scope').textContent = 'প্রদর্শিত ' + chartReport.rows.length + ' সারির মধ্যে প্রথম ' + points.length + ' সারি। মূল প্রতিবেদনের ক্রম বজায় আছে।';
+        points.forEach(point => {
+            const button = document.createElement('button'); button.type = 'button'; button.className = 'report-bar';
+            button.setAttribute('aria-pressed', 'false');
+            button.setAttribute('aria-label', point.label + ', ' + chart.metrics[key] + ': ' + point.exact);
+            const label = document.createElement('span'); label.textContent = point.label;
+            const track = document.createElement('span'); track.className = 'report-bar-track'; track.setAttribute('aria-hidden', 'true');
+            const fill = document.createElement('span'); fill.className = 'report-bar-fill'; fill.style.display = 'block';
+            fill.style.width = (max && point.value !== null ? point.value / max * 100 : 0) + '%'; track.append(fill);
+            const value = document.createElement('span'); value.textContent = point.exact;
+            button.append(label, track, value);
+            button.addEventListener('click', () => {
+                chartBars.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+                button.setAttribute('aria-pressed', 'true');
+                chartExplanation.textContent = point.label + '-এ ' + chart.metrics[key] + ' ' + point.exact + '।'
+                    + (point.rank != null ? ' মূল প্রতিবেদনে অবস্থান: ' + point.rank + '।' : '')
+                    + (key === 'DUE_DAYS' ? ' এটি প্রতিবেদনে দেখানো বকেয়ার সময়কাল; এখান থেকে আইনগত খেলাপি অবস্থা নির্ধারণ করা হয়নি।' : '')
+                    + ' বারটির দৈর্ঘ্য চার্টে দেখানো মানগুলোর মধ্যে তুলনা বোঝায়। এটি পুরো পোর্টফোলিও বা সময়ের পরিবর্তন দেখায় না।';
+            });
+            chartBars.append(button);
+        });
+    }
+    chartButton.addEventListener('click', () => {
+        chartPanel.hidden = !chartPanel.hidden;
+        chartButton.setAttribute('aria-expanded', String(!chartPanel.hidden));
+        chartButton.textContent = chartPanel.hidden ? 'চার্টে দেখুন' : 'চার্ট বন্ধ করুন';
+        if (!chartPanel.hidden) renderChart();
+    });
+    chartMetric.addEventListener('change', renderChart);
     summaryButton.addEventListener('click', async () => {
         if (!summaryToken || summaryButton.disabled) return;
         const generation = reportGeneration;
@@ -156,6 +217,8 @@
         if (button.disabled) return;
         const question = form.elements.message.value.trim();
         if (!question) return;
+        chartReport = null; chartButton.hidden = true; chartPanel.hidden = true; chartBars.replaceChildren();
+        chartButton.setAttribute('aria-expanded', 'false'); chartButton.textContent = 'চার্টে দেখুন';
         reportGeneration++; summaryToken = null; summaryButton.hidden = true; summaryButton.disabled = false;
         summaryPanel.hidden = true; summaryText.textContent = ''; summaryUsage.textContent = '';
         button.disabled = true; form.elements.message.disabled = true;
@@ -187,6 +250,14 @@
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
             result.textContent = copyText;
             const report = body.raw?.structuredContent;
+            if (body.ok && report && Array.isArray(report.rows) && window.BuroReportChart) {
+                const metrics = window.BuroReportChart.available(report);
+                chartReport = report; chartMetric.replaceChildren();
+                metrics.forEach(key => { const option = document.createElement('option'); option.value = key; option.textContent = window.BuroReportChart.metrics[key]; chartMetric.append(option); });
+                const requestedMetric = body.plan?.params?.sort_by;
+                if (metrics.includes(requestedMetric)) chartMetric.value = requestedMetric;
+                chartButton.hidden = !metrics.length;
+            }
             summaryToken = body.ok ? body.summary_token || null : null; summaryButton.hidden = !summaryToken;
             if (body.ok && report && Array.isArray(report.columns) && report.columns.length && Array.isArray(report.rows)) {
                 const table = document.createElement('table');
