@@ -3,8 +3,9 @@
 set -Eeuo pipefail
 set +x
 umask 077
-REVIEWED_TREE='dc200ade7bc1bbe1064410c5471603df2bc95a14'
+REVIEWED_TREE='b585dd4a2f1b555b2a23440003a5535901b50e1a'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
+SOURCE_BRANCH='release/bangla-report-summary-20261028'
 if [[ "${1:-}" == --describe ]]; then
   printf 'BURO Insight AI reviewed source tree: %s\n' "$REVIEWED_TREE"
   exit 0
@@ -25,21 +26,21 @@ if [[ "${1:-}" != --check-source ]]; then
 fi
 RUN_ROOT="$(mktemp -d "$PWD/buro-deploy.XXXXXXXX")"
 echo "Private deployment checkout and records: $RUN_ROOT"
-git clone --single-branch --branch main "$SOURCE_URL" "$RUN_ROOT/cloud"
-git -C "$RUN_ROOT/cloud" pull --ff-only origin main
-SOURCE_COMMIT="$(python3 - "$RUN_ROOT/cloud" "$REVIEWED_TREE" <<'RESOLVE'
+git clone --single-branch --branch "$SOURCE_BRANCH" "$SOURCE_URL" "$RUN_ROOT/cloud"
+git -C "$RUN_ROOT/cloud" pull --ff-only origin "$SOURCE_BRANCH"
+SOURCE_COMMIT="$(python3 - "$RUN_ROOT/cloud" "$REVIEWED_TREE" "$SOURCE_BRANCH" <<'RESOLVE'
 import subprocess,sys
-root,expected=sys.argv[1:]
+root,expected,branch=sys.argv[1:]
 def git(*args):
     return subprocess.check_output(['git','-C',root,*args],text=True).strip()
 # The source tree is immutable even though GitHub's commit metadata differs from
 # the local reviewed commit. Packaging adds only this entrypoint in a later commit.
-for commit in git('rev-list','--max-count=100','origin/main').splitlines():
+for commit in git('rev-list','--max-count=100','origin/'+branch).splitlines():
     if git('rev-parse',commit+'^{tree}')==expected:
         print(commit)
         break
 else:
-    raise SystemExit('The exact reviewed source tree is not published in GitHub main. Nothing was deployed.')
+    raise SystemExit('The exact reviewed source tree is not published in the configured GitHub branch. Nothing was deployed.')
 RESOLVE
 )"
 git -C "$RUN_ROOT/cloud" switch --detach "$SOURCE_COMMIT"
