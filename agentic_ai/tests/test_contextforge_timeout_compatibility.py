@@ -35,3 +35,13 @@ class ContextForgeTimeoutCompatibilityTests(SimpleTestCase):
         self.assertLess(probe,mutate)
         self.assertIn('No gateway deployment change was made',source)
         self.assertLess(mutate,source.index('k scale deployment buro-django --replicas=0'))
+
+    def test_django_feature_deployment_preserves_gateway_by_default(self):
+        source=(ROOT/'deploy-agentic-updated.sh').read_text()
+        self.assertIn('UPDATE_CONTEXTFORGE_TIMEOUTS="${UPDATE_CONTEXTFORGE_TIMEOUTS:-0}"',source)
+        start=source.index('if [[ "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 1 ]]; then')
+        mutate=source.index('kg set env deployment/contextforge')
+        skip=source.index("echo 'Preserving existing ContextForge image")
+        self.assertLess(start,mutate)
+        self.assertLess(mutate,skip)
+        self.assertLess(skip,source.index('docker buildx build'))

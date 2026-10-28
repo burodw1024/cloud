@@ -5,6 +5,8 @@ set +x
 umask 077
 export KUBE_CONTEXT="${KUBE_CONTEXT:-mamun}"
 export NAMESPACE=rag
+UPDATE_CONTEXTFORGE_TIMEOUTS="${UPDATE_CONTEXTFORGE_TIMEOUTS:-0}"
+[[ "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 0 || "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 1 ]] || { echo "UPDATE_CONTEXTFORGE_TIMEOUTS must be 0 or 1" >&2; exit 1; }
 RELEASE_ID="$(date -u +%Y%m%d%H%M%S)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
 export RELEASE_ID
 export MIGRATION_JOB="buro-django-release-$RELEASE_ID"
@@ -160,6 +162,9 @@ for cron in json.loads((s/'cronjobs.before.json').read_text())['items']:
     if not cron['spec'].get('suspend') and uses_data(cron['spec']['jobTemplate']['spec']['template']['spec']):
         raise SystemExit('An active CronJob may write production SQLite: '+cron['metadata']['name'])
 PY
+# A Django feature deployment preserves the gateway by default. Updating its
+# timeout is a separate, explicit operation requiring a compatible gateway image.
+if [[ "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 1 ]]; then
 # ContextForge configuration is checked before stopping Django writers.
 GATEWAY_CONTAINER="$(python3 - "$STAGE/contextforge.before.json" <<'PY'
 import json,sys
@@ -188,6 +193,9 @@ GATEWAY_SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]));
 kg get pods -l "$GATEWAY_SELECTOR" -o json > "$STAGE/contextforge-pods.json"
 GATEWAY_POD="$(python3 -c 'import json,sys; p=[p for p in json.load(open(sys.argv[1]))["items"] if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]; assert p; print(p[0]["metadata"]["name"])' "$STAGE/contextforge-pods.json")"
 kg exec "$GATEWAY_POD" -c "$GATEWAY_CONTAINER" -- python -c 'from mcpgateway.config import settings; value=float(settings.httpx_read_timeout); assert value == 1500, "ContextForge effective HTTPX timeout differs from requested value"; print("ContextForge effective HTTPX read timeout:",value)'
+else
+  echo 'Preserving existing ContextForge image and timeout configuration. Gateway timeout upgrade was not requested.'
+fi
 # The committed Docker ignore rules exclude env files, data, certificates and Git metadata.
 docker buildx build --platform linux/amd64 --load --tag "$APP_IMAGE" --label "org.opencontainers.image.revision=$SOURCE_COMMIT" .
 # Run isolated application tests inside the actual image, without production env/data/network.

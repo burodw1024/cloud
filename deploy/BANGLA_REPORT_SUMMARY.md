@@ -99,3 +99,14 @@ It no longer requires a local production.env file or exports cluster Secrets.
 This does not change the separate fresh-install `onprem_manifest.py` workflow.
 Set `PUBLIC_CA_FILE` to your existing public certificate, then run the updater.
 Git/registry/SSH/sudo authentication may still be requested by those tools.
+
+## Preserve ContextForge when deploying Django features
+
+By default the updater does not modify ContextForge's image or timeouts. The
+summary/chart/WhatsApp release can be deployed against an existing gateway without
+requiring a custom HTTPX timeout image. This does not change or resolve that
+gateway's existing REST timeout limits. If a separate gateway timeout upgrade is
+intended, `UPDATE_CONTEXTFORGE_TIMEOUTS=1` explicitly enables the existing checked
+HTTPX timeout upgrade path; it still fails before mutation if its preflight fails.
+Inspect the saved preflight log to diagnose that check rather than assuming every
+failure means a missing timeout patch.
