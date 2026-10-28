@@ -1,10 +1,12 @@
 from django.urls import path
 from . import views
+from .whatsapp import whatsapp_api
 from .setup_views import query_page, setup_page
 
 app_name = "agentic_ai"
 
 urlpatterns = [
+    path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),
     path("", query_page, name="query_page"),
     path("dashboard/", views.dashboard, name="dashboard"),

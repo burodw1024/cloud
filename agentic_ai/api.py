@@ -111,6 +111,11 @@ def agentic_query_api(request):
         return _response({"ok": False, "error": "Request coordination is unavailable; no tool was executed."}, 503)
     result = execute_query(user=request.user, query=query, session_id=request.session.session_key)
     status = result.pop("http_status", 200)
+    try:
+        from .whatsapp import remember_result
+        remember_result(request.user, result)
+    except Exception:
+        logger.warning("WhatsApp result snapshot unavailable")
     if cache_key:
         try:
             cache.set(cache_key, {"fingerprint": fingerprint, "result": result, "status": status}, IDEMPOTENCY_TTL)

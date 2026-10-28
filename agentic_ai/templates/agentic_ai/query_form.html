@@ -10,6 +10,19 @@
         <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy full answer</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
         <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to get started.</div>
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        {% if whatsapp.recipients %}
+        <section id="whatsapp-actions" hidden aria-label="Share result on WhatsApp">
+            <label for="whatsapp-recipient">WhatsApp recipient</label>
+            <select id="whatsapp-recipient">{% for number in whatsapp.recipients %}<option value="{{ number }}">+{{ number }}</option>{% endfor %}</select>
+            <button type="button" class="copy-button" data-whatsapp-mode="summary">Send summary</button>
+            <button type="button" class="copy-button" data-whatsapp-mode="full">Send full result</button>
+            <p class="result-details">Summary is a shortened extract. Full result includes returned table rows. Messages go to the selected person.</p>
+            <div id="whatsapp-preview" hidden><pre class="result-text" id="whatsapp-preview-text"></pre>
+            <button type="button" class="copy-button" id="whatsapp-confirm">Confirm and send</button>
+            <button type="button" class="copy-button" id="whatsapp-cancel">Cancel</button></div>
+            <p id="whatsapp-status" role="status" aria-live="polite"></p>
+        </section>
+        {% endif %}
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>
             <input class="report-search" id="report-search" type="search" placeholder="Find in displayed rows…" autocomplete="off" aria-controls="agent-table">
@@ -102,6 +115,46 @@
             breakdown.append(table);breakdown.hidden=false;
         }
     }
+    const waPanel = document.getElementById('whatsapp-actions');
+    let waResultId = null, waPending = null, waBusy = false;
+    async function whatsappAction(payload) {
+        const response = await fetch("{% url 'agentic_ai:whatsapp_api' %}", {
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/json','X-CSRFToken':form.querySelector('[name=csrfmiddlewaretoken]').value},
+            body:JSON.stringify(payload)
+        });
+        if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('Session expired or server unavailable. Check send status before retrying.');
+        const data = await response.json();
+        if (!data.ok && !data.approval_required) throw new Error(data.error || data.answer || 'Send failed.');
+        return data;
+    }
+    if (waPanel) {
+        const preview = document.getElementById('whatsapp-preview');
+        const message = document.getElementById('whatsapp-status');
+        const controls = [...waPanel.querySelectorAll('button,select')];
+        const recipient = document.getElementById('whatsapp-recipient');
+        recipient.onchange = () => {waPending=null;preview.hidden=true;};
+        async function perform(task) {
+            if(waBusy)return;
+            waBusy=true;controls.forEach(c=>c.disabled=true);message.textContent='Working…';
+            try{await task();}catch(error){message.textContent=error.message;}
+            finally{waBusy=false;controls.forEach(c=>c.disabled=false);}
+        }
+        waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(button=>button.onclick=()=>perform(async()=>{
+            waPending=null;preview.hidden=true;
+            const payload={action:'preview',result_id:waResultId,recipient:recipient.value,mode:button.dataset.whatsappMode};
+            const data=await whatsappAction(payload);
+            waPending=payload;document.getElementById('whatsapp-preview-text').textContent=data.text;
+            preview.hidden=false;message.textContent='Review message for +'+payload.recipient+' ('+data.characters+' characters).';
+        }));
+        document.getElementById('whatsapp-cancel').onclick=()=>{waPending=null;preview.hidden=true;message.textContent='Cancelled. Nothing sent.';};
+        document.getElementById('whatsapp-confirm').onclick=()=>perform(async()=>{
+            if(!waPending)throw new Error('Preview the message first.');
+            const payload=waPending;waPending=null;preview.hidden=true;
+            const data=await whatsappAction({...payload,action:'send',confirmed:true});
+            message.textContent=data.message || data.answer;
+        });
+    }
     let copyText = '';
     copyButton.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(copyText); copyButton.textContent = 'Copied'; }
@@ -116,8 +169,10 @@
         event.preventDefault();
         const button = form.querySelector('[type=submit]');
         if (button.disabled) return;
+        if (waBusy) return;
         const question = form.elements.message.value.trim();
         if (!question) return;
+        waResultId=null;waPending=null;if(waPanel){waPanel.hidden=true;document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
         button.disabled = true; form.elements.message.disabled = true;
         button.textContent = 'Working…'; status.dataset.state = 'working'; status.textContent = 'Request in progress';
         panel.setAttribute('aria-busy', 'true');
@@ -142,6 +197,7 @@
                     : 'The server returned HTTP '+response.status+'. Check the run log before retrying.');
             }
             const body = await response.json();
+            waResultId=body.whatsapp_result_id || null;if(waPanel)waPanel.hidden=!waResultId;
             renderUsage(body.usage,body.replayed);
             const answer = body.answer ?? body.error ?? 'No response was returned.';
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
