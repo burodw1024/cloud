@@ -150,3 +150,12 @@ class PortablePackageTests(SimpleTestCase):
             self.assertIn(tree, result.stdout)
         with self.assertRaises(ValueError):
             render("$(touch /tmp/unreviewed)")
+
+
+class ReleaseBranchPackageTests(SimpleTestCase):
+    def test_portable_package_targets_combined_release_branch(self):
+        from deploy.package_portable import render
+        script = render('a' * 40, 'release/bangla-report-summary-20261028')
+        self.assertIn("SOURCE_BRANCH='release/bangla-report-summary-20261028'", script)
+        with self.assertRaises(ValueError):
+            render('a' * 40, "main'; echo bad")

@@ -51,7 +51,8 @@ def _reply(body, status=200):
 @ensure_csrf_cookie
 def query_page(request):
     from .workspace import workspace_context
-    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model(), **workspace_context(request.user)})
+    from .whatsapp import availability
+    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model(), **workspace_context(request.user), "whatsapp": availability(request.user)})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -73,11 +74,18 @@ def _pricing_context():
 def setup_page(request):
     cache_key = f"agentic:setup:{request.user.pk}"
     if request.method == "GET":
+        from .whatsapp import configuration
+        try:
+            whatsapp = configuration()
+        except (ValueError, TypeError):
+            whatsapp = {"tool": get_setting("MCP_WHATSAPP_TOOL", ""), "recipients": []}
         response = render(request, "agentic_ai/setup.html", {
             "gateway_url": get_setting("MCP_GATEWAY_URL"), "model": get_llm_model(),
             "enabled": gateway_enabled(), **_pricing_context(),
             "summary_model": get_setting("MCP_SUMMARY_MODEL", "openrouter/auto"),
             "summary_base": get_setting("MCP_SUMMARY_BASE_URL"),
+            "whatsapp_tool": whatsapp["tool"],
+            "whatsapp_recipients": "\n".join(whatsapp["recipients"]),
         })
         response["Cache-Control"] = "no-store"
         return response
@@ -102,6 +110,18 @@ def setup_page(request):
                     return _reply({"ok": False, "error": "Use the same ContextForge origin as the gateway connection."}, 400)
             _save_settings({"MCP_SUMMARY_BASE_URL": base.strip(), "MCP_SUMMARY_MODEL": model.strip()})
             return _reply({"ok": True, "message": "Bangla summary settings saved. The gateway token is reused; its role needs llm.invoke."})
+        if action == "save_whatsapp":
+            from .whatsapp import recipient_text
+            name = body.get("tool", "")
+            recipients = body.get("recipients", "")
+            if not isinstance(name, str) or not isinstance(recipients, str) or len(name) > 150:
+                raise ValueError
+            name = name.strip()
+            if name and not AgentTool.objects.filter(name=name, is_active=True).exists():
+                return _reply({"ok": False, "error": "First discover and enable the exact WhatsApp tool name below."}, 400)
+            numbers = recipient_text(recipients)
+            _save_settings({"MCP_WHATSAPP_TOOL": name, "MCP_WHATSAPP_RECIPIENTS": json.dumps(numbers)})
+            return _reply({"ok": True, "message": "WhatsApp settings saved. Refresh the workspace to load recipients."})
         if action == "save_pricing":
             from .usage_meter import parse_prices, validate_price
             current = _pricing_context()

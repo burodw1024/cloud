@@ -77,3 +77,15 @@ not a historical series. Chart labels reference table row positions rather than
 personal details.
 
 Additional chart checks: `node --test agentic_ai/tests/js/report_chart.test.cjs`.
+
+## Combined WhatsApp release
+
+The release branch also includes the latest main-branch WhatsApp sharing feature.
+Both setup sections and all three result actions (Bangla analysis, charts and
+WhatsApp preview/confirmed send) are available together. WhatsApp remains an
+explicit user action to an administrator-approved recipient through an authorized
+ContextForge messaging tool. Generating analysis or opening a chart never sends a
+message. **Send summary** is the existing shortened extract of the original report;
+it does not silently replace that text with the separately generated Bangla analysis.
+Always review the message preview before confirming. Tests use mocked dispatch;
+no real WhatsApp message was sent by the cloud verification.

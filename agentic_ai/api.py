@@ -113,6 +113,11 @@ def agentic_query_api(request):
     from .bangla_summary import remember_report
     result = remember_report(request.user, result)
     status = result.pop("http_status", 200)
+    try:
+        from .whatsapp import remember_result
+        remember_result(request.user, result)
+    except Exception:
+        logger.warning("WhatsApp result snapshot unavailable")
     if cache_key:
         try:
             cache.set(cache_key, {"fingerprint": fingerprint, "result": result, "status": status}, IDEMPOTENCY_TTL)

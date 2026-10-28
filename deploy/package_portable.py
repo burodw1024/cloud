@@ -10,6 +10,7 @@ set +x
 umask 077
 REVIEWED_TREE='__TREE__'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
+SOURCE_BRANCH='__BRANCH__'
 if [[ "${1:-}" == --describe ]]; then
   printf 'BURO Insight AI reviewed source tree: %s\\n' "$REVIEWED_TREE"
   exit 0
@@ -30,21 +31,21 @@ if [[ "${1:-}" != --check-source ]]; then
 fi
 RUN_ROOT="$(mktemp -d "$PWD/buro-deploy.XXXXXXXX")"
 echo "Private deployment checkout and records: $RUN_ROOT"
-git clone --single-branch --branch main "$SOURCE_URL" "$RUN_ROOT/cloud"
-git -C "$RUN_ROOT/cloud" pull --ff-only origin main
-SOURCE_COMMIT="$(python3 - "$RUN_ROOT/cloud" "$REVIEWED_TREE" <<'RESOLVE'
+git clone --single-branch --branch "$SOURCE_BRANCH" "$SOURCE_URL" "$RUN_ROOT/cloud"
+git -C "$RUN_ROOT/cloud" pull --ff-only origin "$SOURCE_BRANCH"
+SOURCE_COMMIT="$(python3 - "$RUN_ROOT/cloud" "$REVIEWED_TREE" "$SOURCE_BRANCH" <<'RESOLVE'
 import subprocess,sys
-root,expected=sys.argv[1:]
+root,expected,branch=sys.argv[1:]
 def git(*args):
     return subprocess.check_output(['git','-C',root,*args],text=True).strip()
 # The source tree is immutable even though GitHub's commit metadata differs from
 # the local reviewed commit. Packaging adds only this entrypoint in a later commit.
-for commit in git('rev-list','--max-count=100','origin/main').splitlines():
+for commit in git('rev-list','--max-count=100','origin/'+branch).splitlines():
     if git('rev-parse',commit+'^{tree}')==expected:
         print(commit)
         break
 else:
-    raise SystemExit('The exact reviewed source tree is not published in GitHub main. Nothing was deployed.')
+    raise SystemExit('The exact reviewed source tree is not published in the configured GitHub branch. Nothing was deployed.')
 RESOLVE
 )"
 git -C "$RUN_ROOT/cloud" switch --detach "$SOURCE_COMMIT"
@@ -55,16 +56,19 @@ exec bash "$RUN_ROOT/cloud/deploy-agentic-updated.sh" "$@"
 '''
 
 
-def render(tree):
+def render(tree, branch="main"):
     if not re.fullmatch('[0-9a-f]{40}', tree):
         raise ValueError('Expected a full reviewed tree SHA')
-    return TEMPLATE.replace('__TREE__', tree)
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9/_-]{0,199}', branch):
+        raise ValueError('Invalid source branch')
+    return TEMPLATE.replace('__TREE__', tree).replace('__BRANCH__', branch)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('tree')
     parser.add_argument('output', type=Path)
+    parser.add_argument('--branch', default='main')
     args = parser.parse_args()
-    args.output.write_text(render(args.tree))
+    args.output.write_text(render(args.tree, args.branch))
     args.output.chmod(0o755)

@@ -258,3 +258,60 @@ report through its original idempotency key. New regression cases cover role
 revocation and tool deactivation. The previously recorded PostgreSQL/Redis
 validation remains a separate 53-test run. Live gateway/data entitlements and
 operational load/recovery verification are still outstanding.
+
+## WhatsApp result sharing
+
+In **Set up tools → WhatsApp result sharing**, save the exact enabled gateway
+text-message tool name and one international recipient number per line. Authorized
+users can choose one recipient, click **Send summary** or **Send full result**,
+review a server-generated preview and confirm. Every send goes through ContextForge;
+the Django app never stores a Meta token. Tool approval rules still apply: a tool
+requiring approval creates an approval request rather than sending immediately.
+
+The summary is a shortened extract (up to 1,000 characters), not a new model-generated
+analysis. Full result includes the returned answer and displayed table rows, not
+unretrieved database rows. Oversized full messages are rejected without truncation.
+Result snapshots expire after 15 minutes. A repeat send of the same snapshot,
+recipient and mode is blocked for that period. Use the configured shared Django
+cache across workers/replicas; process-local caches cannot coordinate this feature.
+
+Create a separate REST tool, for example `send-whatsapp-text`, with POST to:
+
+```
+https://graph.facebook.com/v25.0/1357462260789335/messages
+```
+
+Use your own sender Phone Number ID when it differs. Set Bearer authentication
+using a valid replacement token in ContextForge and JSON Content-Type. The input
+schema must allow the request body below and map it to the HTTP JSON body:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "messaging_product": {"type": "string", "enum": ["whatsapp"]},
+    "to": {"type": "string", "pattern": "^[1-9][0-9]{7,14}$"},
+    "type": {"type": "string", "enum": ["text"]},
+    "text": {
+      "type": "object",
+      "properties": {"body": {"type": "string", "minLength": 1, "maxLength": 4096}},
+      "required": ["body"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["messaging_product", "to", "type", "text"],
+  "additionalProperties": false
+}
+```
+
+A fixed `hello_world` template cannot transmit a report. Free-form text is subject
+to Meta's 24-hour service window. Outside that window, use an approved template
+workflow; this implementation does not bypass the restriction. Meta acceptance
+is not delivery: use Meta webhooks for delivery confirmation. No automatic send
+retry occurs because a timeout can leave the delivery outcome unknown.
+
+Recipient configuration is shared by users authorized for the selected tool;
+only put recipients appropriate for all those users in this list. Source-result
+and sending-tool permissions are rechecked when previewing/sending. HTTP endpoints
+require authentication and CSRF validation. Send attempts are recorded in
+AgentRunLog without full message bodies or recipient numbers.
