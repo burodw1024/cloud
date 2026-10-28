@@ -10,7 +10,6 @@ export RELEASE_ID
 export MIGRATION_JOB="buro-django-release-$RELEASE_ID"
 export APP_IMAGE="192.168.1.224:80/buro-django:$RELEASE_ID"
 export NGINX_IMAGE="192.168.1.224:80/buro-nginx:$RELEASE_ID"
-ENV_FILE="${ENV_FILE:-/actual/full/path/production.env}"
 TLS_CERT="${PUBLIC_CA_FILE:-${TLS_CERT:-$HOME/.config/agentic/tls/tls.crt}}"
 TLS_SECRET="${TLS_SECRET:-buro-django-tls}"
 WORKER_SSH=dw@192.168.1.99
@@ -39,24 +38,11 @@ python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ require
 [[ "$TLS_SECRET" == buro-django-tls ]] || fail "Unexpected TLS Secret; existing buro-django-tls must be preserved."
 [[ "$KUBE_CONTEXT" == mamun ]] || fail 'This release is prepared for context mamun; no other context is selected automatically.'
 [[ -t 0 && -t 1 ]] || fail 'Run in an interactive terminal for Git/registry/SSH credentials and worker sudo.'
-[[ -r "$ENV_FILE" && "$ENV_FILE" == /* ]] || fail 'The existing production.env must exist at an absolute readable path. No replacement is generated.'
 [[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
-export ENV_FILE
-python3 - <<'PY'
-import os,stat
-from pathlib import Path
-p=Path(os.environ['ENV_FILE'])
-assert p.stat().st_mode & 0o077 == 0, 'Protect production.env with chmod 600 before running.'
-values={}
-for line in p.read_text().splitlines():
-    if line.strip() and not line.lstrip().startswith('#'):
-        key,sep,value=line.partition('=')
-        assert sep and key.strip()==key and not key.startswith('export '), 'Use existing unquoted KEY=value env format.'
-        assert key not in values, 'Duplicate env key: '+key
-        values[key]=value
-assert values.get('DJANGO_SECRET_KEY') and values.get('DJANGO_ALLOWED_HOSTS'), 'Existing production env is missing required settings.'
-print('Existing production.env verified; its values will not be printed or overwritten.')
-PY
+# This updater clones the existing Deployment and retains env/envFrom/Secrets.
+# It never builds a replacement production Secret from a local env file.
+k exec deployment/buro-django -c django -- python manage.py shell -c \
+  'from django.conf import settings; assert settings.SECRET_KEY and settings.ALLOWED_HOSTS, "Existing Django runtime configuration is incomplete"; print("Existing Kubernetes-backed Django configuration verified; secret values were not exported.")'
 docker info >/dev/null
 docker buildx version >/dev/null
 k get namespace rag >/dev/null

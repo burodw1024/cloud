@@ -89,3 +89,13 @@ message. **Send summary** is the existing shortened extract of the original repo
 it does not silently replace that text with the separately generated Bangla analysis.
 Always review the message preview before confirming. Tests use mocked dispatch;
 no real WhatsApp message was sent by the cloud verification.
+
+## Updating an existing Kubernetes deployment without production.env
+
+`deploy-agentic-updated.sh` is an updater for the existing `rag/buro-django`
+deployment. It verifies the running Django settings without printing them and
+preserves the Deployment's environment variables, envFrom references and Secrets.
+It no longer requires a local production.env file or exports cluster Secrets.
+This does not change the separate fresh-install `onprem_manifest.py` workflow.
+Set `PUBLIC_CA_FILE` to your existing public certificate, then run the updater.
+Git/registry/SSH/sudo authentication may still be requested by those tools.
