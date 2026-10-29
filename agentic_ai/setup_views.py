@@ -51,8 +51,8 @@ def _reply(body, status=200):
 @ensure_csrf_cookie
 def query_page(request):
     from .workspace import workspace_context
-    from .whatsapp import availability
-    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model(), **workspace_context(request.user), "whatsapp": availability(request.user)})
+    from .whatsapp import settings_status
+    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model(), **workspace_context(request.user), "whatsapp": settings_status(request.user)})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -96,6 +96,25 @@ def setup_page(request):
         if not isinstance(body, dict):
             raise ValueError
         action = body.get("action")
+        if action == "check_whatsapp":
+            from .whatsapp import configuration, settings_status, _validator
+            status = settings_status(request.user)
+            if not status['ready']:
+                return _reply({"ok": False, "error": status['status']}, 400)
+            config = configuration()
+            tools = async_to_sync(discover_gateway)(load_gateway_config())
+            tool = next((t for t in tools if t.name == config['tool']), None)
+            if tool is None:
+                return _reply({"ok": False, "error": "Configured tool is absent from the connected gateway. Discover tools and check the exact name."}, 400)
+            schema = tool.inputSchema
+            if not {'messaging_product', 'to', 'type', 'text'}.issubset(schema.get('properties', {})):
+                return _reply({"ok": False, "error": "Tool schema must declare messaging_product, to, type, and text. An empty schema cannot verify request mapping."}, 400)
+            try:
+                _validator(schema).validate({'messaging_product': 'whatsapp', 'to': config['recipients'][0],
+                                             'type': 'text', 'text': {'body': 'Configuration check'}})
+            except Exception:
+                return _reply({"ok": False, "error": "The configured tool schema does not accept report text. Check its messaging_product, to, type and text fields."}, 400)
+            return _reply({"ok": True, "message": "Gateway tool and text input schema checked. No message sent. Meta token, request-body mapping, and delivery remain unverified."})
         if action == "save_whatsapp":
             from .whatsapp import recipient_text
             name = body.get("tool", "")
@@ -103,11 +122,9 @@ def setup_page(request):
             if not isinstance(name, str) or not isinstance(recipients, str) or len(name) > 150:
                 raise ValueError
             name = name.strip()
-            if name and not AgentTool.objects.filter(name=name, is_active=True).exists():
-                return _reply({"ok": False, "error": "First discover and enable the exact WhatsApp tool name below."}, 400)
             numbers = recipient_text(recipients)
             _save_settings({"MCP_WHATSAPP_TOOL": name, "MCP_WHATSAPP_RECIPIENTS": json.dumps(numbers)})
-            return _reply({"ok": True, "message": "WhatsApp settings saved. Refresh the workspace to load recipients."})
+            return _reply({"ok": True, "message": "WhatsApp settings saved. Click Check WhatsApp settings, then refresh the workspace. If needed, discover and enable the tool below."})
         if action == "save_pricing":
             from .usage_meter import parse_prices, validate_price
             current = _pricing_context()
