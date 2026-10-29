@@ -150,3 +150,23 @@ class PortablePackageTests(SimpleTestCase):
             self.assertIn(tree, result.stdout)
         with self.assertRaises(ValueError):
             render("$(touch /tmp/unreviewed)")
+
+
+class ReleaseBranchPackageTests(SimpleTestCase):
+    def test_portable_package_targets_combined_release_branch(self):
+        from deploy.package_portable import render
+        script = render('a' * 40, 'release/bangla-report-summary-20261028')
+        self.assertIn("SOURCE_BRANCH='release/bangla-report-summary-20261028'", script)
+        with self.assertRaises(ValueError):
+            render('a' * 40, "main'; echo bad")
+
+
+class ExistingRuntimeConfigurationTests(SimpleTestCase):
+    def test_updater_uses_running_configuration_without_local_env_file(self):
+        root = Path(__file__).resolve().parents[2]
+        script = (root / 'deploy-agentic-updated.sh').read_text()
+        self.assertNotIn('ENV_FILE', script)
+        self.assertIn('k exec deployment/buro-django -c django -- python manage.py shell', script)
+        self.assertIn('settings.SECRET_KEY and settings.ALLOWED_HOSTS', script)
+        from deploy.package_portable import render
+        self.assertNotIn('ENV_FILE', render('a' * 40))

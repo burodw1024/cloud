@@ -77,9 +77,9 @@ bash deploy-agentic-updated.sh --check-source
 bash deploy-agentic-updated.sh
 ```
 
-The existing-cluster launcher preserves Kubernetes environment and Secret references.
-Leave ENV_FILE unset; no production.env file is required. PUBLIC_CA_FILE may select
-an existing trusted public TLS certificate. See ONPREM.md for prerequisites.
+Set ENV_FILE to the absolute path of the existing protected production.env and
+PUBLIC_CA_FILE to the existing trusted public TLS certificate if needed. Do not
+replace either with generated credentials. See ONPREM.md for prerequisites.
 The launcher builds/tests the reviewed commit, pushes images to 192.168.1.224:80,
 copies/imports on dw@192.168.1.99, and deploys context mamun / namespace rag.
 Existing database, data volumes, role permissions, Secrets and TLS are preserved.

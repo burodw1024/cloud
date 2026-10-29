@@ -25,7 +25,7 @@ Preserve older generated checkouts as-is. They may have orphan release branches
 from the previous launcher and are not suitable for a fast-forward pull. The
 launcher refuses dirty checkouts or an origin other than this GitHub repository;
 it never resets local work. Set ENV_FILE or TLS_CERT only if the confirmed paths
-differ. An optional explicitly supplied production.env is verified but never sourced, overwritten,
+differ. Existing production.env is verified but never sourced, overwritten,
 printed, staged, or substituted for live Kubernetes Secret references.
 
 The launcher exports the pulled commit into a fresh build directory and labels
@@ -98,7 +98,7 @@ published immutable URL and externally supplied SHA-256 to verify it first.
 
 The deployment does not contact Gitea or request Gitea credentials. Docker and SSH
 use their normal credential handling; Django report-test credentials are read
-privately and never written to a file. Existing Kubernetes environment and Secret references are preserved; production.env is optional.
+privately and never written to a file. Existing production.env is mandatory.
 The older Gitea mirroring helper is retained for manual use, outside deployment.
 
 After verified 2/2 readiness and TLS checks, the launcher prompts for an existing
@@ -138,6 +138,3 @@ gateway read deadline and 1800-second Django overall deadline. It updates
 database overrides as well as deployment environment values. See
 [LONG_REPORT_TIMEOUTS.md](LONG_REPORT_TIMEOUTS.md) for the full timeout chain,
 on-prem commands and post-rollout checks.
-
-
-The existing-cluster launcher does not require production.env when ENV_FILE is unset.

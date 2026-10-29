@@ -5,12 +5,13 @@ set +x
 umask 077
 export KUBE_CONTEXT="${KUBE_CONTEXT:-mamun}"
 export NAMESPACE=rag
+UPDATE_CONTEXTFORGE_TIMEOUTS="${UPDATE_CONTEXTFORGE_TIMEOUTS:-0}"
+[[ "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 0 || "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 1 ]] || { echo "UPDATE_CONTEXTFORGE_TIMEOUTS must be 0 or 1" >&2; exit 1; }
 RELEASE_ID="$(date -u +%Y%m%d%H%M%S)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
 export RELEASE_ID
 export MIGRATION_JOB="buro-django-release-$RELEASE_ID"
 export APP_IMAGE="192.168.1.224:80/buro-django:$RELEASE_ID"
 export NGINX_IMAGE="192.168.1.224:80/buro-nginx:$RELEASE_ID"
-ENV_FILE="${ENV_FILE:-}"
 TLS_CERT="${PUBLIC_CA_FILE:-${TLS_CERT:-$HOME/.config/agentic/tls/tls.crt}}"
 TLS_SECRET="${TLS_SECRET:-buro-django-tls}"
 WORKER_SSH=dw@192.168.1.99
@@ -39,28 +40,11 @@ python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ require
 [[ "$TLS_SECRET" == buro-django-tls ]] || fail "Unexpected TLS Secret; existing buro-django-tls must be preserved."
 [[ "$KUBE_CONTEXT" == mamun ]] || fail 'This release is prepared for context mamun; no other context is selected automatically.'
 [[ -t 0 && -t 1 ]] || fail 'Run in an interactive terminal for Git/registry/SSH credentials and worker sudo.'
-if [[ -n "$ENV_FILE" ]]; then
-[[ -r "$ENV_FILE" && "$ENV_FILE" == /* ]] || fail 'The existing production.env must exist at an absolute readable path. No replacement is generated.'
-export ENV_FILE
-python3 - <<'PY'
-import os,stat
-from pathlib import Path
-p=Path(os.environ['ENV_FILE'])
-assert p.stat().st_mode & 0o077 == 0, 'Protect production.env with chmod 600 before running.'
-values={}
-for line in p.read_text().splitlines():
-    if line.strip() and not line.lstrip().startswith('#'):
-        key,sep,value=line.partition('=')
-        assert sep and key.strip()==key and not key.startswith('export '), 'Use existing unquoted KEY=value env format.'
-        assert key not in values, 'Duplicate env key: '+key
-        values[key]=value
-assert values.get('DJANGO_SECRET_KEY') and values.get('DJANGO_ALLOWED_HOSTS'), 'Existing production env is missing required settings.'
-print('Existing production.env verified; its values will not be printed or overwritten.')
-PY
-else
-  echo 'Using the existing Deployment environment and Secret references; no production.env file is required.'
-fi
 [[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
+# This updater clones the existing Deployment and retains env/envFrom/Secrets.
+# It never builds a replacement production Secret from a local env file.
+k exec deployment/buro-django -c django -- python manage.py shell -c \
+  'from django.conf import settings; assert settings.SECRET_KEY and settings.ALLOWED_HOSTS, "Existing Django runtime configuration is incomplete"; print("Existing Kubernetes-backed Django configuration verified; secret values were not exported.")'
 docker info >/dev/null
 docker buildx version >/dev/null
 k get namespace rag >/dev/null
@@ -178,6 +162,9 @@ for cron in json.loads((s/'cronjobs.before.json').read_text())['items']:
     if not cron['spec'].get('suspend') and uses_data(cron['spec']['jobTemplate']['spec']['template']['spec']):
         raise SystemExit('An active CronJob may write production SQLite: '+cron['metadata']['name'])
 PY
+# A Django feature deployment preserves the gateway by default. Updating its
+# timeout is a separate, explicit operation requiring a compatible gateway image.
+if [[ "$UPDATE_CONTEXTFORGE_TIMEOUTS" == 1 ]]; then
 # ContextForge configuration is checked before stopping Django writers.
 GATEWAY_CONTAINER="$(python3 - "$STAGE/contextforge.before.json" <<'PY'
 import json,sys
@@ -206,6 +193,9 @@ GATEWAY_SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]));
 kg get pods -l "$GATEWAY_SELECTOR" -o json > "$STAGE/contextforge-pods.json"
 GATEWAY_POD="$(python3 -c 'import json,sys; p=[p for p in json.load(open(sys.argv[1]))["items"] if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]; assert p; print(p[0]["metadata"]["name"])' "$STAGE/contextforge-pods.json")"
 kg exec "$GATEWAY_POD" -c "$GATEWAY_CONTAINER" -- python -c 'from mcpgateway.config import settings; value=float(settings.httpx_read_timeout); assert value == 1500, "ContextForge effective HTTPX timeout differs from requested value"; print("ContextForge effective HTTPX read timeout:",value)'
+else
+  echo 'Preserving existing ContextForge image and timeout configuration. Gateway timeout upgrade was not requested.'
+fi
 # The committed Docker ignore rules exclude env files, data, certificates and Git metadata.
 docker buildx build --platform linux/amd64 --load --tag "$APP_IMAGE" --label "org.opencontainers.image.revision=$SOURCE_COMMIT" .
 # Run isolated application tests inside the actual image, without production env/data/network.

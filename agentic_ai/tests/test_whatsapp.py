@@ -149,6 +149,29 @@ class WhatsAppTests(TestCase):
         self.assertFalse(response.json()['ok'])
         self.assertEqual(AgentRunLog.objects.get().status, 'approval_required')
 
+    @patch('agentic_ai.api.execute_query')
+    @patch('agentic_ai.bangla_summary.generate_summary', new_callable=AsyncMock)
+    def test_combined_query_summary_and_whatsapp_preview(self, summarize, execute):
+        report = {key: value for key, value in self.result.items() if key != 'whatsapp_result_id'}
+        execute.return_value = report
+        response = self.client.post('/agentic/api/query/', json.dumps({'message': 'Show loan report'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertIn('summary_token', result)
+        self.assertIn('whatsapp_result_id', result)
+        summarize.return_value = {'ok': True, 'summary': 'পরিশোধযোগ্য বকেয়া 100।', 'model': 'openrouter/auto', 'usage': {}}
+        analysis = self.client.post('/agentic/api/summary/', json.dumps({'summary_token': result['summary_token']}), content_type='application/json')
+        self.assertEqual(analysis.status_code, 200)
+        self.payload['result_id'] = result['whatsapp_result_id']
+        preview = self.post(mode='summary')
+        self.assertEqual(preview.status_code, 200)
+        self.assertIn('Due amount: 100', preview.json()['text'])
+        execute.assert_called_once()
+        summarize.assert_awaited_once()
+        page = self.client.get('/agentic/')
+        for control in ('bangla-summary-button', 'report-chart-button', 'whatsapp-confirm'):
+            self.assertContains(page, 'id="' + control + '"')
+
 
 class GatewayDispatchTests(TestCase):
     def setUp(self):

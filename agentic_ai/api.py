@@ -110,6 +110,8 @@ def agentic_query_api(request):
         logger.error("Agent execution cache is unavailable")
         return _response({"ok": False, "error": "Request coordination is unavailable; no tool was executed."}, 503)
     result = execute_query(user=request.user, query=query, session_id=request.session.session_key)
+    from .bangla_summary import remember_report
+    result = remember_report(request.user, result)
     status = result.pop("http_status", 200)
     try:
         from .whatsapp import remember_result
