@@ -10,7 +10,7 @@ export RELEASE_ID
 export MIGRATION_JOB="buro-django-release-$RELEASE_ID"
 export APP_IMAGE="192.168.1.224:80/buro-django:$RELEASE_ID"
 export NGINX_IMAGE="192.168.1.224:80/buro-nginx:$RELEASE_ID"
-ENV_FILE="${ENV_FILE:-/actual/full/path/production.env}"
+ENV_FILE="${ENV_FILE:-}"
 TLS_CERT="${PUBLIC_CA_FILE:-${TLS_CERT:-$HOME/.config/agentic/tls/tls.crt}}"
 TLS_SECRET="${TLS_SECRET:-buro-django-tls}"
 WORKER_SSH=dw@192.168.1.99
@@ -39,8 +39,8 @@ python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ require
 [[ "$TLS_SECRET" == buro-django-tls ]] || fail "Unexpected TLS Secret; existing buro-django-tls must be preserved."
 [[ "$KUBE_CONTEXT" == mamun ]] || fail 'This release is prepared for context mamun; no other context is selected automatically.'
 [[ -t 0 && -t 1 ]] || fail 'Run in an interactive terminal for Git/registry/SSH credentials and worker sudo.'
+if [[ -n "$ENV_FILE" ]]; then
 [[ -r "$ENV_FILE" && "$ENV_FILE" == /* ]] || fail 'The existing production.env must exist at an absolute readable path. No replacement is generated.'
-[[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
 export ENV_FILE
 python3 - <<'PY'
 import os,stat
@@ -57,6 +57,10 @@ for line in p.read_text().splitlines():
 assert values.get('DJANGO_SECRET_KEY') and values.get('DJANGO_ALLOWED_HOSTS'), 'Existing production env is missing required settings.'
 print('Existing production.env verified; its values will not be printed or overwritten.')
 PY
+else
+  echo 'Using the existing Deployment environment and Secret references; no production.env file is required.'
+fi
+[[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
 docker info >/dev/null
 docker buildx version >/dev/null
 k get namespace rag >/dev/null
