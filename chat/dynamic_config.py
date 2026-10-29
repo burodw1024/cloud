@@ -73,8 +73,8 @@ DEFAULT_SETTINGS.update({
 # MCP gateway settings use the same database -> environment -> default priority.
 DEFAULT_SETTINGS.update({
     "MCP_GATEWAY_ENABLED": "false",
-    "MCP_WHATSAPP_TOOL": "",
-    "MCP_WHATSAPP_RECIPIENTS": "[]",
+    "MCP_WHATSAPP_TOOL": "send-whatsapp-template",
+    "MCP_WHATSAPP_RECIPIENTS": '["8801859135478"]',
     "MCP_GATEWAY_URL": "http://192.168.1.99:30444/mcp",
     "MCP_GATEWAY_TOKEN": "",
     "MCP_MODEL_PROVIDER": "ollama",
