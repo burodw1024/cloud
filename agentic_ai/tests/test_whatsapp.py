@@ -86,7 +86,42 @@ class WhatsAppTests(TestCase):
         self.assertContains(response, 'Send summary')
         self.assertContains(response, 'Send full result')
         self.tool.is_active = False; self.tool.save()
-        self.assertNotContains(self.client.get('/agentic/'), 'id="whatsapp-recipient"')
+        response = self.client.get('/agentic/')
+        self.assertNotContains(response, 'id="whatsapp-recipient"')
+        self.assertContains(response, 'WhatsApp tool is disabled')
+        self.assertContains(response, 'Send summary')
+
+    def test_defaults_and_explicit_empty_configuration(self):
+        self.settings.clear()
+        self.assertEqual(wa.configuration(), {'tool': 'send-whatsapp-template',
+                                             'recipients': ['8801859135478']})
+        self.settings.update(MCP_WHATSAPP_TOOL='', MCP_WHATSAPP_RECIPIENTS='[]')
+        self.assertFalse(wa.settings_status(self.user)['ready'])
+
+    def test_status_does_not_leak_unauthorized_recipients(self):
+        self.tool.allowed_roles = ['other-role']
+        self.tool.save()
+        status = wa.settings_status(self.user)
+        self.assertFalse(status['ready'])
+        self.assertEqual(status['recipients'], [])
+        self.assertIn('not authorized', status['status'])
+
+    @patch('agentic_ai.setup_views.discover_gateway', new_callable=AsyncMock)
+    @patch('agentic_ai.setup_views.load_gateway_config', return_value={})
+    def test_check_settings_validates_schema_without_sending(self, config, discover):
+        from types import SimpleNamespace
+        self.user.is_staff = True; self.user.is_superuser = True; self.user.save()
+        discover.return_value = [SimpleNamespace(name=self.tool.name, inputSchema={
+            'type': 'object', 'properties': {key: {} for key in
+                ['messaging_product', 'to', 'type', 'text']}})]
+        response = self.client.post('/agentic/setup/', json.dumps({
+            'action': 'check_whatsapp'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('No message sent', response.json()['message'])
+        self.assertFalse(AgentRunLog.objects.exists())
+        discover.return_value[0].inputSchema = {'type': 'object', 'properties': {}}
+        self.assertEqual(self.client.post('/agentic/setup/', json.dumps({
+            'action': 'check_whatsapp'}), content_type='application/json').status_code, 400)
 
     @patch('agentic_ai.setup_views._save_settings')
     def test_admin_saves_recipient_list_and_tool(self, save):
