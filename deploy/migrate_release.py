@@ -40,7 +40,7 @@ assert settings.DATABASES['default']['ENGINE']=='django.db.backends.sqlite3'
 assert settings.CACHES['default']['BACKEND']=='agentic_ai.sqlite_cache.SQLiteCache'
 assert get_user_model().objects.filter(username='root_123',is_active=True,is_staff=True).exists(), 'Existing root_123 administrator not found.'
 updates={'MCP_GATEWAY_URL':'http://192.168.1.99:30444/servers/3af4c69246314595a30043f0b8d8b654/mcp',
-         'MCP_TIMEOUT':'300','MCP_REQUEST_TIMEOUT':'600','POLICY_WORK_DIR':'/data/policy_rag',
+         'MCP_TIMEOUT':'1500','MCP_REQUEST_TIMEOUT':'1800','POLICY_WORK_DIR':'/data/policy_rag',
          'OLLAMA_URL':'http://192.168.1.144:31134'}
 with transaction.atomic():
     for key,value in updates.items():
@@ -53,7 +53,7 @@ from asgiref.sync import async_to_sync
 assert gateway_enabled(), 'Expected the existing MCP gateway to be enabled; configuration was preserved.'
 config=load_config()
 assert config['url']==updates['MCP_GATEWAY_URL']
-assert config['timeout']==300 and config['request_timeout']==600
+assert config['timeout']==1500 and config['request_timeout']==1800
 assert config['token'], 'Existing gateway token is missing; no replacement token was generated.'
 tools=async_to_sync(discover_gateway)(config)
 assert any(tool.name=='loan-due-report' for tool in tools), 'Server-scoped loan-due-report tool not found.'

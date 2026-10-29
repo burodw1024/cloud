@@ -190,12 +190,22 @@ print(candidates[0]['name'])
 PY
 )"
 [[ "$GATEWAY_CONTAINER" =~ ^[a-z0-9][a-z0-9-]*$ ]] || fail 'Invalid gateway container name.'
-kg set env deployment/contextforge --containers="$GATEWAY_CONTAINER" HTTPX_READ_TIMEOUT=300 >/dev/null
+GATEWAY_SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(k+"="+v for k,v in d["spec"]["selector"]["matchLabels"].items()))' "$STAGE/contextforge.before.json")"
+kg get pods -l "$GATEWAY_SELECTOR" -o json > "$STAGE/contextforge-pods.json"
+GATEWAY_POD="$(python3 -c 'import json,sys; p=[p for p in json.load(open(sys.argv[1]))["items"] if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]; assert p; print(p[0]["metadata"]["name"])' "$STAGE/contextforge-pods.json")"
+# Probe in a temporary process before changing the Deployment. v1.0.10 caps
+# this field at 600; testing the override must not crash the working gateway.
+if ! kg exec "$GATEWAY_POD" -c "$GATEWAY_CONTAINER" -- env HTTPX_READ_TIMEOUT=1500 \
+  python -c 'from mcpgateway.config import settings; assert float(settings.httpx_read_timeout) == 1500' \
+  > "$STAGE/contextforge-timeout-preflight.log" 2>&1; then
+  fail "The running ContextForge image does not accept HTTPX_READ_TIMEOUT=1500. No gateway deployment change was made. Inspect $STAGE/contextforge-timeout-preflight.log and deploy a compatible image first; see deploy/CONTEXTFORGE_TIMEOUT_COMPATIBILITY.md."
+fi
+kg set env deployment/contextforge --containers="$GATEWAY_CONTAINER" HTTPX_READ_TIMEOUT=1500 >/dev/null
 kg rollout status deployment/contextforge --timeout=600s
 GATEWAY_SELECTOR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(k+"="+v for k,v in d["spec"]["selector"]["matchLabels"].items()))' "$STAGE/contextforge.before.json")"
 kg get pods -l "$GATEWAY_SELECTOR" -o json > "$STAGE/contextforge-pods.json"
 GATEWAY_POD="$(python3 -c 'import json,sys; p=[p for p in json.load(open(sys.argv[1]))["items"] if not p["metadata"].get("deletionTimestamp") and all(c.get("ready") for c in p.get("status",{}).get("containerStatuses",[]))]; assert p; print(p[0]["metadata"]["name"])' "$STAGE/contextforge-pods.json")"
-kg exec "$GATEWAY_POD" -c "$GATEWAY_CONTAINER" -- python -c 'from mcpgateway.config import settings; value=float(settings.httpx_read_timeout); assert value == 300, "ContextForge effective HTTPX timeout differs from requested value"; print("ContextForge effective HTTPX read timeout:",value)'
+kg exec "$GATEWAY_POD" -c "$GATEWAY_CONTAINER" -- python -c 'from mcpgateway.config import settings; value=float(settings.httpx_read_timeout); assert value == 1500, "ContextForge effective HTTPX timeout differs from requested value"; print("ContextForge effective HTTPX read timeout:",value)'
 # The committed Docker ignore rules exclude env files, data, certificates and Git metadata.
 docker buildx build --platform linux/amd64 --load --tag "$APP_IMAGE" --label "org.opencontainers.image.revision=$SOURCE_COMMIT" .
 # Run isolated application tests inside the actual image, without production env/data/network.
@@ -252,7 +262,7 @@ k apply --dry-run=server -f "$STAGE/deployment.after.json" >/dev/null
 echo 'Images imported and replacement validated. Stopping application writers for SQLite backup and migration.'
 k scale deployment buro-django --replicas=0 >/dev/null
 WRITERS_STOPPED=1
-DRAIN_DEADLINE=$((SECONDS+900))
+DRAIN_DEADLINE=$((SECONDS+2100))
 while true; do
   k get pods -l "$SELECTOR" -o json > "$STAGE/draining-pods.json"
   POD_COUNT="$(python3 deploy/pod_ownership.py drain-count "$STAGE")"
@@ -263,7 +273,7 @@ done
 # Job creation is treated as dispatch even if the client loses its response.
 MIGRATION_STARTED=1
 k create -f "$STAGE/migration.json" >/dev/null
-JOB_DEADLINE=$((SECONDS+1250))
+JOB_DEADLINE=$((SECONDS+2150))
 while true; do
   k get job "$MIGRATION_JOB" -o json > "$STAGE/migration.status.json"
   JOB_STATE="$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1])).get("status",{}); print("complete" if s.get("succeeded",0) else "failed" if s.get("failed",0) or any(c["type"]=="Failed" and c["status"]=="True" for c in s.get("conditions",[])) else "running")' "$STAGE/migration.status.json")"
@@ -290,8 +300,8 @@ import re,sys
 s=open(sys.argv[1]).read()
 for key in ('proxy_read_timeout','proxy_send_timeout'):
     values=re.findall(r'\b'+key+r'\s+([^;]+);',s)
-    assert values and all(x.strip()=='670s' for x in values)
-print('Running Nginx read/send timeouts verified at 670s.')
+    assert values and all(x.strip()=='1900s' for x in values)
+print('Running Nginx read/send timeouts verified at 1900s.')
 PY
 curl --fail --silent --show-error --cacert "$TLS_CERT" --connect-timeout 5 --max-time 30 "$PUBLIC_URL/healthz/live/" >/dev/null
 curl --fail --silent --show-error --cacert "$TLS_CERT" --connect-timeout 5 --max-time 30 "$PUBLIC_URL/healthz/ready/" >/dev/null

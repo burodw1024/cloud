@@ -22,9 +22,11 @@ for tool in git python3 mktemp; do
 done
 if [[ "${1:-}" != --check-source ]]; then
   [[ -t 0 && -t 1 ]] || { echo 'Use an interactive terminal for private credential prompts.' >&2; exit 1; }
-  ENV_FILE="${ENV_FILE:-/actual/full/path/production.env}"
+  ENV_FILE="${ENV_FILE:-}"
   PUBLIC_CA_FILE="${PUBLIC_CA_FILE:-$HOME/.config/agentic/tls/tls.crt}"
-  [[ -r "$ENV_FILE" ]] || { echo 'Existing production.env is missing; no replacement is generated.' >&2; exit 1; }
+  if [[ -n "$ENV_FILE" ]]; then
+    [[ "$ENV_FILE" == /* && -r "$ENV_FILE" ]] || { echo 'Explicit production.env must be absolute and readable.' >&2; exit 1; }
+  fi
   [[ -r "$PUBLIC_CA_FILE" ]] || { echo 'Existing public TLS certificate is missing.' >&2; exit 1; }
   export ENV_FILE PUBLIC_CA_FILE
 fi

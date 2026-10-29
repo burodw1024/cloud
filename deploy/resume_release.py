@@ -53,7 +53,7 @@ def build_recovery(saved, expected_sha):
     job['metadata'] = {'name': original+'-resume', 'namespace': saved['metadata']['namespace']}
     job.pop('status', None)
     spec = job['spec']
-    spec.update(backoffLimit=0, activeDeadlineSeconds=1200)
+    spec.update(backoffLimit=0, activeDeadlineSeconds=2100)
     pod = spec['template']['spec']
     require(len(pod['containers']) == 1, 'Unexpected migration container count')
     container = pod['containers'][0]
@@ -123,7 +123,7 @@ def main():
     run('apply', '--dry-run=server', '-f', str(path))
     run('patch', 'configmap', lock_name, '--type=merge', '-p', json.dumps({'data': {'recovery_job': recovery_name}}))
     run('create', '-f', str(path))
-    deadline = time.monotonic()+1250
+    deadline = time.monotonic()+2150
     while True:
         status = get('job', recovery_name).get('status', {})
         if status.get('succeeded', 0):
@@ -159,7 +159,7 @@ def main():
     nginx = subprocess.check_output(command+['exec',pod_name,'-c','https','--','cat','/etc/nginx/nginx.conf'], text=True)
     for directive in ('proxy_read_timeout','proxy_send_timeout'):
         values = re.findall(r'\b'+directive+r'\s+([^;]+);', nginx)
-        require(values and all(value.strip()=='670s' for value in values), 'Running Nginx timeout mismatch')
+        require(values and all(value.strip()=='1900s' for value in values), 'Running Nginx timeout mismatch')
     subprocess.run(['curl','--fail','--silent','--show-error','--cacert',str(args.cert),
                     '--connect-timeout','5','--max-time','30',args.url.rstrip('/')+'/healthz/ready/'], check=True)
     lock = get('configmap', lock_name)

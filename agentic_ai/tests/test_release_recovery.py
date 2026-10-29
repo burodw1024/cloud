@@ -126,7 +126,7 @@ class MigrationExecutor:
             state={'rolled_out':False,'checks_complete':False}
             def output(command, **kwargs):
                 if 'exec' in command:
-                    return 'a'*64 if 'django' in command else 'proxy_read_timeout 670s; proxy_send_timeout 670s;'
+                    return 'a'*64 if 'django' in command else 'proxy_read_timeout 1900s; proxy_send_timeout 1900s;'
                 kind=command[command.index('get')+1]
                 if kind=='deployment': return json.dumps(deployment)
                 if kind=='configmap': return json.dumps(lock)

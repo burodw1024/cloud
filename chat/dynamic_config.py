@@ -81,8 +81,8 @@ DEFAULT_SETTINGS.update({
     "MCP_MODEL": "",
     "MCP_MODEL_BASE_URL": "",
     "MCP_MODEL_API_KEY": "",
-    "MCP_TIMEOUT": "30",
-    "MCP_REQUEST_TIMEOUT": "90",
+    "MCP_TIMEOUT": "1500",
+    "MCP_REQUEST_TIMEOUT": "1800",
 })
 
 URL_KEYS = {

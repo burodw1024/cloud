@@ -48,9 +48,20 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertEqual(after['spec']['strategy'],{'type':'Recreate'})
         self.assertEqual(after['spec']['replicas'],1)
         self.assertEqual(spec['nodeName'],'worker-99')
+        self.assertEqual(spec['terminationGracePeriodSeconds'],1920)
         self.assertNotIn('resourceVersion',after['metadata'])
         app=next(c for c in spec['containers'] if c['name']=='django')
         self.assertEqual(app['envFrom'],self.dep['spec']['template']['spec']['containers'][0]['envFrom'])
+        values={item['name']:item.get('value') for item in app.get('env',[])}
+        self.assertEqual(values['MCP_TIMEOUT'],'1500')
+        self.assertEqual(values['MCP_REQUEST_TIMEOUT'],'1800')
+        command=app['command']
+        self.assertEqual(command[command.index('--timeout')+1],'1860')
+        self.assertEqual(command[command.index('--graceful-timeout')+1],'1860')
+        nginx=json.loads((self.stage/'nginx.after.json').read_text())['data']['nginx.conf']
+        self.assertIn('proxy_read_timeout 1900s;',nginx)
+        self.assertIn('proxy_send_timeout 1900s;',nginx)
+
         self.assertIn(self.dep['spec']['template']['spec']['containers'][0]['env'][0],app['env'])
         self.assertEqual(app['imagePullPolicy'],'Never')
         self.assertIn('gthread',app['command'])

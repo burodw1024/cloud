@@ -99,7 +99,7 @@ def verify(opener, base_url, username, password, query):
     status, _, body = request('/agentic/api/query/', json.dumps({'query': query}).encode(),
         {'Content-Type': 'application/json', 'X-CSRFToken': token,
          'Referer': base_url + '/agentic/', 'Origin': base_url,
-         'Idempotency-Key': 'deploy-' + uuid.uuid4().hex}, timeout=620)
+         'Idempotency-Key': 'deploy-' + uuid.uuid4().hex}, timeout=1920)
     # No automatic retry: the database tool may still be running after an error.
     return status, json.loads(body)
 

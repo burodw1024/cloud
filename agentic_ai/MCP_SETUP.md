@@ -51,8 +51,8 @@ existing setting-cache invalidation. Environment deployment settings:
 ```dotenv
 MCP_GATEWAY_ENABLED=true
 MCP_GATEWAY_URL=http://192.168.1.99:30444/mcp
-MCP_TIMEOUT=30
-MCP_REQUEST_TIMEOUT=90
+MCP_TIMEOUT=1500
+MCP_REQUEST_TIMEOUT=1800
 # Only when required; keep secrets outside version control:
 # MCP_GATEWAY_TOKEN=...
 ```
@@ -60,7 +60,7 @@ MCP_REQUEST_TIMEOUT=90
 `MCP_TIMEOUT` is per network operation; `MCP_REQUEST_TIMEOUT` is the overall
 operation deadline including discovery, inference and execution, followed by
 SDK cancellation/cleanup. Keep worker/ingress timeouts above this deadline plus
-cleanup grace. The existing Gunicorn timeout is 120 seconds.
+cleanup grace. The release configures Gunicorn at 1860 seconds and Nginx at 1900 seconds.
 
 Leave model overrides unset to use the project's existing model. Advanced
 OpenAI-compatible configuration is supported with `MCP_MODEL_PROVIDER=openai`,
@@ -132,7 +132,7 @@ or conversation-memory planner in this change.
 Private requests are limited to 16,000 query characters, 64 KiB bodies and 20
 new requests per user per minute. Use the **shared SQLite cache** for the single-node deployment;
 local memory cannot coordinate multiple workers. Idempotency keys are scoped to
-the user and retained for 15 minutes. A repeated key with the same request returns
+the user and retained for 40 minutes. A repeated key with the same request returns
 the previous response; a pending or mismatched request returns 409. Keys provide
 bounded duplicate protection, not permanent exactly-once execution. Backends for
 state-changing tools must implement durable idempotency themselves.

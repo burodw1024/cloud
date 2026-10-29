@@ -25,7 +25,7 @@ Preserve older generated checkouts as-is. They may have orphan release branches
 from the previous launcher and are not suitable for a fast-forward pull. The
 launcher refuses dirty checkouts or an origin other than this GitHub repository;
 it never resets local work. Set ENV_FILE or TLS_CERT only if the confirmed paths
-differ. Existing production.env is verified but never sourced, overwritten,
+differ. An optional explicitly supplied production.env is verified but never sourced, overwritten,
 printed, staged, or substituted for live Kubernetes Secret references.
 
 The launcher exports the pulled commit into a fresh build directory and labels
@@ -53,10 +53,10 @@ mount is removed only in the new replacement Deployment. Running code hashes are
 verified after rollout.
 
 The project-selected model and gateway credentials are preserved. The
-server-scoped MCP endpoint, 300/600-second MCP timeouts and /data/policy_rag are
-verified. Gunicorn uses one gthread worker/four threads and timeout 660; Nginx
-read/send timeouts are 670s. ContextForge's effective HTTPX read timeout is checked
-at 300 before Django downtime; an unsupported configuration interface fails
+server-scoped MCP endpoint, 1500/1800-second MCP timeouts and /data/policy_rag are
+verified. Gunicorn uses one gthread worker/four threads and timeout 1860; Nginx
+read/send timeouts are 1900s. ContextForge's effective HTTPX read timeout is checked
+at 1500 before Django downtime; an unsupported configuration interface fails
 explicitly. This does not resolve Oracle/JDBC ORA-01013 or NiFi HTTP-context errors.
 
 MCP loan-due-report output uses the same project model to select approved report
@@ -98,7 +98,7 @@ published immutable URL and externally supplied SHA-256 to verify it first.
 
 The deployment does not contact Gitea or request Gitea credentials. Docker and SSH
 use their normal credential handling; Django report-test credentials are read
-privately and never written to a file. Existing production.env is mandatory.
+privately and never written to a file. Existing Kubernetes environment and Secret references are preserved; production.env is optional.
 The older Gitea mirroring helper is retained for manual use, outside deployment.
 
 After verified 2/2 readiness and TLS checks, the launcher prompts for an existing
@@ -124,3 +124,20 @@ its NiFi handler and MCP schema with completeness and employee-scope enforcement
 before activation; no second tool or endpoint is required. See ZONE_RANKING.md. The ordinary
 branch loan-report presentation/table and model metadata introduction already
 exist and are preserved.
+
+## Native QueryLoanDue compatibility
+
+The snake_case QueryLoanDue contract is now supported alongside the legacy
+operation-based zone report. See [NATIVE_LOAN_QUERY.md](NATIVE_LOAN_QUERY.md)
+for the gateway schema, disbursement-range member ranking and verification.
+
+## Long NiFi reports
+
+The current release supports a 1200-second NiFi query with a 1500-second
+gateway read deadline and 1800-second Django overall deadline. It updates
+database overrides as well as deployment environment values. See
+[LONG_REPORT_TIMEOUTS.md](LONG_REPORT_TIMEOUTS.md) for the full timeout chain,
+on-prem commands and post-rollout checks.
+
+
+The existing-cluster launcher does not require production.env when ENV_FILE is unset.
