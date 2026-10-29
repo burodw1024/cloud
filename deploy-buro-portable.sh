@@ -3,8 +3,9 @@
 set -Eeuo pipefail
 set +x
 umask 077
-REVIEWED_TREE='164a4dff556dea3c8de105f5710f40af02994c2d'
+REVIEWED_TREE='c4bfb61a40c142ac1a7474ddf81a9d51962db736'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
+SOURCE_BRANCH='main'
 if [[ "${1:-}" == --describe ]]; then
   printf 'BURO Insight AI reviewed source tree: %s\n' "$REVIEWED_TREE"
   exit 0
@@ -17,31 +18,27 @@ for tool in git python3 mktemp; do
 done
 if [[ "${1:-}" != --check-source ]]; then
   [[ -t 0 && -t 1 ]] || { echo 'Use an interactive terminal for private credential prompts.' >&2; exit 1; }
-  ENV_FILE="${ENV_FILE:-}"
   PUBLIC_CA_FILE="${PUBLIC_CA_FILE:-$HOME/.config/agentic/tls/tls.crt}"
-  if [[ -n "$ENV_FILE" ]]; then
-    [[ "$ENV_FILE" == /* && -r "$ENV_FILE" ]] || { echo 'Explicit production.env must be absolute and readable.' >&2; exit 1; }
-  fi
   [[ -r "$PUBLIC_CA_FILE" ]] || { echo 'Existing public TLS certificate is missing.' >&2; exit 1; }
-  export ENV_FILE PUBLIC_CA_FILE
+  export PUBLIC_CA_FILE
 fi
 RUN_ROOT="$(mktemp -d "$PWD/buro-deploy.XXXXXXXX")"
 echo "Private deployment checkout and records: $RUN_ROOT"
-git clone --single-branch --branch main "$SOURCE_URL" "$RUN_ROOT/cloud"
-git -C "$RUN_ROOT/cloud" pull --ff-only origin main
-SOURCE_COMMIT="$(python3 - "$RUN_ROOT/cloud" "$REVIEWED_TREE" <<'RESOLVE'
+git clone --single-branch --branch "$SOURCE_BRANCH" "$SOURCE_URL" "$RUN_ROOT/cloud"
+git -C "$RUN_ROOT/cloud" pull --ff-only origin "$SOURCE_BRANCH"
+SOURCE_COMMIT="$(python3 - "$RUN_ROOT/cloud" "$REVIEWED_TREE" "$SOURCE_BRANCH" <<'RESOLVE'
 import subprocess,sys
-root,expected=sys.argv[1:]
+root,expected,branch=sys.argv[1:]
 def git(*args):
     return subprocess.check_output(['git','-C',root,*args],text=True).strip()
 # The source tree is immutable even though GitHub's commit metadata differs from
 # the local reviewed commit. Packaging adds only this entrypoint in a later commit.
-for commit in git('rev-list','--max-count=100','origin/main').splitlines():
+for commit in git('rev-list','--max-count=100','origin/'+branch).splitlines():
     if git('rev-parse',commit+'^{tree}')==expected:
         print(commit)
         break
 else:
-    raise SystemExit('The exact reviewed source tree is not published in GitHub main. Nothing was deployed.')
+    raise SystemExit('The exact reviewed source tree is not published in the configured GitHub branch. Nothing was deployed.')
 RESOLVE
 )"
 git -C "$RUN_ROOT/cloud" switch --detach "$SOURCE_COMMIT"
