@@ -315,3 +315,20 @@ only put recipients appropriate for all those users in this list. Source-result
 and sending-tool permissions are rechecked when previewing/sending. HTTP endpoints
 require authentication and CSRF validation. Send attempts are recorded in
 AgentRunLog without full message bodies or recipient numbers.
+
+### WhatsApp defaults and readiness
+
+New installations default to tool name `send-whatsapp-template` and sample
+recipient `8801859135478`. Both remain editable; existing saved settings take
+precedence, including an explicitly empty recipient list. The tool name does not
+change the payload: result sharing still requires a text-message body.
+
+Save WhatsApp settings before discovery if needed. Use **Check WhatsApp settings**
+to check local enablement/roles, gateway discovery, and the text input schema.
+This check never sends a message and cannot verify Meta credentials, REST body
+mapping, the messaging window, or delivery. Discover and enable the exact tool
+name with appropriate roles using the normal setup flow.
+
+The results page always shows the sharing panel and explains incomplete setup.
+Send summary/full result controls stay disabled until an authorized successful
+query produces a result snapshot. Preview and confirmation are still required.
