@@ -20,11 +20,11 @@ TTL = 900
 
 
 def configuration():
-    numbers = json.loads(get_setting('MCP_WHATSAPP_RECIPIENTS', '[]'))
+    numbers = json.loads(get_setting('MCP_WHATSAPP_RECIPIENTS', '["8801859135478"]'))
     if (not isinstance(numbers, list) or len(numbers) > 50
             or any(not isinstance(n, str) or not re.fullmatch(r'[1-9][0-9]{7,14}', n) for n in numbers)):
         raise ValueError('Configure up to 50 international phone numbers, digits only.')
-    tool = get_setting('MCP_WHATSAPP_TOOL', '').strip()
+    tool = get_setting('MCP_WHATSAPP_TOOL', 'send-whatsapp-template').strip()
     return {'tool': tool, 'recipients': list(dict.fromkeys(numbers))}
 
 
@@ -36,15 +36,34 @@ def recipient_text(value):
     return list(dict.fromkeys(numbers))
 
 
-def availability(user):
+def settings_status(user):
+    """Local readiness only: never sends a message or claims Meta delivery."""
     try:
         config = configuration()
-        record = AgentTool.objects.filter(name=config['tool'], is_active=True).first()
-        if gateway_enabled() and record and _allowed(record, user):
-            return config
     except (ValueError, TypeError):
-        pass
-    return {'tool': '', 'recipients': []}
+        return {'tool': '', 'recipients': [], 'ready': False,
+                'status': 'Invalid WhatsApp settings. Ask an administrator to check setup.'}
+    record = AgentTool.objects.filter(name=config['tool']).first()
+    if not config['tool'] or not config['recipients']:
+        message = 'Configure a WhatsApp tool and recipient in Set up tools.'
+    elif not gateway_enabled():
+        message = 'MCP gateway is paused. Complete tool setup and enable the gateway.'
+    elif not record:
+        message = 'WhatsApp tool has not been discovered. Discover tools and enable the exact configured name.'
+    elif not record.is_active:
+        message = 'WhatsApp tool is disabled. Enable it in Set up tools.'
+    elif not _allowed(record, user):
+        message = 'Your role is not authorized for the WhatsApp tool.'
+    else:
+        return {**config, 'ready': True,
+                'status': 'Local settings ready. Run a question to preview a message. Meta authentication and delivery are not verified.'}
+    # Do not expose recipient numbers to unauthorized users.
+    return {'tool': config['tool'], 'recipients': [], 'ready': False, 'status': message}
+
+
+def availability(user):
+    status = settings_status(user)
+    return {'tool': status['tool'], 'recipients': status['recipients']} if status['ready'] else {'tool': '', 'recipients': []}
 
 
 def export_text(result, mode):
