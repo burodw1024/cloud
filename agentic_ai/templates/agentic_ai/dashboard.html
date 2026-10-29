@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>BURO Insight AI · Run history</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
@@ -11,8 +12,11 @@
         th { background: #f0f0f0; text-align: left; }
         .badge { padding: 4px 8px; border-radius: 6px; background: #eee; }
     </style>
+    {% include "agentic_ai/ui_head.html" %}
 </head>
-<body>
+<body class="history-page">
+    {% include "agentic_ai/page_nav.html" %}
+    <main>
     <h1>BURO Insight AI · Run history</h1>
 
     {% include 'agentic_ai/query_form.html' %}
@@ -71,5 +75,6 @@
         </table>
     </div>
 
+    </main>
 </body>
 </html>

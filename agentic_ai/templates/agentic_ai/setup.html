@@ -1,7 +1,11 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tool setup | BURO Insight AI</title><style>
 body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:0}main{max-width:900px;margin:32px auto;padding:24px}a{color:#146b65}.card{background:white;border:1px solid #dae5eb;padding:24px;margin:20px 0;border-radius:12px}h1,h2{line-height:1.25}label{display:block;margin:10px 0}input[type=url],input[type=password]{width:100%;box-sizing:border-box;border:1px solid #9eb5c2;padding:10px;font:inherit;border-radius:6px}button{font:inherit;background:#146b65;color:white;border:0;border-radius:6px;padding:10px 16px;margin:8px 10px 0 0;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.muted{color:#546b7b}.status{background:#e7f3ef;padding:14px;border-radius:8px;min-height:24px}.tool{border-top:1px solid #dae5eb;padding:18px 0}.roles{display:flex;gap:8px 20px;flex-wrap:wrap}.roles label{margin:4px 0}fieldset{border:0;padding:0}legend{font-weight:600}small{display:block;color:#546b7b}code{overflow-wrap:anywhere}
-</style></head><body><main>
+</style>
+{% include "agentic_ai/ui_head.html" %}
+</head><body class="settings-page">
+{% include "agentic_ai/page_nav.html" %}
+<main>
 <a href="{% url 'agentic_ai:query_page' %}">← Ask your assistant</a>
 <p class="muted">BURO Insight AI</p><h1>Set up assistant tools</h1>
 <p>Connect your gateway, choose who can use each tool, then test a question.</p>

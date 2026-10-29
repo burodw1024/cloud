@@ -66,15 +66,7 @@
         </details>
     </section>
 </section>
-<style>
-#report-bars{display:grid;gap:10px;margin:16px 0}
-.report-bar{display:grid;grid-template-columns:80px minmax(50px,1fr) minmax(90px,auto);align-items:center;gap:12px;background:transparent;border:1px solid #d1dce5;border-radius:8px;padding:10px;color:inherit;font:inherit;text-align:left;cursor:pointer;width:100%}
-.report-bar:focus-visible{outline:3px solid #146b65;outline-offset:2px}
-.report-bar[aria-pressed=true]{background:#edf8f5;border-color:#146b65}
-.report-bar-track{height:20px;background:#e5edf1;border-radius:4px;overflow:hidden}
-.report-bar-fill{height:100%;background:#168176;border-radius:4px}
-@media(max-width:480px){.report-bar{grid-template-columns:55px minmax(30px,1fr) 85px;gap:6px;font-size:13px}}
-</style>
+
 <script src="{% static 'agentic_ai/report_chart.js' %}"></script>
 <script>
 (() => {

@@ -1,0 +1,5 @@
+<header class="page-nav">
+  <a class="page-nav-brand" href="{% url 'agentic_ai:query_page' %}"><span class="brand-mark" aria-hidden="true">b</span><span>BURO <strong>Insight AI</strong></span></a>
+  <nav aria-label="Assistant pages"><a href="{% url 'agentic_ai:query_page' %}">Workspace</a>{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Tool setup</a>{% endif %}<button class="theme-toggle" type="button" data-ui-theme aria-label="Switch color theme" title="Switch color theme">◐</button></nav>
+</header>
+<script>document.querySelector('[data-ui-theme]').addEventListener('click',function(){const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';this.setAttribute('aria-label',dark?'Switch to light theme':'Switch to dark theme');try{localStorage.setItem('buro-insight-theme',dark?'dark':'light');}catch(_){}});</script>
