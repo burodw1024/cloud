@@ -37,12 +37,13 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <section class="card"><h2>WhatsApp result sharing</h2>
 <p>Send a summary or the returned result to a configured recipient. Each send requires a preview and confirmation.</p>
 <label for="whatsapp-tool">Exact ContextForge text-message tool name</label>
-<input id="whatsapp-tool" type="text" maxlength="150" value="{{ whatsapp_tool }}" placeholder="send-whatsapp-text">
+<input id="whatsapp-tool" type="text" maxlength="150" value="{{ whatsapp_tool }}" placeholder="send-whatsapp-template">
 <label for="whatsapp-recipients">Allowed recipient numbers (one per line)</label>
 <textarea id="whatsapp-recipients" rows="5" style="width:100%" placeholder="8801XXXXXXXXX">{{ whatsapp_recipients }}</textarea>
 <small>Use international numbers. All roles authorized for this tool can select these recipients. Obtain recipient opt-in.</small>
 <p>The tool must accept <code>{"messaging_product":"whatsapp","to":"…","type":"text","text":{"body":"…"}}</code>. A hello_world-only template tool cannot send arbitrary results. Free-form text requires an open 24-hour customer-service window. Full results above 4,096 characters are blocked rather than truncated.</p>
 <button id="save-whatsapp" type="button">Save WhatsApp settings</button>
+<button id="check-whatsapp" type="button">Check WhatsApp settings</button>
 </section>
 </main><script>
 const statusBox=document.getElementById('setup-status');
@@ -81,6 +82,7 @@ function renderTools(tools,roles){
   catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,choices,metadata});
  });
 }
+document.getElementById('check-whatsapp').onclick=()=>action({action:'check_whatsapp'});
 document.getElementById('save-whatsapp').onclick=()=>action({action:'save_whatsapp',tool:document.getElementById('whatsapp-tool').value,recipients:document.getElementById('whatsapp-recipients').value});
 document.getElementById('save-pricing').onclick=()=>{const identity=document.getElementById('model-pricing');return action({action:'save_pricing',provider:identity.dataset.provider,model:identity.dataset.model,input_rate:document.getElementById('input-rate').value,output_rate:document.getElementById('output-rate').value,cached_rate:document.getElementById('cached-rate').value,currency:document.getElementById('price-currency').value.trim().toUpperCase()});};
 document.getElementById('save-connection').onclick=async()=>{const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});if(body){document.getElementById('gateway-token').value='';modelReady=false;catalog=[];document.getElementById('tool-list').textContent='Click “Find tools” to refresh the tool list.';refreshButtons();}};
