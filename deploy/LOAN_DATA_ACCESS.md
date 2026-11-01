@@ -162,3 +162,10 @@ The deployment launcher's final real-report test requires the directory, explici
 user grant, role and signed backend integration to be ready; do not remove these
 checks to make that test pass. Existing deployment backups/Secrets and timeout
 settings remain unchanged. No live NiFi/Oracle/Kubernetes changes were made here.
+
+## Oracle directory API
+
+For an authenticated NiFi API over `DW_GC_BRANCHLIST2` and the administrator
+preview/apply sync, see [the branch directory integration guide](nifi/branch-directory/README.md).
+Directory sync imports hierarchy metadata and preserves user grants and existing
+paused records. It does not replace the signed financial-query contract above.

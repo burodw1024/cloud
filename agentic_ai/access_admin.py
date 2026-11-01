@@ -158,7 +158,7 @@ class BranchForm(forms.ModelForm):
 
 def directory_state(record):
     return {'code': record.code, 'name': record.name, 'is_active': record.is_active,
-            **({'zone': record.zone.code} if isinstance(record, LoanBranch) else {})}
+            **({'zone': record.zone.code, 'area_code': record.area_code, 'area_name': record.area_name} if isinstance(record, LoanBranch) else {'division_code': record.division_code, 'division_name': record.division_name})}
 
 
 def import_branches(upload, actor, reason):
@@ -212,10 +212,18 @@ def directory_manager(request):
     zone_form, branch_form = ZoneForm(prefix='zone'), BranchForm(prefix='branch')
     notice = 'Directory changes saved and audited. Existing policies resolve against the updated directory.' if request.method == 'GET' and request.GET.get('saved') == '1' else ''
     error = ''
+    sync_preview = None
     if request.method == 'POST':
         action = request.POST.get('action')
         try:
-            if action == 'import':
+            if action in {'sync_preview', 'sync_apply'}:
+                from .directory_sync import preview, apply_preview
+                if action == 'sync_preview':
+                    sync_preview = preview(request.user, request.POST.get('activate_new') == '1')
+                else:
+                    apply_preview(request.user, request.POST.get('ticket', ''), request.POST.get('reason', '').strip())
+                    notice = 'Oracle directory synchronized and audited.'
+            elif action == 'import':
                 upload = request.FILES.get('file')
                 if not upload:
                     raise ValueError('Choose a CSV file.')
@@ -241,10 +249,13 @@ def directory_manager(request):
                 raise ValueError('Choose a directory action.')
         except (ValueError, UnicodeError, ValidationError, csv.Error) as exc:
             error = str(exc)
+        except (IntegrityError, OperationalError):
+            error = 'The directory could not be saved. No changes from this request were applied. Reload and try again.'
         if notice and not error:
             return redirect(f'{request.path}?saved=1')
     response = render(request, 'agentic_ai/access_directory.html', {
         'zone_form': zone_form, 'branch_form': branch_form, 'notice': notice, 'error': error,
+        'sync_preview': sync_preview, 'directory_configured': bool(os.environ.get('LOAN_DIRECTORY_URL')),
         'zones': LoanZone.objects.all(),
         'branches_page': Paginator(LoanBranch.objects.select_related('zone').all(), 50).get_page(request.GET.get('page')),
     })

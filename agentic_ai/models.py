@@ -8,6 +8,8 @@ scope_code = RegexValidator(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$', 'Use an exact 
 
 
 class LoanZone(models.Model):
+    division_code = models.CharField(max_length=32, blank=True, validators=[scope_code])
+    division_name = models.CharField(max_length=150, blank=True)
     code = models.CharField(max_length=32, unique=True, validators=[scope_code])
     name = models.CharField(max_length=150)
     is_active = models.BooleanField(default=True)
@@ -20,6 +22,8 @@ class LoanZone(models.Model):
 
 
 class LoanBranch(models.Model):
+    area_code = models.CharField(max_length=32, blank=True, validators=[scope_code])
+    area_name = models.CharField(max_length=150, blank=True)
     code = models.CharField(max_length=32, unique=True, validators=[scope_code])
     name = models.CharField(max_length=150)
     zone = models.ForeignKey(LoanZone, on_delete=models.PROTECT, related_name='branches')
