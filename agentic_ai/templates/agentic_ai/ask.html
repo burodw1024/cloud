@@ -165,6 +165,7 @@ tbody tr:hover { background:var(--soft) }
 {% if user.is_staff %}<div><div class="nav-label">ADMINISTRATION</div><nav class="side-nav" aria-label="Administration">
 {% if perms.agentic_ai.add_businessmodule and perms.agentic_ai.change_businessmodule and perms.agentic_ai.change_agenttool %}<a href="{% url 'agentic_ai:modules' %}">Business modules</a>{% endif %}
 {% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Integration settings</a>{% endif %}
+{% if perms.agentic_ai.manage_loan_access %}<a href="{% url 'agentic_ai:data_access' %}">Data access</a>{% elif perms.agentic_ai.manage_loan_directory %}<a href="{% url 'agentic_ai:access_directory' %}">Branch directory</a>{% endif %}
 {% if perms.agentic_ai.view_agentrunlog %}<a href="{% url 'agentic_ai:dashboard' %}">User attempts</a>{% endif %}
 </nav></div>{% endif %}
 <div class="side-note"><strong>A little insight. A big difference.</strong>Explore reports through the tools available to your role.</div></aside>
@@ -200,6 +201,8 @@ tbody tr:hover { background:var(--soft) }
 </svg></div><span class="hero-tag" aria-hidden="true">Knowledge · Data · Services</span></section>
 <section class="workspace-prompts" aria-label="Get started"><span class="prompt-label">START WITH WHAT YOU NEED</span><a href="#agent-query-form">Ask a question <span aria-hidden="true">→</span></a><a href="#capabilities">Explore capabilities <span aria-hidden="true">→</span></a><a href="#my-activity">Pick up where you left off <span aria-hidden="true">→</span></a></section>
 {% if selected_module.questions %}<section class="card" aria-label="Module starter questions"><h2>Start with a question</h2><p>Choose an example, edit the details, then ask.</p>{% for question in selected_module.questions %}<p><button type="button" class="copy-button" data-module-question>{{ question }}</button></p>{% endfor %}</section>{% endif %}
+{% if own_loan_access %}<section class="personal-card" aria-label="My loan data access"><h2>My loan data access</h2><p>{{ own_loan_access.label }}</p>{% if own_loan_access.count %}<p>{{ own_loan_access.count }} active branch{{ own_loan_access.count|pluralize }} · {{ own_loan_access.codes }}{% if own_loan_access.more %}…{% endif %}</p>{% endif %}</section>
+{% endif %}
 {% include 'agentic_ai/query_form.html' %}
 <section class="capability-directory" id="capabilities" aria-labelledby="capabilities-title">
 <div class="section-heading"><div><span class="section-kicker">DISCOVER YOUR WORKSPACE</span><h2 id="capabilities-title">The right capability. Within reach.</h2><p class="directory-description">Explore registered services available to your role. Choose one to prepare a question.</p></div><span class="workspace-label">{{ capability_count }} registered</span></div>

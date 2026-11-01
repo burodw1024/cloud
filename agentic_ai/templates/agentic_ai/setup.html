@@ -93,7 +93,9 @@ function renderTools(tools,roles){
   roles.forEach(role=>{const choice=checkbox(role,tool.roles.includes(role));roleList.append(choice.label);choices.push({role,input:choice.input});});
   fieldset.append(roleList);card.append(fieldset);
   const approval=checkbox('Ask for approval before running',tool.requires_approval);card.append(approval.label);list.append(card);
-  catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,choices,metadata});
+  const loanScope=checkbox('Enforce user branch/zone access (loan tools)',tool.requires_loan_scope);loanScope.input.disabled=!!tool.loan_scope_mandatory;card.append(loanScope.label);
+  const scopeStatus=document.createElement('small');scopeStatus.textContent=(tool.loan_scope_mandatory?'Mandatory for this loan tool. ':'')+(tool.loan_scope_contract?'Backend declares the signed-access input.':'Signed-access input is not declared; scoped loan execution needs a backend update.');scopeStatus.hidden=!loanScope.input.checked;loanScope.input.addEventListener('change',()=>{scopeStatus.hidden=!loanScope.input.checked;});card.append(scopeStatus);
+  catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,loanScope:loanScope.input,choices,metadata});
  });
 }
 document.getElementById('check-whatsapp').onclick=()=>action({action:'check_whatsapp'});
@@ -102,5 +104,5 @@ document.getElementById('save-pricing').onclick=()=>{const identity=document.get
 document.getElementById('save-connection').onclick=async()=>{const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});if(body){document.getElementById('gateway-token').value='';modelReady=false;catalog=[];document.getElementById('tool-list').textContent='Click “Find tools” to refresh the tool list.';refreshButtons();}};
 document.getElementById('discover').onclick=async()=>{const body=await action({action:'discover'});if(body){renderTools(body.tools,body.roles);refreshButtons();}};
 document.getElementById('check-model').onclick=async()=>{modelReady=false;const body=await action({action:'check_model'});modelReady=!!body;refreshButtons();};
-document.getElementById('save-tools').onclick=()=>action({action:'save_tools',tools:catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,display_name:t.metadata.display_name.value,category:t.metadata.category.value,example_question:t.metadata.example_question.value,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}))});
+document.getElementById('save-tools').onclick=()=>action({action:'save_tools',tools:catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,requires_loan_scope:t.loanScope.checked,display_name:t.metadata.display_name.value,category:t.metadata.category.value,example_question:t.metadata.example_question.value,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}))});
 </script></body></html>

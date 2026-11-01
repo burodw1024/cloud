@@ -76,6 +76,7 @@ def remember_report(user, result):
     token = secrets.token_urlsafe(32)
     cache.set('agentic:summary:' + token, {
         'user_id': user.pk, 'tool': result['tool'], 'plan': result.get('plan', {}),
+        'loan_access': result.get('loan_access'),
         'report': projected,
     }, TTL)
     return {**result, 'summary_token': token}

@@ -109,7 +109,7 @@ def _authorized_names(user):
             if _allowed(record, user, roles)}
 
 
-def _decision(user, name, arguments):
+def _decision(user, name, arguments, tool=None, backend_arguments=None):
     # Read roles and activation again after the model responds.
     user = get_user_model().objects.filter(pk=getattr(user, "pk", None), is_active=True).first()
     record = AgentTool.objects.filter(name=name, is_active=True).first()
@@ -117,6 +117,17 @@ def _decision(user, name, arguments):
         return {"ok": False, "status": "blocked", "tool": name,
                 "code": "permission_denied", "http_status": 403,
                 "answer": "Permission denied for this MCP tool."}
+    from .loan_access import protected_tools, authorize, LoanAccessDenied, LoanAccessUnavailable
+    loan_grant = None
+    if record.requires_loan_scope or name in protected_tools():
+        try:
+            loan_grant = authorize(user, name, arguments, tool, backend_arguments)
+        except LoanAccessUnavailable as exc:
+            return {"ok": False, "status": "failed", "tool": name,
+                    "code": "loan_access_unavailable", "http_status": 503, "answer": str(exc)}
+        except LoanAccessDenied as exc:
+            return {"ok": False, "status": "blocked", "tool": name,
+                    "code": "loan_access_denied", "http_status": 403, "answer": str(exc)}
     if record.requires_approval:
         approval = AgentApprovalRequest.objects.create(
             user=user if getattr(user, "is_authenticated", False) else None,
@@ -124,9 +135,10 @@ def _decision(user, name, arguments):
             request_payload={"tool": name, "arguments": arguments},
         )
         return {"ok": False, "status": "approval_required", "approval_required": True,
+                **({'loan_access': loan_grant.access} if loan_grant else {}),
                 "approval_id": approval.id, "tool": name, "http_status": 202,
                 "answer": f"Approval required before executing tool: {name}. Approval ID: {approval.id}"}
-    return None
+    return loan_grant
 
 
 def _validator(schema):
@@ -395,11 +407,16 @@ async def _run(config, user, query, allowed_names):
             tools = await discover_tools(session, allowed_names)
             if not tools:
                 return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
+            from .loan_access import strip_server_authorization, LoanGrant, validate_response, current_access
+            original_tools = {tool.name: tool for tool in tools}
+            tools = strip_server_authorization(tools)
             from .member_scope import scoped_tools, member_call
             projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
             from .loan_question_help import is_loan_question_help, loan_question_help
             if is_loan_question_help(query):
-                return loan_question_help(tools, projection_tools)
+                from .loan_access import own_access_summary
+                examples = await sync_to_async(own_access_summary)(user)
+                return loan_question_help(tools, projection_tools, examples)
             from .zone_ranking import (is_zone_due_ranking, is_ranking_request, unavailable_ranking)
             from .loan_report_contract import (prepare_tools, ranking_candidates,
                                                 is_ranking_call, validate_ranking_call)
@@ -443,9 +460,15 @@ async def _run(config, user, query, allowed_names):
             report_config = {**config, "member_scope": member_scope}
             plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
             state.update(tool=name, plan=plan)
-            blocked = await sync_to_async(_decision)(user, name, arguments)
-            if blocked:
-                return dict(blocked, plan=plan)
+            decision = await sync_to_async(_decision)(user, name, arguments, original_tools[name], backend_arguments)
+            loan_grant = decision if isinstance(decision, LoanGrant) else None
+            if decision and not loan_grant:
+                return dict(decision, plan=plan)
+            if loan_grant:
+                from .loan_scope_backend import TOKEN_FIELD
+                backend_arguments[TOKEN_FIELD] = loan_grant.token
+                _validator(original_tools[name].inputSchema).validate(backend_arguments)
+                state['loan_access'] = loan_grant.access
             # Persist intent before dispatch; if audit storage is unavailable, do not call.
             audit_id = config.get("audit_id")
             if audit_id:
@@ -459,6 +482,14 @@ async def _run(config, user, query, allowed_names):
             raw = result.model_dump(mode="json", by_alias=True, exclude_none=True)
             if len(json.dumps(raw).encode()) > MAX_RESULT_BYTES:
                 raise GatewayError("response_too_large", "The tool result exceeded the response limit. Request a narrower report.")
+            if loan_grant:
+                try:
+                    validate_response(raw, loan_grant)
+                    if not await sync_to_async(current_access)(user, loan_grant.access):
+                        raise ValueError('Access changed while the report was running.')
+                except (ValueError, TypeError, KeyError) as exc:
+                    state['scope_failure'] = str(exc)[:300]
+                    raise GatewayError('loan_scope_unverified', 'Loan authorization changed or the backend scope could not be verified. No report was displayed.', 403) from exc
             if native_query:
                 if result.isError:
                     raise GatewayError("native_query_backend_error", "The loan query endpoint returned an error. No financial data was displayed.")
@@ -558,6 +589,13 @@ def run_mcp_query(user=None, query="", session_id=None):
     except Exception:
         prices = {}
     result["usage"] = summarize_usage(meter, prices)
+    if result.get('ok') and state.get('loan_access'):
+        from .loan_access import current_access
+        if current_access(user, state['loan_access']) and result.get('tool') in _authorized_names(user):
+            result['loan_access'] = state['loan_access']
+        else:
+            result = {'ok': False, 'status': 'blocked', 'http_status': 403, 'code': 'loan_access_denied',
+                      'answer': 'Loan access changed before the response was returned.', 'usage': result['usage']}
     result["request_id"] = request_id
     result["duration_ms"] = round((time.monotonic() - started) * 1000)
     try:
@@ -568,7 +606,7 @@ def run_mcp_query(user=None, query="", session_id=None):
             tool_output_summary=f"duration_ms={result['duration_ms']}; dispatched={bool(state.get('dispatched'))}; completed={bool(state.get('completed'))}",
             status=result.get("status", "success" if result["ok"] else "failed"),
             risk_level="high" if result.get("approval_required") else "medium",
-            error_message=f"request_id={request_id}; code={result.get('code', 'ok')}",
+            error_message=f"request_id={request_id}; code={result.get('code', 'ok')}; scope_check={state.get('scope_failure', '')}",
         )
     except Exception:
         logger.error("MCP audit finalization failed request_id=%s", request_id)

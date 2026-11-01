@@ -54,3 +54,11 @@ execution mechanism.
 The inspected cloud SQLite snapshot has no Django groups or AgentTool records.
 It is not evidence of the live database's configuration. This change creates no
 roles, grants no permissions and modifies no live accounts.
+
+## User-specific loan scope
+
+The subsequent loan data access implementation adds an explicit per-user policy
+and a signed backend contract. See [LOAN_DATA_ACCESS.md](LOAN_DATA_ACCESS.md)
+for administration permissions, directory import, default-deny behavior and the
+required NiFi/Oracle integration. Tool roles and business modules alone do not
+grant branch or zone entitlements.

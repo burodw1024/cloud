@@ -30,7 +30,7 @@ class OrchestratorTests(unittest.TestCase):
         self.addCleanup(self.gateway_patch.stop)
         self.addCleanup(self.log_patch.stop)
 
-    def test_end_to_end_member_inquiry(self):
+    def test_legacy_member_inquiry_cannot_bypass_scoped_gateway(self):
         config = {"get_nifi_url": lambda key: "https://nifi.example/query"}
         selection = {"tool": "get_loan_balance", "arguments": {"member_id": "M1"}, "clarification": ""}
         response = Mock()
@@ -50,15 +50,12 @@ class OrchestratorTests(unittest.TestCase):
             sys.modules.pop("agentic_ai.tools.nifi_tool", None)
             try:
                 result = orchestrator.run_agentic_query(make_user(), "principal remaining for member M1")
-                self.assertTrue(result["ok"])
-                self.assertIn("125000.50", result["answer"])
+                self.assertFalse(result["ok"])
+                self.assertEqual(result['code'], 'loan_access_denied')
+                http.assert_not_called()
+                self.assertNotIn('125000.50', str(result))
                 self.assertNotIn("private-phone", str(result))
                 self.assertNotIn("private-phone", str(self.log.call_args))
-                self.assertEqual(http.call_args.kwargs["json"]["params"], {"member_id": "M1"})
-                response.json.return_value["rows"][0]["MEMBERID"] = "M2"
-                result = orchestrator.run_agentic_query(make_user(), "principal remaining for member M1")
-                self.assertFalse(result["ok"])
-                self.assertNotIn("125000.50", str(result))
             finally:
                 sys.modules.pop("agentic_ai.tools.nifi_tool", None)
 

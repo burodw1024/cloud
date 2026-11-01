@@ -67,6 +67,12 @@ def run_agentic_query(user=None, query="", session_id=None):
             "plan": plan,
         }
 
+    if tool_name in {'nifi_tool', 'get_loan_balance', 'get_loan_due_details', 'get_loan_installment', 'get_savings_balance'}:
+        answer = 'Loan data requires the signed, user-scoped MCP backend. Ask an administrator to enable that integration.'
+        write_agent_log(user=user, query=query, tool=tool_name, status='blocked',
+                        final_answer=answer, intent=plan.get('intent'), session_id=session_id)
+        return {'ok': False, 'tool': tool_name, 'status': 'blocked', 'code': 'loan_access_denied', 'answer': answer}
+
     requires_approval = bool(
         plan.get("requires_approval") or tool_config.get("requires_approval")
     )

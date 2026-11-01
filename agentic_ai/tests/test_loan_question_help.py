@@ -74,6 +74,11 @@ class LoanQuestionHelpTests(SimpleTestCase):
             self.assertEqual(result['question_groups'], [])
             self.assertEqual(result['help_tools'], [])
 
+    def test_examples_use_assigned_codes_without_changing_the_inserted_branch_again(self):
+        result = loan_question_help([tool(NATIVE)], {NAME}, {'example_branch': '07', 'example_zone': '0253'})
+        self.assertIn('07 শাখায়', result['answer'])
+        self.assertIn('0253 জোনের', result['answer'])
+
     def test_gateway_help_discovers_authorized_tools_without_model_or_dispatch(self):
         @asynccontextmanager
         async def transport(*args, **kwargs):

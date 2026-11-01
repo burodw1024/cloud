@@ -4,6 +4,7 @@ from .bangla_summary import summary_api
 from .whatsapp import whatsapp_api
 from .setup_views import query_page, setup_page
 from .module_admin import module_manager
+from .access_admin import access_manager, directory_manager
 
 app_name = "agentic_ai"
 
@@ -15,6 +16,8 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("setup/", setup_page, name="setup"),
     path("modules/", module_manager, name="modules"),
+    path('data-access/', access_manager, name='data_access'),
+    path('data-access/directory/', directory_manager, name='access_directory'),
     path("api/query/", views.agentic_query_api, name="agentic_query_api"),
     path("api/logs/", views.logs_api, name="logs_api"),
 ]

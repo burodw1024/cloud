@@ -99,7 +99,7 @@ def remember_result(user, result):
     result['whatsapp_result_id'] = token
 
 
-async def dispatch(config, name, recipient, text, user):
+async def dispatch(config, name, recipient, text, user, source_result=None):
     from mcp import ClientSession
     from mcp.client.streamable_http import streamablehttp_client
     headers = {'Authorization': 'Bearer ' + config['token']} if config['token'] else {}
@@ -120,6 +120,8 @@ async def dispatch(config, name, recipient, text, user):
             decision = await sync_to_async(_decision)(user, name, arguments)
             if decision:
                 return decision
+            if source_result is not None and not await sync_to_async(_can_replay_result)(user, source_result):
+                return {'ok': False, 'http_status': 403, 'error': 'Report access changed before sharing. Nothing was sent.'}
             # No retry: a timeout after dispatch can have an unknown delivery outcome.
             response = await session.call_tool(name, arguments=arguments)
             data = response.model_dump(mode='json', by_alias=True, exclude_none=True)
@@ -183,7 +185,7 @@ def whatsapp_api(request):
             error_message='Dispatch pending; check gateway before retrying.')
         gateway = load_gateway_config()
         dispatched = True
-        output = async_to_sync(asyncio.wait_for)(dispatch(gateway, config['tool'], recipient, text, request.user), gateway['request_timeout'])
+        output = async_to_sync(asyncio.wait_for)(dispatch(gateway, config['tool'], recipient, text, request.user, result), gateway['request_timeout'])
         audit.status = 'success' if output.get('ok') else ('approval_required' if output.get('approval_required') else 'failed')
         audit.error_message = '' if output.get('ok') else output.get('error', output.get('answer', ''))
         audit.save(update_fields=['status', 'error_message'])

@@ -15,10 +15,17 @@ class BanglaSummaryTests(TestCase):
         self.tool = AgentTool.objects.create(name='loan-due-report', allowed_roles=['staff'])
         from django.contrib.auth.models import Group
         self.user.groups.add(Group.objects.get_or_create(name='staff')[0])
+        from agentic_ai.models import LoanZone, LoanBranch, LoanAccessPolicy
+        from agentic_ai.loan_access import snapshot
+        zone = LoanZone.objects.create(code='07', name='Test zone')
+        LoanBranch.objects.create(code='0253', name='Test branch', zone=zone)
+        LoanAccessPolicy.objects.create(user=self.user, mode='ALL')
+        access = snapshot(self.user)
         self.result = {'ok': True, 'tool': self.tool.name, 'plan': {'intent': 'mcp_tool_call'},
             'raw': {'structuredContent': {'columns': ['DUEAMOUNT', 'MEMBERID', 'PHONENO', 'MEMBERNAME'],
                 'rows': [{'DUEAMOUNT': '574528', 'MEMBERID': 'private-id', 'PHONENO': 'private-phone', 'MEMBERNAME': 'private-name'}],
                 'row_count': 1, 'report_date': '2026-09-30', 'truncated': False}}}
+        self.result['loan_access'] = {'subject': access['subject'], 'version': access['version']}
         self.token = summary.remember_report(self.user, self.result)['summary_token']
         self.url = '/agentic/api/summary/'
 
@@ -50,6 +57,13 @@ class BanglaSummaryTests(TestCase):
     def test_roles_rechecked(self, generate):
         self.tool.is_active = False
         self.tool.save()
+        self.assertEqual(self.post().status_code, 403)
+        generate.assert_not_called()
+
+    @patch.object(summary, 'generate_summary', new_callable=AsyncMock)
+    def test_data_scope_revocation_blocks_stored_summary(self, generate):
+        from agentic_ai.models import LoanAccessPolicy
+        LoanAccessPolicy.objects.filter(user=self.user).update(mode='NONE')
         self.assertEqual(self.post().status_code, 403)
         generate.assert_not_called()
 

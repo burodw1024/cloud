@@ -1,6 +1,70 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
+from django.core.validators import RegexValidator
+
+
+scope_code = RegexValidator(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$', 'Use an exact code of up to 32 letters, digits, dots, underscores or hyphens.')
+
+
+class LoanZone(models.Model):
+    code = models.CharField(max_length=32, unique=True, validators=[scope_code])
+    name = models.CharField(max_length=150)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['code']
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
+
+
+class LoanBranch(models.Model):
+    code = models.CharField(max_length=32, unique=True, validators=[scope_code])
+    name = models.CharField(max_length=150)
+    zone = models.ForeignKey(LoanZone, on_delete=models.PROTECT, related_name='branches')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['code']
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
+
+
+class LoanAccessPolicy(models.Model):
+    MODES = [('NONE', 'No loan data access'), ('SELECTED', 'Selected branches and/or zones'),
+             ('ALL', 'All active branches and zones')]
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='loan_access_policy')
+    mode = models.CharField(max_length=10, choices=MODES, default='NONE')
+    branches = models.ManyToManyField(LoanBranch, blank=True)
+    zones = models.ManyToManyField(LoanZone, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        permissions = [('manage_loan_access', 'Manage user loan data access'),
+                       ('grant_all_loan_access', 'Grant all-branch loan data access'),
+                       ('manage_loan_directory', 'Manage loan branch and zone directory')]
+
+    def __str__(self):
+        return f'{self.user} · {self.get_mode_display()}'
+
+
+class LoanAccessEvent(models.Model):
+    actor = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='+')
+    subject = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    actor_label = models.CharField(max_length=150)
+    subject_label = models.CharField(max_length=150, blank=True)
+    action = models.CharField(max_length=40)
+    reason = models.CharField(max_length=500)
+    before = models.JSONField(default=dict)
+    after = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-pk']
 
 
 class BusinessModule(models.Model):
@@ -29,6 +93,7 @@ class AgentTool(models.Model):
     example_question = models.TextField(blank=True, max_length=2000)
     is_active = models.BooleanField(default=True)
     requires_approval = models.BooleanField(default=False)
+    requires_loan_scope = models.BooleanField(default=False)
     allowed_roles = models.JSONField(default=list, blank=True)
 
     def clean(self):

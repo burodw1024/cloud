@@ -42,11 +42,14 @@ def workspace_context(user, module_slug=''):
     if module_slug:
         # Unknown/unavailable modules never reveal their names or capabilities.
         catalog = [item for item in catalog if selected_module and item.get('module_slug') == module_slug]
+    from .loan_access import protected_tools
+    loan_names = protected_tools() | {record.name for record in records if record.requires_loan_scope}
     activity = list(AgentRunLog.objects.filter(user=user).order_by('-created_at').values(
         'user_query', 'status', 'created_at', 'usage_summary')[:5])
     approvals = list(AgentApprovalRequest.objects.filter(user=user, status='pending').order_by('-created_at').values(
         'tool_name', 'created_at')[:3])
     return {'capabilities': catalog, 'capability_count': len(catalog),
+            'has_loan_capabilities': any(item['name'] in loan_names for item in catalog),
             'business_modules': modules, 'selected_module': selected_module,
             'recent_activity': activity, 'pending_approvals': approvals,
             'pending_approval_count': AgentApprovalRequest.objects.filter(user=user, status='pending').count()}

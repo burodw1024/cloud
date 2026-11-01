@@ -74,6 +74,16 @@ class GuidedSetupTests(TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertFalse(AgentTool.objects.exists())
 
+    @patch.object(setup_views, '_save_settings')
+    def test_scoped_tool_classification_is_saved_and_preserved_for_older_clients(self, save):
+        self.post('discover')
+        self.post('check_model')
+        self.assertEqual(self.post('save_tools', tools=[self.tool(requires_loan_scope=True)]).status_code, 200)
+        self.assertTrue(AgentTool.objects.get().requires_loan_scope)
+        self.assertEqual(self.post('save_tools', tools=[self.tool()]).status_code, 200)
+        self.assertTrue(AgentTool.objects.get().requires_loan_scope)
+        self.assertEqual(self.post('save_tools', tools=[self.tool(requires_loan_scope='true')]).status_code, 400)
+
     def test_arbitrary_tool_or_role_cannot_be_registered(self):
         self.post("discover")
         self.post("check_model")

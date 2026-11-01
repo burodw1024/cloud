@@ -66,3 +66,11 @@ created automatically. No production configuration was changed from cloud.
 Verified with isolated Django tests and synthetic browser fixtures, including
 mobile layout, hidden admin controls, direct-route authorization, module pause,
 cached-report denial, CSRF, assignment preservation and click-to-edit behavior.
+
+## User-specific loan scope
+
+The subsequent loan data access implementation adds an explicit per-user policy
+and a signed backend contract. See [LOAN_DATA_ACCESS.md](LOAN_DATA_ACCESS.md)
+for administration permissions, directory import, default-deny behavior and the
+required NiFi/Oracle integration. Tool roles and business modules alone do not
+grant branch or zone entitlements.

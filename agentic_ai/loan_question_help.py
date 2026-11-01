@@ -15,7 +15,7 @@ def is_loan_question_help(query):
     )
 
 
-def loan_question_help(tools, report_names):
+def loan_question_help(tools, report_names, examples=None):
     """`tools` must come from authorized, fresh gateway discovery."""
     from .native_loan_query import supports_native_query
     from .loan_report_contract import supports_ranking
@@ -119,5 +119,13 @@ def loan_question_help(tools, report_names):
             lines.append(f'{count}. {question}')
     lines.extend(['', 'এই তালিকা তৈরি করতে কোনো ঋণ রিপোর্ট চালানো বা মডেল কল করা হয়নি।',
                   'দুই তারিখের তুলনা, ভবিষ্যৎ পূর্বাভাস বা বকেয়ার কারণ এই নির্দেশিকায় সমর্থিত দাবি করা হচ্ছে না।'])
+    def personalize(text):
+        if examples and examples.get('example_branch'):
+            text = re.sub(r'(?<![A-Za-z0-9])(0253|07)(?![A-Za-z0-9])',
+                          lambda match: examples['example_branch'] if match[0] == '0253' else examples['example_zone'], text)
+        return text
+    for group in groups:
+        group['questions'] = [personalize(question) for question in group['questions']]
     return {'ok': True, 'kind': 'loan_question_help', 'tool_executed': False,
-            'help_tools': sorted(set(sources)), 'question_groups': groups, 'answer': '\n'.join(lines)}
+            'help_tools': sorted(set(sources)), 'question_groups': groups,
+            'answer': personalize('\n'.join(lines))}

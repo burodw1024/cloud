@@ -32,10 +32,15 @@ def _can_replay_result(user, result):
     tool_name = result.get("tool")
     if not tool_name:
         return True
+    from .loan_access import protected_tools, current_access
+    if (tool_name in protected_tools() or result.get('loan_access')) and not current_access(user, result.get('loan_access')):
+        return False
     if result.get("plan", {}).get("intent") == "mcp_tool_call":
         from .models import AgentTool
         from .mcp_gateway import _allowed
         record = AgentTool.objects.filter(name=tool_name, is_active=True).first()
+        if record and record.requires_loan_scope and not current_access(user, result.get('loan_access')):
+            return False
         return bool(record and _allowed(record, user))
     from .permissions import has_tool_permission
     from .tool_registry import TOOL_REGISTRY

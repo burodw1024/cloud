@@ -52,7 +52,10 @@ def _reply(body, status=200):
 def query_page(request):
     from .workspace import workspace_context
     from .whatsapp import settings_status
-    response = render(request, "agentic_ai/ask.html", {**workspace_context(request.user, request.GET.get('module', '')), "whatsapp": settings_status(request.user)})
+    from .loan_access import own_access_summary
+    workspace = workspace_context(request.user, request.GET.get('module', ''))
+    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": settings_status(request.user),
+                      'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -170,6 +173,9 @@ def setup_page(request):
             cache.delete(cache_key)
             return _reply({"ok": True, "message": "Connection saved. Tools are paused until setup is complete. Next, find the available tools."})
         if action == "discover":
+            from .loan_access import protected_tools
+            from .loan_scope_backend import TOKEN_FIELD
+            mandatory_scope_tools = protected_tools()
             config = load_gateway_config()
             tools = async_to_sync(discover_gateway)(config)
             known = {record.name: record for record in AgentTool.objects.filter(name__in=[t.name for t in tools])}
@@ -184,6 +190,9 @@ def setup_page(request):
                     "enabled": bool(record and record.is_active),
                     "roles": record.allowed_roles if record else [],
                     "requires_approval": record.requires_approval if record else not bool(tool.annotations and tool.annotations.readOnlyHint),
+                    "requires_loan_scope": tool.name in mandatory_scope_tools or bool(record and record.requires_loan_scope),
+                    "loan_scope_mandatory": tool.name in mandatory_scope_tools,
+                    "loan_scope_contract": tool.inputSchema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') == 'string' and TOKEN_FIELD in tool.inputSchema.get('required', []),
                 })
             cache.set(cache_key, {"url": config["url"], "tools": catalog}, 300)
             return _reply({"ok": True, "tools": catalog, "roles": _roles(),
@@ -220,6 +229,8 @@ def setup_page(request):
                     value = item.get(field)
                     if field in item and (not isinstance(value, str) or len(value) > maximum):
                         raise ValueError
+                if 'requires_loan_scope' in item and not isinstance(item['requires_loan_scope'], bool):
+                    raise ValueError
                 if item["enabled"] and not selected:
                     return _reply({"ok": False, "error": f"Choose at least one role for {name}."}, 400)
                 names.add(name)
@@ -232,6 +243,8 @@ def setup_page(request):
                     record.is_active = item["enabled"]
                     record.allowed_roles = item["roles"]
                     record.requires_approval = item["requires_approval"]
+                    if 'requires_loan_scope' in item:
+                        record.requires_loan_scope = item['requires_loan_scope']
                     for field in ("display_name", "category", "example_question"):
                         if field in item:
                             setattr(record, field, item[field].strip() or ("General" if field == "category" else ""))
