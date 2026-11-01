@@ -169,3 +169,33 @@ For an authenticated NiFi API over `DW_GC_BRANCHLIST2` and the administrator
 preview/apply sync, see [the branch directory integration guide](nifi/branch-directory/README.md).
 Directory sync imports hierarchy metadata and preserves user grants and existing
 paused records. It does not replace the signed financial-query contract above.
+
+## Admin-managed directory connection
+
+Open **Integration settings → Branch & zone directory API** (`/agentic/setup/`).
+Set the URL to `http://192.168.1.139:8005/api/reference/branches`, enable
+**Allow HTTP for a private network address**, and enter the same directory token
+configured in NiFi. Choose **Save directory connection**, then **Check saved
+directory connection**. The check validates a complete snapshot and counts
+branches/zones; it does not import anything or change access grants.
+
+Saved admin settings take priority over the `LOAN_DIRECTORY_*` environment
+connection values and apply immediately across workers. Existing environment
+configuration remains a fallback until an admin connection is saved. The optional
+`LOAN_DIRECTORY_CA_BUNDLE` remains deployment-controlled for a mounted private CA.
+The new connection model is installed by migration **0007**.
+
+The token input is never populated from storage; leaving it blank retains the
+saved token. Changing the origin or scheme requires re-entering the token to
+avoid forwarding a previous server's credential accidentally. Tokens are encrypted
+with a key derived from Django's existing `SECRET_KEY`. Preserve that secret
+across restarts. During key rotation use `SECRET_KEY_FALLBACKS`, then re-save the
+connection to encrypt with the new key. If the old key is unavailable, sign back
+in and enter the NiFi token again. Database backups alone do not decrypt tokens.
+No token plaintext or ciphertext is rendered in the settings page or audit event.
+
+Only active staff with the existing integration-management permissions
+(`add_agenttool`, `change_agenttool`, `chat.change_systemsetting`) or superusers
+can save/check this connection. Changes are audited atomically. Import remains
+under **Data access → Branch & zone directory**, requiring
+`manage_loan_directory`; user scope grants remain a separate action.

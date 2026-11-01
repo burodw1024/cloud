@@ -17,18 +17,22 @@ FIELDS = tuple(p + s for p in ('DIVISION', 'ZONE', 'AREA', 'BRANCH') for s in ('
 
 
 def configuration():
-    url = os.environ.get('LOAN_DIRECTORY_URL', '').strip()
-    token = os.environ.get('LOAN_DIRECTORY_TOKEN', '')
+    from .directory_config import current
+    config = current()
+    return validate_configuration(config['url'], config['token'], config['allow_http'])
+
+
+def validate_configuration(url, token, allow_http):
     parsed = urlsplit(url)
     valid = parsed.scheme == 'https'
-    if parsed.scheme == 'http' and os.environ.get('LOAN_DIRECTORY_ALLOW_HTTP') == '1':
+    if parsed.scheme == 'http' and allow_http:
         try:
             address = ipaddress.ip_address(parsed.hostname or '')
             valid = any(address in ipaddress.ip_network(net) for net in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
         except ValueError:
             valid = False
-    if not valid or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or len(token.encode()) < 32:
-        raise ValueError('Configure LOAN_DIRECTORY_URL and a dedicated LOAN_DIRECTORY_TOKEN (at least 32 bytes). Use HTTPS; private HTTP requires an explicit deployment opt-in.')
+    if not valid or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or len(token.encode()) < 32 or any(ord(c) < 32 or ord(c) == 127 for c in token):
+        raise ValueError('Configure the directory URL and a dedicated API token (at least 32 bytes) in Integration settings. Use HTTPS or explicitly allow private HTTP.')
     return url, token
 
 

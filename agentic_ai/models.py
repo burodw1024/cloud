@@ -190,3 +190,11 @@ class AgentApprovalRequest(models.Model):
 
     def __str__(self):
         return f"{self.tool_name} - {self.status}"
+
+
+class LoanDirectoryConnection(models.Model):
+    """Singleton integration configuration; token ciphertext is never rendered."""
+    url = models.URLField(max_length=2048)
+    allow_http = models.BooleanField(default=False)
+    encrypted_token = models.TextField()
+    updated_at = models.DateTimeField(auto_now=True)

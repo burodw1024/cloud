@@ -11,6 +11,16 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <p>Connect your gateway, choose who can use each tool, then test a question.</p>
 <p id="setup-status" class="status" role="status" aria-live="polite">{% if enabled %}Gateway tools are enabled.{% else %}Complete these steps to enable gateway tools.{% endif %}</p>
 {% csrf_token %}
+<section class="card" aria-labelledby="directory-heading"><h2 id="directory-heading">Branch &amp; zone directory API</h2>
+<p>Connect directly to the NiFi OracleBranchDirectory API. This connection is separate from MCP and does not change user access grants.</p>
+<label for="directory-url">Directory API URL</label><input id="directory-url" type="url" maxlength="2048" value="{{ directory.url|default:directory_default_url }}">
+<label for="directory-http"><input id="directory-http" type="checkbox"{% if directory.allow_http %} checked{% endif %}> Allow HTTP for a private network address</label><small>Enable this for your current http://192.168.1.139:8005 endpoint. HTTPS remains the preferred production option.</small>
+<label for="directory-token">Directory API Token</label><input id="directory-token" type="password" autocomplete="new-password" maxlength="4096" placeholder="{% if directory.token_saved %}Token configured — leave blank to keep it{% else %}Enter the same token as NiFi (at least 32 bytes){% endif %}">
+<small id="directory-token-status">{% if directory.token_saved %}A token is configured. Its value is never displayed.{% else %}No token is configured.{% endif %} New tokens are encrypted before storage. Re-enter the token when changing the API origin.</small>
+<input id="directory-version" type="hidden" value="{{ directory.version }}">
+<button id="save-directory" type="button">Save directory connection</button><button id="check-directory" type="button">Check saved directory connection</button>
+<p><a href="{% url 'agentic_ai:access_directory' %}">Open branch &amp; zone directory →</a></p><small>Save first, then check. The check only validates and counts the snapshot; importing requires a separate sync preview. Saved admin configuration takes priority over environment variables. A private CA certificate, if needed, is still mounted through deployment configuration.</small>
+</section>
 <section class="card"><h2>1. Connect your gateway</h2>
 <label for="gateway-url">Gateway endpoint</label><input id="gateway-url" type="url" value="{{ gateway_url }}" required>
 <small>Use the complete MCP endpoint, including its path. The current /mcp path still needs verification.</small>
@@ -60,6 +70,12 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 </section>
 </main><script>
 const statusBox=document.getElementById('setup-status');
+document.getElementById('save-directory').addEventListener('click',async()=>{
+ const result=await action({action:'save_directory',url:document.getElementById('directory-url').value,allow_http:document.getElementById('directory-http').checked,token:document.getElementById('directory-token').value,version:document.getElementById('directory-version').value});
+ if(result){document.getElementById('directory-version').value=result.version;document.getElementById('directory-token').value='';document.getElementById('directory-token').placeholder='Token configured — leave blank to keep it';document.getElementById('directory-token-status').textContent='A token is configured. Its value is never displayed. Leave the token field blank to keep it.';}
+});
+document.getElementById('check-directory').addEventListener('click',()=>action({action:'check_directory'}));
+
 document.getElementById('save-summary').addEventListener('click',()=>action({action:'save_summary',base:document.getElementById('summary-base').value,model:document.getElementById('summary-model').value}));
 let catalog=[], modelReady=false, busy=false;
 function refreshButtons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);document.getElementById('save-tools').disabled=busy||!modelReady||catalog.length===0;}

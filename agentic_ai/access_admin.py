@@ -209,6 +209,7 @@ def directory_manager(request):
         response = HttpResponse('zone_code,zone_name,branch_code,branch_name,active\n', content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="branch-directory-template.csv"'
         return response
+    from .directory_config import public_status
     zone_form, branch_form = ZoneForm(prefix='zone'), BranchForm(prefix='branch')
     notice = 'Directory changes saved and audited. Existing policies resolve against the updated directory.' if request.method == 'GET' and request.GET.get('saved') == '1' else ''
     error = ''
@@ -255,7 +256,7 @@ def directory_manager(request):
             return redirect(f'{request.path}?saved=1')
     response = render(request, 'agentic_ai/access_directory.html', {
         'zone_form': zone_form, 'branch_form': branch_form, 'notice': notice, 'error': error,
-        'sync_preview': sync_preview, 'directory_configured': bool(os.environ.get('LOAN_DIRECTORY_URL')),
+        'sync_preview': sync_preview, 'directory_configured': bool(public_status()['url']),
         'zones': LoanZone.objects.all(),
         'branches_page': Paginator(LoanBranch.objects.select_related('zone').all(), 50).get_page(request.GET.get('page')),
     })

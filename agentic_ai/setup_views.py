@@ -75,6 +75,7 @@ def _pricing_context():
 @ensure_csrf_cookie
 @csrf_protect
 def setup_page(request):
+    from . import directory_config
     cache_key = f"agentic:setup:{request.user.pk}"
     if request.method == "GET":
         from .whatsapp import configuration
@@ -83,6 +84,7 @@ def setup_page(request):
         except (ValueError, TypeError):
             whatsapp = {"tool": get_setting("MCP_WHATSAPP_TOOL", ""), "recipients": []}
         response = render(request, "agentic_ai/setup.html", {
+            "directory": directory_config.public_status(), "directory_default_url": directory_config.DEFAULT_URL,
             "gateway_url": get_setting("MCP_GATEWAY_URL"), "model": get_llm_model(),
             "enabled": gateway_enabled(), **_pricing_context(),
             "summary_model": get_setting("MCP_SUMMARY_MODEL", "openrouter/auto"),
@@ -101,6 +103,20 @@ def setup_page(request):
         if not isinstance(body, dict):
             raise ValueError
         action = body.get("action")
+        if action == "save_directory":
+            try:
+                version = directory_config.save(request.user, body.get('url'), body.get('allow_http'),
+                                                body.get('token', ''), body.get('version'))
+            except ValueError as exc:
+                return _reply({'ok': False, 'error': str(exc)}, 400)
+            return _reply({'ok': True, 'version': version, 'message': 'Directory API settings saved. The token is encrypted. You can check the saved connection or fetch a directory sync preview.'})
+        if action == "check_directory":
+            from .directory_sync import fetch_snapshot
+            try:
+                rows = fetch_snapshot()
+            except ValueError as exc:
+                return _reply({'ok': False, 'error': str(exc)}, 400)
+            return _reply({'ok': True, 'message': f"Directory connection verified: {len(rows)} branches across {len({row['ZONECODE'] for row in rows})} zones. No directory entries or user permissions were changed."})
         if action == "check_whatsapp":
             from .whatsapp import configuration, settings_status, _validator
             status = settings_status(request.user)
