@@ -1,0 +1,17 @@
+{
+  "artifact": "branch-directory-nar-1.0.0.nar",
+  "version": "1.0.0",
+  "nifi_version": "2.4.0",
+  "java_version": 21,
+  "tests": {
+    "run": 23,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "live_oracle_tested": false,
+  "live_nifi_installed": false,
+  "sha256": "79d1e53c30d28bdc5fe7d5d4258fc0d63521a48695c761c8dd13473c55a39889",
+  "oracle_driver": "ojdbc11 23.6.0.24.10",
+  "processor": "org.buro.nifi.directory.OracleBranchDirectory"
+}

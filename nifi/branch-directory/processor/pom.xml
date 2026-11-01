@@ -1,0 +1,13 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>
+ <parent><groupId>org.buro.nifi</groupId><artifactId>branch-directory-parent</artifactId><version>1.0.0</version></parent>
+ <artifactId>branch-directory-processor</artifactId>
+ <dependencies>
+  <dependency><groupId>org.apache.nifi</groupId><artifactId>nifi-api</artifactId><version>${nifi.version}</version><scope>provided</scope></dependency>
+  <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.18.2</version></dependency>
+  <dependency><groupId>com.oracle.database.jdbc</groupId><artifactId>ojdbc11</artifactId><version>23.6.0.24.10</version></dependency>
+  <dependency><groupId>org.apache.nifi</groupId><artifactId>nifi-mock</artifactId><version>${nifi.version}</version><scope>test</scope></dependency>
+  <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.11.4</version><scope>test</scope></dependency>
+  <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><version>5.15.2</version><scope>test</scope></dependency>
+ </dependencies>
+ <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId></plugin><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId></plugin></plugins></build>
+</project>

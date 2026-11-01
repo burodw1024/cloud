@@ -62,3 +62,6 @@ work/
 
 # Private snapshots from this deployment launcher
 /agentic-release.*/
+
+# Local NiFi Maven build output
+nifi/**/target/

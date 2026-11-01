@@ -1,5 +1,7 @@
 # Oracle branch directory API and Django sync
 
+**Recommended:** use the compiled [OracleBranchDirectory NAR](../../../nifi/branch-directory/README.md) for configurable Oracle URL, username, sensitive password, schema/table and column fields. The NAR bundles its JDBC driver. The Groovy flow below remains an alternative and is not needed with the NAR.
+
 This is a separate, read-only master-data endpoint. It does not replace the loan
 report flow, grant access to users, or implement financial query authorization.
 The repository does not contain your live NiFi controller-service IDs, Oracle
