@@ -91,7 +91,7 @@ def export_text(result, mode):
 
 
 def remember_result(user, result):
-    if (not result.get('ok') or result.get('kind') == 'clarification'
+    if (not result.get('ok') or result.get('kind') in {'clarification', 'loan_question_help'}
             or not availability(user)['recipients']):
         return
     token = uuid.uuid4().hex

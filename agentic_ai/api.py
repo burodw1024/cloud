@@ -26,6 +26,9 @@ def execute_query(**kwargs):
 
 def _can_replay_result(user, result):
     """A cached report must obey current authorization, just like a new call."""
+    if result.get("kind") == "loan_question_help":
+        # Rediscover capabilities: tool schemas and role grants can change.
+        return False
     tool_name = result.get("tool")
     if not tool_name:
         return True
@@ -91,6 +94,8 @@ def agentic_query_api(request):
                     return _response({"ok": False, "error": "Idempotency key conflict. Use a new key for a new query."}, 409)
                 if previous.get("pending"):
                     return _response({"ok": False, "error": "This request is already running or its outcome is pending. Check the audit log before retrying."}, 409)
+                if previous["result"].get("kind") == "loan_question_help":
+                    return _response({"ok": False, "error": "The question guide may have changed. Submit again with a new request key to refresh it."}, 409)
                 if not _can_replay_result(request.user, previous["result"]):
                     return _response({"ok": False, "code": "permission_denied",
                                       "error": "This report is no longer available to your current roles."}, 403)
@@ -109,7 +114,17 @@ def agentic_query_api(request):
     except Exception:
         logger.error("Agent execution cache is unavailable")
         return _response({"ok": False, "error": "Request coordination is unavailable; no tool was executed."}, 503)
-    result = execute_query(user=request.user, query=query, session_id=request.session.session_key)
+    try:
+        result = execute_query(user=request.user, query=query, session_id=request.session.session_key)
+    except Exception as exc:
+        from .audit import write_agent_log
+        write_agent_log(user=request.user, query=query, intent="execution_failed", status="failed",
+                        error_message=f"Unhandled execution failure: {type(exc).__name__}",
+                        final_answer="The request failed unexpectedly. Ask an administrator to review the attempt.",
+                        session_id=request.session.session_key)
+        logger.error("Unhandled agent execution failure type=%s", type(exc).__name__)
+        result = {"ok": False, "http_status": 500,
+                  "answer": "The request failed unexpectedly. Ask an administrator to review the attempt. No automatic retry was sent."}
     from .bangla_summary import remember_report
     result = remember_report(request.user, result)
     status = result.pop("http_status", 200)

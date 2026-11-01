@@ -52,7 +52,7 @@ def _reply(body, status=200):
 def query_page(request):
     from .workspace import workspace_context
     from .whatsapp import settings_status
-    response = render(request, "agentic_ai/ask.html", {"model": get_llm_model(), **workspace_context(request.user), "whatsapp": settings_status(request.user)})
+    response = render(request, "agentic_ai/ask.html", {**workspace_context(request.user, request.GET.get('module', '')), "whatsapp": settings_status(request.user)})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -67,7 +67,7 @@ def _pricing_context():
             "model_price": price if isinstance(price, dict) else {}}
 
 
-@staff_member_required
+@staff_member_required(login_url='/login/')
 @permission_required(SETUP_PERMISSIONS, raise_exception=True)
 @ensure_csrf_cookie
 @csrf_protect

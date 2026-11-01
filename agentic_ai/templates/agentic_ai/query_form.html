@@ -5,16 +5,17 @@
         {% csrf_token %}
         <label class="field-label" for="agent-message">Your question</label>
         <textarea id="agent-message" name="message" rows="3" maxlength="16000" required placeholder="Ask a question, find information, or describe what you need help with…" aria-describedby="query-hint"></textarea>
+        <button type="button" class="copy-button" id="loan-question-help">ঋণ নিয়ে কী কী প্রশ্ন করতে পারি?</button>
         <div class="composer-footer"><span class="composer-hint" id="query-hint">Add the details that matter.<br>Ctrl / ⌘ + Enter to run</span><button class="run-button" type="submit">Ask assistant &nbsp; →</button></div>
     </form>
     <section class="result-panel" aria-labelledby="result-title" aria-busy="false">
         <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy full answer</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
         <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to get started.</div>
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        <section id="loan-question-suggestions" aria-label="ঋণের প্রশ্নের উদাহরণ" hidden></section>
 
-        <section id="whatsapp-actions" aria-label="Share result on WhatsApp">
+        {% if whatsapp.ready %}<section id="whatsapp-actions" aria-label="Share result on WhatsApp">
             <h3>Share result on WhatsApp</h3>
-            <p>{{ whatsapp.status }}</p>
             {% if whatsapp.recipients %}
             <label for="whatsapp-recipient">WhatsApp recipient</label>
             <select id="whatsapp-recipient">{% for number in whatsapp.recipients %}<option value="{{ number }}">+{{ number }}</option>{% endfor %}</select>
@@ -30,6 +31,7 @@
             <button type="button" class="copy-button" id="whatsapp-cancel">Cancel</button></div>
             <p id="whatsapp-status" role="status" aria-live="polite"></p>
         </section>
+        {% endif %}
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>
             <input class="report-search" id="report-search" type="search" placeholder="Find in displayed rows…" autocomplete="off" aria-controls="agent-table">
@@ -68,6 +70,7 @@
 </section>
 
 <script src="{% static 'agentic_ai/report_chart.js' %}"></script>
+<script src="{% static 'agentic_ai/loan_question_help.js' %}"></script>
 <script>
 (() => {
     const form = document.getElementById('agent-query-form');
@@ -263,6 +266,12 @@
             event.preventDefault(); form.requestSubmit();
         }
     });
+    const loanSuggestions = document.getElementById('loan-question-suggestions');
+    document.getElementById('loan-question-help').addEventListener('click', () => {
+        if (form.elements.message.disabled) return;
+        form.elements.message.value = 'ঋণ ও বকেয়া রিপোর্ট নিয়ে কী কী প্রশ্ন করতে পারি? সব প্রশ্নের উদাহরণ দেখাও।';
+        form.elements.message.focus();
+    });
     form.addEventListener('submit', async function(event) {
         event.preventDefault();
         const button = form.querySelector('[type=submit]');
@@ -270,6 +279,7 @@
         if (waBusy) return;
         const question = form.elements.message.value.trim();
         if (!question) return;
+        loanSuggestions.hidden = true; loanSuggestions.replaceChildren();
         waResultId=null;waPending=null;if(waPanel){waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=true);document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
         chartReport = null; chartButton.hidden = true; chartPanel.hidden = true; chartBars.replaceChildren();
         chartButton.setAttribute('aria-expanded', 'false'); chartButton.textContent = 'চার্টে দেখুন';
@@ -304,6 +314,11 @@
             const answer = body.answer ?? body.error ?? 'No response was returned.';
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
             result.textContent = copyText;
+            if (body.ok && body.kind === 'loan_question_help' && window.BuroLoanQuestionHelp) {
+                window.BuroLoanQuestionHelp.render(loanSuggestions, body.question_groups, form.elements.message);
+                // Keep the introduction visible; the numbered examples are clickable below.
+                if (body.question_groups?.length) result.textContent = copyText.split('\n\n')[0];
+            }
             const report = body.raw?.structuredContent;
             if (body.ok && report && Array.isArray(report.rows) && window.BuroReportChart) {
                 const metrics = window.BuroReportChart.available(report);

@@ -43,7 +43,7 @@ class GuidedSetupTests(TestCase):
         self.assertContains(response, "workspace-capabilities")
         self.assertNotContains(response, "Show the loan aging report for branch 0253")
         self.assertContains(response, "csrfmiddlewaretoken")
-        self.assertContains(response, "Set up tools")
+        self.assertContains(response, "Integration settings")
 
     def test_setup_requires_privileged_staff(self):
         self.user.is_superuser = False

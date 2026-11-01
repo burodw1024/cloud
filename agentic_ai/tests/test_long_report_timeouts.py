@@ -61,8 +61,11 @@ class LongReportTimeoutTests(SimpleTestCase):
     def test_previously_deployed_native_gateway_remains_exactly_recognized(self):
         from deploy.verify_gateway_source import verify
         baked=(ROOT/'agentic_ai/mcp_gateway.py').read_text()
-        previous=baked.replace('"MCP_TIMEOUT", 1500, 1, 1500','"MCP_TIMEOUT", 30, 1, 300').replace(
-            '"MCP_REQUEST_TIMEOUT", 1800, 1, 1800','"MCP_REQUEST_TIMEOUT", 90, 1, 600')
+        # Use the actual old deployed source. Rewriting the latest source's
+        # timeouts invents a never-deployed version whenever new features land.
+        previous=(ROOT/'agentic_ai/tests/fixtures/native_query_previous_gateway.py.txt').read_text()
+        self.assertIn('"MCP_TIMEOUT", 30, 1, 300', previous)
+        self.assertIn('"MCP_REQUEST_TIMEOUT", 90, 1, 600', previous)
         known=(ROOT/'deploy/gateway_previous.sha256').read_text().splitlines()
         self.assertIn(hashlib.sha256(previous.encode()).hexdigest(),known)
         baseline=(ROOT/'deploy/gateway_baseline.sha256').read_text().strip()

@@ -3,7 +3,25 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 
 
+class BusinessModule(models.Model):
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=100, unique=True, allow_unicode=True)
+    description = models.TextField(blank=True, max_length=1500)
+    starter_questions = models.TextField(blank=True, max_length=10000)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name', 'pk']
+
+    def __str__(self):
+        return self.name
+
+
 class AgentTool(models.Model):
+    module = models.ForeignKey(BusinessModule, null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name='tools')
     name = models.CharField(max_length=150, unique=True)
     description = models.TextField(blank=True)
     display_name = models.CharField(max_length=150, blank=True)

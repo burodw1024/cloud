@@ -3,6 +3,7 @@ from . import views
 from .bangla_summary import summary_api
 from .whatsapp import whatsapp_api
 from .setup_views import query_page, setup_page
+from .module_admin import module_manager
 
 app_name = "agentic_ai"
 
@@ -13,6 +14,7 @@ urlpatterns = [
     path("", query_page, name="query_page"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("setup/", setup_page, name="setup"),
+    path("modules/", module_manager, name="modules"),
     path("api/query/", views.agentic_query_api, name="agentic_query_api"),
     path("api/logs/", views.logs_api, name="logs_api"),
 ]

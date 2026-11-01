@@ -84,6 +84,19 @@ class AgentApiTests(TestCase):
         self.assertEqual(self.post({"message": "another report"}, HTTP_IDEMPOTENCY_KEY="same-key").status_code, 409)
         self.assertEqual(run.call_count, 1)
 
+    @patch.object(api, "execute_query", return_value={"ok": True, "kind": "loan_question_help",
+                  "tool_executed": False, "answer": "প্রশ্নের উদাহরণ", "question_groups": []})
+    def test_question_guide_requires_fresh_discovery_instead_of_stale_replay(self, run):
+        first = self.post({"message": "What questions can I ask about loans?"},
+                          HTTP_IDEMPOTENCY_KEY="question-guide")
+        second = self.post({"message": "What questions can I ask about loans?"},
+                           HTTP_IDEMPOTENCY_KEY="question-guide")
+        self.assertEqual(first.status_code, 200)
+        self.assertNotIn("whatsapp_result_id", first.json())
+        self.assertEqual(second.status_code, 409)
+        self.assertIn("refresh", second.json()["error"])
+        run.assert_called_once()
+
     @patch.object(api, "execute_query", side_effect=lambda **kw: {"ok": True, "answer": "report"})
     def test_rate_limit(self, run):
         for _ in range(20):

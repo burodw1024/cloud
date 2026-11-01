@@ -13,39 +13,7 @@ from .models import AgentRunLog, AgentApprovalRequest
 from .api import agentic_query_api
 
 
-@staff_member_required
-@permission_required(("agentic_ai.view_agentrunlog", "agentic_ai.view_agentapprovalrequest"), raise_exception=True)
-def dashboard(request):
-    logs = AgentRunLog.objects.all()[:50]
-    approvals = AgentApprovalRequest.objects.filter(status="pending")[:50]
-    return render(
-        request,
-        "agentic_ai/dashboard.html",
-        {
-            "logs": logs,
-            "approvals": approvals,
-        },
-    )
-
-
-@staff_member_required
-@permission_required("agentic_ai.view_agentrunlog", raise_exception=True)
-def logs_api(request):
-    logs = AgentRunLog.objects.all()[:100]
-    data = [
-        {
-            "id": x.id,
-            "created_at": x.created_at.isoformat(),
-            "user": x.user.username if x.user else None,
-            "query": x.user_query,
-            "intent": x.detected_intent,
-            "tool": x.selected_tool,
-            "status": x.status,
-            "risk_level": x.risk_level,
-        }
-        for x in logs
-    ]
-    return JsonResponse({"ok": True, "logs": data})
+from .review import dashboard, logs_api
 
 
 @csrf_exempt

@@ -7,7 +7,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 {% include "agentic_ai/page_nav.html" %}
 <main>
 <a href="{% url 'agentic_ai:query_page' %}">← Ask your assistant</a>
-<p class="muted">BURO Insight AI</p><h1>Set up assistant tools</h1>
+<p class="muted">BURO Insight AI · Administration</p><h1>Integration settings</h1>
 <p>Connect your gateway, choose who can use each tool, then test a question.</p>
 <p id="setup-status" class="status" role="status" aria-live="polite">{% if enabled %}Gateway tools are enabled.{% else %}Complete these steps to enable gateway tools.{% endif %}</p>
 {% csrf_token %}
@@ -41,6 +41,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 </section>
 <section class="card"><h2>3. Choose tools and roles</h2>
 <p>Select a tool, organize how it appears in the workspace, then choose the roles that may use it.</p>
+<p>Roles come from Django Groups. Create a dedicated group such as <code>loan_users</code> in Admin → Authentication and Authorization → Groups, assign users to it under Users, then discover tools again to see the group here. Ordinary loan users do not need Staff status. Users without groups use the existing <code>staff</code> fallback role, so choose a dedicated group for restricted access.</p>
 <div id="tool-list"><p class="muted">Click “Find tools” to load available tools.</p></div>
 <small>Roles come from Django groups. <a href="/admin/auth/group/">Manage groups</a>. Keep approval enabled for tools that change data.</small>
 <button type="button" id="save-tools" disabled>Save and enable tools</button>

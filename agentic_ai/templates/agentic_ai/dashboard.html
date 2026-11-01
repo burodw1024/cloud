@@ -19,8 +19,24 @@
     <main>
     <h1>BURO Insight AI · Run history</h1>
 
-    {% include 'agentic_ai/query_form.html' %}
+    <p>Review submitted questions, including failed and unsupported requests. Open an attempt to see its stored response and error.</p>
+    <form method="get" class="card">
+        <label>Question, answer or error <input type="search" name="q" value="{{ filters.q }}"></label>
+        <label>Username <input name="user" value="{{ filters.user }}"></label>
+        <label>Tool <input name="tool" value="{{ filters.tool }}"></label>
+        <label>Status <select name="status"><option value="">All statuses</option>{% for value,label in statuses %}<option value="{{ value }}"{% if filters.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <button type="submit">Search attempts</button>
+        <a href="{% url 'agentic_ai:dashboard' %}">Clear filters</a>
+    </form>
+    <details class="card">
+        <summary>How admins grant access</summary>
+        <p>Roles are Django Groups. An authorized user administrator creates a group such as loan_users under Admin → Authentication and Authorization → Groups, and assigns it to users under Users.</p>
+        <p>In Tool setup, discover the loan tool, select that group, enable the tool, check the model and save. Tool activation and required approvals still apply. Branch/data permissions must also be enforced by the backend.</p>
+        <p>History reviewers need Staff status and the “Can view agent run log” permission. Tool setup administrators additionally need “Can add agent tool”, “Can change agent tool” and “Can change system setting”. Ordinary loan users do not need Staff status.</p>
+        <p>The existing role resolver treats users without groups as staff. Use a dedicated group such as loan_users for restricted loan access. The admin role is privileged and should not be assigned to ordinary users.</p>
+    </details>
 
+    {% if show_approvals %}
     <div class="card">
         <h2>Pending Approvals</h2>
         <table>
@@ -46,9 +62,11 @@
             {% endfor %}
         </table>
     </div>
+    {% endif %}
 
     <div class="card">
-        <h2>Recent Agent Runs</h2>
+        <h2>User attempts · {{ page_obj.paginator.count }} matching</h2>
+        <p>Stored answers may be shortened by the execution logger. Failed attempts do not establish whether a backend operation completed; check its request information before retrying.</p>
         <table>
             <tr>
                 <th>Time</th>
@@ -67,12 +85,22 @@
                 <td>{{ log.selected_tool }}</td>
                 <td><span class="badge">{{ log.status }}</span></td>
                 <td>{{ log.risk_level }}</td>
-                <td>{{ log.user_query|truncatechars:80 }}</td>
+                <td><details><summary>{{ log.user_query|truncatechars:80 }}</summary>
+                    <h3>Full submitted question</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ log.user_query }}</pre>
+                    <h3>Stored response</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ log.final_answer|default:"No response recorded." }}</pre>
+                    <h3>Error / request information</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ log.error_message|default:"No error recorded." }}</pre>
+                    <p>Attempt #{{ log.pk }} · {{ log.created_at }}</p>
+                </details></td>
             </tr>
             {% empty %}
             <tr><td colspan="7">No logs yet.</td></tr>
             {% endfor %}
         </table>
+        <nav aria-label="Attempt history pages">
+            {% if page_obj.has_previous %}<a href="?{{ filter_query }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+            <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}<a href="?{{ filter_query }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+        </nav>
     </div>
 
     </main>

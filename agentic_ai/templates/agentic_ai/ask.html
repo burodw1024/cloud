@@ -157,10 +157,19 @@ tbody tr:hover { background:var(--soft) }
 </head>
 <body><div class="app-shell">
 <aside class="sidebar"><a class="brand" href="/agentic/"><span class="brand-mark">b</span><span class="brand-wordmark">BURO<span>Insight AI</span><small>AGENTIC WORKSPACE</small></span></a>
-<div><div class="nav-label">WORKSPACE</div><nav class="side-nav" aria-label="Workspace navigation"><a class="active" href="{% url 'agentic_ai:query_page' %}" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>Workspace</a><a href="#capabilities">Capabilities</a><a href="#my-activity">My activity</a><a href="#my-approvals">Approvals{% if pending_approval_count %} · {{ pending_approval_count }}{% endif %}</a><a href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 11a8 8 0 0 1-8 8H4l1-5a8 8 0 1 1 15-3Z"/></svg>Main chat</a>{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">⚙ &nbsp; Set up tools</a>{% endif %}{% if user.is_staff and perms.agentic_ai.view_agentrunlog and perms.agentic_ai.view_agentapprovalrequest %}<a href="{% url 'agentic_ai:dashboard' %}">◷ &nbsp; Run history</a>{% endif %}</nav></div>
+<div><div class="nav-label">WORKSPACE</div><nav class="side-nav" aria-label="Workspace navigation">
+<a href="{% url 'agentic_ai:query_page' %}"{% if not selected_module %} class="active" aria-current="page"{% endif %}>✧ &nbsp; My workspace</a>
+<a href="#capabilities">Capabilities</a><a href="#my-activity">My activity</a><a href="#my-approvals">My approvals{% if pending_approval_count %} · {{ pending_approval_count }}{% endif %}</a>
+{% for module in business_modules %}<a href="{% url 'agentic_ai:query_page' %}?module={{ module.slug|urlencode }}"{% if selected_module.slug == module.slug %} class="active" aria-current="page"{% endif %}>{{ module.name }}</a>{% endfor %}
+<a href="/">Main chat</a></nav></div>
+{% if user.is_staff %}<div><div class="nav-label">ADMINISTRATION</div><nav class="side-nav" aria-label="Administration">
+{% if perms.agentic_ai.add_businessmodule and perms.agentic_ai.change_businessmodule and perms.agentic_ai.change_agenttool %}<a href="{% url 'agentic_ai:modules' %}">Business modules</a>{% endif %}
+{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Integration settings</a>{% endif %}
+{% if perms.agentic_ai.view_agentrunlog %}<a href="{% url 'agentic_ai:dashboard' %}">User attempts</a>{% endif %}
+</nav></div>{% endif %}
 <div class="side-note"><strong>A little insight. A big difference.</strong>Explore reports through the tools available to your role.</div></aside>
 <main class="workspace"><header class="topbar"><div>Workspace &nbsp; / &nbsp; <strong>My workspace</strong></div><div class="profile"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">◐</button><span>{{ user.get_short_name|default:user.username }}</span><span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span></div></header>
-<div class="page-heading"><div><h1>Your organization. Connected.</h1><p>One workspace for the knowledge, data, and services you need.</p></div><span class="workspace-label">BURO INSIGHT AI</span></div>
+<div class="page-heading"><div><h1>{% if selected_module %}{{ selected_module.name }}{% else %}Your organization. Connected.{% endif %}</h1><p>{% if selected_module %}{{ selected_module.description }}{% else %}One workspace for the knowledge, data, and services you need.{% endif %}</p></div><span class="workspace-label">BURO INSIGHT AI</span></div>
 <section class="hero"><div class="eyebrow">One workspace. Your organization’s intelligence.</div><h2>Big questions.<br><span>One place to start.</span></h2><p>Find information, explore business data, and get help across BURO. Your assistant connects you to the capabilities available to your role.</p><div class="hero-art" aria-hidden="true">
 <svg viewBox="0 0 360 270" fill="none" xmlns="http://www.w3.org/2000/svg">
 <defs>
@@ -190,6 +199,7 @@ tbody tr:hover { background:var(--soft) }
 <circle cx="77" cy="65" r="5" fill="#a6c49a"/><circle cx="322" cy="142" r="4" fill="#bad0a0"/><path d="M97 39v12M91 45h12" stroke="#b3ce9e" stroke-width="2" stroke-linecap="round"/>
 </svg></div><span class="hero-tag" aria-hidden="true">Knowledge · Data · Services</span></section>
 <section class="workspace-prompts" aria-label="Get started"><span class="prompt-label">START WITH WHAT YOU NEED</span><a href="#agent-query-form">Ask a question <span aria-hidden="true">→</span></a><a href="#capabilities">Explore capabilities <span aria-hidden="true">→</span></a><a href="#my-activity">Pick up where you left off <span aria-hidden="true">→</span></a></section>
+{% if selected_module.questions %}<section class="card" aria-label="Module starter questions"><h2>Start with a question</h2><p>Choose an example, edit the details, then ask.</p>{% for question in selected_module.questions %}<p><button type="button" class="copy-button" data-module-question>{{ question }}</button></p>{% endfor %}</section>{% endif %}
 {% include 'agentic_ai/query_form.html' %}
 <section class="capability-directory" id="capabilities" aria-labelledby="capabilities-title">
 <div class="section-heading"><div><span class="section-kicker">DISCOVER YOUR WORKSPACE</span><h2 id="capabilities-title">The right capability. Within reach.</h2><p class="directory-description">Explore registered services available to your role. Choose one to prepare a question.</p></div><span class="workspace-label">{{ capability_count }} registered</span></div>
@@ -242,6 +252,7 @@ function render(){
 }
 search.addEventListener('input',()=>{page=0;render();});previous.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});render();
 })();
+document.querySelectorAll('[data-module-question]').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById('agent-message');if(input.disabled)return;input.value=button.textContent;input.focus();input.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});}));
 const themeButton=document.getElementById('theme-toggle');
 function syncThemeLabel(){const dark=document.documentElement.dataset.theme==='dark';themeButton.setAttribute('aria-label',dark?'Switch to light theme':'Switch to dark theme');themeButton.title=themeButton.getAttribute('aria-label');themeButton.setAttribute('aria-pressed',String(dark));}
 syncThemeLabel();

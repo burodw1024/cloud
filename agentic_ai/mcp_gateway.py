@@ -95,7 +95,8 @@ def _allowed(record, user, user_roles=None):
     roles = record.allowed_roles
     if user_roles is None:
         user_roles = set(get_user_role_names(user))
-    return (record.is_active and isinstance(roles, list) and bool(roles)
+    return (record.is_active and (not record.module_id or record.module.is_active)
+            and isinstance(roles, list) and bool(roles)
             and all(isinstance(role, str) and role.strip() for role in roles)
             and ("admin" in user_roles or bool(set(roles).intersection(user_roles))))
 
@@ -104,7 +105,7 @@ def _authorized_names(user):
     if not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
         return set()
     roles = set(get_user_role_names(user))
-    return {record.name for record in AgentTool.objects.filter(is_active=True).only("name", "is_active", "allowed_roles")
+    return {record.name for record in AgentTool.objects.filter(is_active=True).select_related('module').only("name", "is_active", "allowed_roles", "module__is_active")
             if _allowed(record, user, roles)}
 
 
@@ -396,6 +397,9 @@ async def _run(config, user, query, allowed_names):
                 return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
             from .member_scope import scoped_tools, member_call
             projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
+            from .loan_question_help import is_loan_question_help, loan_question_help
+            if is_loan_question_help(query):
+                return loan_question_help(tools, projection_tools)
             from .zone_ranking import (is_zone_due_ranking, is_ranking_request, unavailable_ranking)
             from .loan_report_contract import (prepare_tools, ranking_candidates,
                                                 is_ranking_call, validate_ranking_call)
