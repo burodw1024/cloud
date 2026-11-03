@@ -1,0 +1,25 @@
+{% load static %}
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Analytics studio · BURO Insight AI</title>{% include 'agentic_ai/ui_head.html' %}
+<link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}"></head>
+<body>{% include 'agentic_ai/page_nav.html' %}<main class="studio-shell">
+<header class="studio-hero"><div><span class="studio-eyebrow">ANALYTICS STUDIO</span><h1>Your report. A clearer perspective.</h1><p>Turn your latest authorized report into a private Superset dashboard.</p></div><span class="studio-pill">On premises · Snapshot</span></header>
+<p class="studio-readiness">{{ readiness }}</p>
+<div class="studio-grid"><section class="studio-card"><span class="studio-step">01 / DESIGN</span><h2>Build your dashboard</h2>
+<p>Run a report in the workspace first. We select charts from its numeric fields and preserve each displayed row.</p>
+<form id="dashboard-design" data-endpoint="{% url 'agentic_ai:dashboard_publish_api' %}">{% csrf_token %}
+<label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="My report dashboard">
+<div id="studio-options" hidden><label for="studio-dimension">Row label</label><select id="studio-dimension"></select><fieldset><legend>Measures · choose up to four</legend><div id="studio-metrics"></div></fieldset></div>
+<button type="submit" class="studio-primary">Generate preview →</button></form>
+<div class="studio-note"><strong>Designed around your data</strong><p>A source table plus comparisons for numeric fields. Codes remain labels. A single report date never becomes a historical trend. No financial totals are inferred.</p></div>
+</section><section class="studio-card studio-preview" aria-labelledby="preview-title" aria-busy="false"><span class="studio-step">02 / PREVIEW & CREATE</span><h2 id="preview-title">A home for your insights</h2>
+<p id="studio-status" role="status" aria-live="polite">Generate a preview to see the proposed layout.</p>
+<div id="studio-preview" hidden><div class="studio-meta" id="studio-meta"></div><div id="studio-chart-cards"></div><div class="studio-table-wrap" id="studio-sample"></div><p id="studio-notice"></p>
+<button type="button" id="studio-publish" class="studio-primary">Create private Superset dashboard</button><p>Creates a durable copy in the analytics database, visible to your mapped Superset account and its administrators. Existing Superset permissions still apply.</p></div>
+<a id="studio-open" class="studio-primary" target="_blank" rel="noopener noreferrer" hidden>Open in Superset ↗</a></section></div>
+<section class="studio-card studio-history"><span class="studio-step">03 / YOUR LIBRARY</span><h2>Recent dashboard exports</h2><p>Snapshots persist until removed. Remove exports when their source access changes.</p>
+<div class="studio-table-wrap"><table><thead><tr><th>Dashboard</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+{% for export in exports %}<tr><td><strong>{{ export.title }}</strong><small>{{ export.id }}</small>{% if export.error %}<small>{{ export.error }}</small>{% endif %}</td><td>{{ export.created_at|date:'Y-m-d H:i' }}</td><td><span class="studio-pill">{{ export.get_status_display }}</span></td><td>{% if export.status == 'ready' %}<button data-export="{{ export.id }}" data-action="open">Open</button>{% endif %}{% if export.status == 'ready' or export.status == 'failed' %}<button data-export="{{ export.id }}" data-action="delete">Remove export</button>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4">Your first dashboard starts with a report.</td></tr>{% endfor %}</tbody></table></div>
+<p>Publishing to a team, scheduled refresh and additional chart families require a separately governed dataset. This workflow creates private snapshots.</p></section>
+</main><script src="{% static 'agentic_ai/dashboard_studio.js' %}" defer></script></body></html>

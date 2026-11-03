@@ -5,10 +5,13 @@ from .whatsapp import whatsapp_api
 from .setup_views import query_page, setup_page
 from .module_admin import module_manager
 from .access_admin import access_manager, directory_manager
+from .dashboard_studio import studio, dashboard_api
 
 app_name = "agentic_ai"
 
 urlpatterns = [
+    path('analytics/', studio, name='dashboard_studio'),
+    path('api/dashboards/', dashboard_api, name='dashboard_publish_api'),
     path("api/summary/", summary_api, name="summary_api"),
     path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),

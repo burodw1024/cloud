@@ -7,7 +7,10 @@ from agentic_ai.setup_views import query_page, setup_page
 from agentic_ai.review import dashboard, logs_api
 from agentic_ai.module_admin import module_manager
 from agentic_ai.access_admin import access_manager, directory_manager
+from agentic_ai.dashboard_studio import studio, dashboard_api
 patterns = [
+    path('analytics/', studio, name='dashboard_studio'),
+    path('api/dashboards/', dashboard_api, name='dashboard_publish_api'),
     path("api/summary/", summary_api, name="summary_api"),
     path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
     path("api/query/", agentic_query_api, name="agentic_query_api"),

@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
@@ -198,3 +200,25 @@ class LoanDirectoryConnection(models.Model):
     allow_http = models.BooleanField(default=False)
     encrypted_token = models.TextField()
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class DashboardExport(models.Model):
+    """Durable publication journal. Never store credentials or report rows here."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.PROTECT)
+    title = models.CharField(max_length=150)
+    specification = models.JSONField(default=dict)
+    source = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default='pending', choices=[
+        ('pending', 'Pending'), ('creating', 'Creating'), ('ready', 'Ready'),
+        ('failed', 'Needs review'), ('deleted', 'Deleted')])
+    table_name = models.CharField(max_length=63, blank=True)
+    dataset_id = models.PositiveIntegerField(null=True)
+    dashboard_id = models.PositiveIntegerField(null=True)
+    chart_ids = models.JSONField(default=list)
+    error = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        permissions = [('publish_dashboard', 'Export authorized report snapshots to private Superset dashboards')]

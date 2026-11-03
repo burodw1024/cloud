@@ -42,6 +42,7 @@
         <div class="table-wrap" id="agent-table" tabindex="0" role="region" aria-label="Report data" hidden></div>
         <div class="result-details" id="agent-details"></div>
         <button class="copy-button" id="bangla-summary-button" type="button" hidden aria-controls="bangla-summary">বাংলায় বিশ্লেষণ</button>
+        {% if user.is_staff and perms.agentic_ai.publish_dashboard %}<a class="copy-button" href="{% url 'agentic_ai:dashboard_studio' %}">Build a Superset dashboard →</a>{% endif %}
         <button class="copy-button" id="report-chart-button" type="button" hidden aria-controls="report-chart-panel" aria-expanded="false">চার্টে দেখুন</button>
         <section id="report-chart-panel" hidden lang="bn">
             <h4>প্রদর্শিত ফলাফলের তুলনা</h4>

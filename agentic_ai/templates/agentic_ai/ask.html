@@ -158,6 +158,7 @@ tbody tr:hover { background:var(--soft) }
 <body><div class="app-shell">
 <aside class="sidebar"><a class="brand" href="/agentic/"><span class="brand-mark">b</span><span class="brand-wordmark">BURO<span>Insight AI</span><small>AGENTIC WORKSPACE</small></span></a>
 <div><div class="nav-label">WORKSPACE</div><nav class="side-nav" aria-label="Workspace navigation">
+{% if user.is_staff and perms.agentic_ai.publish_dashboard %}<a href="{% url 'agentic_ai:dashboard_studio' %}">Analytics studio</a>{% endif %}
 <a href="{% url 'agentic_ai:query_page' %}"{% if not selected_module %} class="active" aria-current="page"{% endif %}>✧ &nbsp; My workspace</a>
 <a href="#capabilities">Capabilities</a><a href="#my-activity">My activity</a><a href="#my-approvals">My approvals{% if pending_approval_count %} · {{ pending_approval_count }}{% endif %}</a>
 {% for module in business_modules %}<a href="{% url 'agentic_ai:query_page' %}?module={{ module.slug|urlencode }}"{% if selected_module.slug == module.slug %} class="active" aria-current="page"{% endif %}>{{ module.name }}</a>{% endfor %}

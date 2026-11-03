@@ -1,0 +1,2 @@
+# Optional PostgreSQL staging driver for on-premises Superset publishing.
+psycopg[binary]>=3.1,<4

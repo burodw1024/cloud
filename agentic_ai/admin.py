@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (AgentTool, AgentRunLog, AgentApprovalRequest, BusinessModule,
-                     LoanZone, LoanBranch, LoanAccessPolicy, LoanAccessEvent)
+                     LoanZone, LoanBranch, LoanAccessPolicy, LoanAccessEvent, DashboardExport)
 
 
 class ReadOnlyAccessAdmin(admin.ModelAdmin):
@@ -15,6 +15,14 @@ class ReadOnlyAccessAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(DashboardExport)
+class DashboardExportAdmin(ReadOnlyAccessAdmin):
+    list_display = ('created_at', 'title', 'user', 'status', 'dashboard_id', 'dataset_id')
+    list_filter = ('status',)
+    search_fields = ('title', 'user__username', 'table_name')
+    list_select_related = ('user',)
 
 
 @admin.register(LoanZone)
