@@ -5,9 +5,11 @@ Run on the on-premises Kubernetes administration machine. Dry-run is the default
 No PostgreSQL workload or volume is created, relocated or deleted.
 """
 import argparse
+import importlib.util
 from decimal import Decimal
 import getpass
 import json
+from pathlib import Path
 import re
 import secrets
 import subprocess
@@ -262,12 +264,22 @@ def psql_command(pod, container, sql=None):
     return command
 
 
+def contextforge_module():
+    spec = importlib.util.spec_from_file_location('superset_contextforge', Path(__file__).with_name('superset_contextforge.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, help='Built PostgreSQL-enabled Superset image pinned by @sha256 digest')
     parser.add_argument('--context')
     parser.add_argument('--pull-secret')
     parser.add_argument('--cluster-domain', default='cluster.local')
+    parser.add_argument('--use-contextforge', action='store_true',
+                        help='Use the ContextForge database reference through an in-cluster setup Job instead of PostgreSQL pod exec.')
+    parser.add_argument('--contextforge-namespace', default='buro-agentic')
     parser.add_argument('--allow-existing-superset', action='store_true',
                         help='Create an isolated installation alongside a differently named Superset workload; never overwrite installer resources.')
     parser.add_argument('--apply', action='store_true')
@@ -323,35 +335,47 @@ def main():
     if not any(s.get('addresses') and any(p['port'] == 5432 for p in s.get('ports', []))
                for s in endpoints.get('subsets', [])):
         raise RuntimeError('PostgreSQL primary service has no ready 5432 endpoint.')
-    primaries = cluster.get('pods', namespace=PG_NAMESPACE,
-        extra=('-l', f'cluster-name={PG_CLUSTER},spilo-role=master'))['items']
-    if len(primaries) != 1:
-        raise RuntimeError('Cannot identify exactly one PostgreSQL primary pod.')
-    primary = primaries[0]
-    containers = primary['spec']['containers']
-    pg_container = next((c['name'] for c in containers if 'spilo' in c.get('image', '')), None)
-    if not pg_container:
-        raise RuntimeError('Cannot identify the existing PostgreSQL container.')
-    check_sql = ("SELECT pg_is_in_recovery();\n"
-        f"SELECT rolname FROM pg_roles WHERE rolname IN ('{META_USER}','{WRITER}','{READER}');\n"
-        f"SELECT datname FROM pg_database WHERE datname IN ('{META_DB}','{ANALYTICS_DB}');\n")
-    existing = cluster.run(*psql_command(primary['metadata']['name'], pg_container, check_sql), timeout=30).strip().splitlines()
-    if existing != ['f']:
-        raise RuntimeError('Primary verification failed or destination database/account names already exist. Review rather than overwrite.')
+    host = f'{PG_SERVICE}.{PG_NAMESPACE}.svc.{args.cluster_domain}'
+    helper = source = None
+    if args.use_contextforge:
+        helper = contextforge_module()
+        source = helper.discover(cluster, args.contextforge_namespace)
+        print('ContextForge database references prepared. Kubernetes will resolve the URI inside the setup Job; the installer does not download it.')
+    else:
+        primaries = cluster.get('pods', namespace=PG_NAMESPACE,
+            extra=('-l', f'cluster-name={PG_CLUSTER},spilo-role=master'))['items']
+        if len(primaries) != 1:
+            raise RuntimeError('Cannot identify exactly one PostgreSQL primary pod.')
+        primary = primaries[0]
+        containers = primary['spec']['containers']
+        pg_container = next((c['name'] for c in containers if 'spilo' in c.get('image', '')), None)
+        if not pg_container:
+            raise RuntimeError('Cannot identify the existing PostgreSQL container.')
+        check_sql = ("SELECT pg_is_in_recovery();\n"
+            f"SELECT rolname FROM pg_roles WHERE rolname IN ('{META_USER}','{WRITER}','{READER}');\n"
+            f"SELECT datname FROM pg_database WHERE datname IN ('{META_DB}','{ANALYTICS_DB}');\n")
+        existing = cluster.run(*psql_command(primary['metadata']['name'], pg_container, check_sql), timeout=30).strip().splitlines()
+        if existing != ['f']:
+            raise RuntimeError('Primary verification failed or destination database/account names already exist. Review rather than overwrite.')
     if args.pull_secret:
         # Validate only existence; never print the Secret contents.
         cluster.run('-n', NAMESPACE, 'get', 'secret', args.pull_secret, '-o', 'name')
-    print(f'Preflight passed: {NODE}; existing HA primary; fresh database names.')
+    print(f'Placement and reference preflight passed: {NODE}; existing HA primary service.')
     if not args.apply:
         print('Dry run only. Re-run with --apply to install. No cluster changes were made.')
+        if helper:
+            print('Database connectivity, privileges and name checks will run inside the setup Job on --apply.')
         return
+    if helper:
+        # Check the reference and privileges before asking for a new password or
+        # creating the permanent Superset credential records.
+        helper.run_job(cluster, source, args.image, host, 'check', pull_secret=args.pull_secret)
     password = getpass.getpass('Choose a NEW Superset administrator password (minimum 16 characters): ')
     if len(password) < 16:
         raise RuntimeError('Administrator password must contain at least 16 characters.')
     if getpass.getpass('Confirm administrator password: ') != password:
         raise RuntimeError('Passwords do not match.')
     credentials = {role: secrets.token_hex(32) for role in (META_USER, WRITER, READER)}
-    host = f'{PG_SERVICE}.{PG_NAMESPACE}.svc.{args.cluster_domain}'
     def uri(role, database):
         return f'postgresql+psycopg2://{role}:{quote(credentials[role], safe="")}@{host}:5432/{database}?sslmode=require'
     # Persist credentials before provisioning; retain them on partial failure.
@@ -363,8 +387,11 @@ def main():
         'SUPERSET_ADMIN_EMAIL': 'superset-admin@localhost.invalid', 'SUPERSET_ADMIN_PASSWORD': password}))
     cluster.create(secret_document(APP + '-analytics-writer', {'HOST': host, 'PORT': '5432',
         'NAME': ANALYTICS_DB, 'USER': WRITER, 'PASSWORD': credentials[WRITER], 'SSLMODE': 'require'}))
-    cluster.run(*psql_command(primary['metadata']['name'], pg_container),
-                data=sql_for_accounts(credentials), timeout=120)
+    if helper:
+        helper.run_job(cluster, source, args.image, host, 'provision', credentials, args.pull_secret)
+    else:
+        cluster.run(*psql_command(primary['metadata']['name'], pg_container),
+                    data=sql_for_accounts(credentials), timeout=120)
     config, job, deployment, service = manifests(args.image, args.pull_secret)
     cluster.apply(config)
     cluster.create(job)

@@ -4,7 +4,7 @@ import importlib.util
 import io
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from django.test import SimpleTestCase
 
@@ -57,10 +57,12 @@ class FakeCluster:
 
 
 class SupersetInstallTests(SimpleTestCase):
-    def run_install(self, cluster, apply=False, allow_existing=False):
+    def run_install(self, cluster, apply=False, allow_existing=False, contextforge=False):
         args = ['install_superset.py', '--image', IMAGE] + (['--apply'] if apply else [])
         if allow_existing:
             args.append('--allow-existing-superset')
+        if contextforge:
+            args.append('--use-contextforge')
         output = io.StringIO()
         with patch.object(installer, 'Cluster', return_value=cluster), patch('sys.argv', args), patch.object(
                 installer.getpass, 'getpass', return_value='test-only-password-12345'), contextlib.redirect_stdout(output):
@@ -250,3 +252,35 @@ class SupersetInstallTests(SimpleTestCase):
                     cluster.run('exec', '--', 'psql', '-w')
                 self.assertIn(expected, str(error.exception))
                 self.assertNotIn('private-value', str(error.exception))
+
+    def test_contextforge_dry_run_only_resolves_references_and_never_execs_postgres(self):
+        cluster = FakeCluster()
+        helper = MagicMock()
+        helper.discover.return_value = {'namespace': 'buro-agentic'}
+        with patch.object(installer, 'contextforge_module', return_value=helper):
+            self.run_install(cluster, contextforge=True)
+        helper.discover.assert_called_once_with(cluster, 'buro-agentic')
+        helper.run_job.assert_not_called()
+        self.assertFalse(any('exec' in event[1] for event in cluster.events if event[0] == 'run'))
+        self.assertFalse(any(event[0] in {'create', 'apply'} for event in cluster.events))
+
+    def test_contextforge_database_check_precedes_permanent_credentials(self):
+        cluster = FakeCluster()
+        helper = MagicMock()
+        helper.discover.return_value = {'namespace': 'buro-agentic'}
+        helper.run_job.side_effect = lambda cluster, source, image, host, mode, *args, **kwargs: cluster.events.append(('db-job', mode))
+        with patch.object(installer, 'contextforge_module', return_value=helper):
+            self.run_install(cluster, contextforge=True, apply=True)
+        check = next(i for i, event in enumerate(cluster.events) if event == ('db-job', 'check'))
+        secret = next(i for i, event in enumerate(cluster.events) if event[0] == 'create' and event[1]['kind'] == 'Secret')
+        provision = next(i for i, event in enumerate(cluster.events) if event == ('db-job', 'provision'))
+        self.assertLess(check, secret)
+        self.assertLess(secret, provision)
+        self.assertFalse(any('exec' in event[1] for event in cluster.events if event[0] == 'run'))
+
+    def test_contextforge_permission_failure_creates_no_application_credentials(self):
+        cluster = FakeCluster(); helper = MagicMock()
+        helper.run_job.side_effect = RuntimeError('non-admin account')
+        with patch.object(installer, 'contextforge_module', return_value=helper), self.assertRaisesRegex(RuntimeError, 'non-admin'):
+            self.run_install(cluster, contextforge=True, apply=True)
+        self.assertFalse(any(event[0] in {'create', 'apply'} for event in cluster.events))

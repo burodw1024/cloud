@@ -54,6 +54,48 @@ Your administration account must be allowed to exec that pod, and local
 PostgreSQL administrator access must work there. This is for provisioning only;
 the deployed application does not receive PostgreSQL superuser credentials.
 
+### Use ContextForge's connection reference (recommended after an exec timeout)
+
+The confirmed `buro-agentic/contextforge` Deployment loads `contextforge-config`
+and `contextforge-secrets`. Use the existing image and this mode:
+
+```bash
+python3 deploy/install_superset.py --image "$SUPERSET_IMAGE" \
+  --allow-existing-superset --use-contextforge
+python3 deploy/install_superset.py --image "$SUPERSET_IMAGE" \
+  --allow-existing-superset --use-contextforge --apply
+```
+
+Reference discovery reads only the Deployment. It does not retrieve Secret or
+ConfigMap data. Optional references for standard database URI keys are resolved
+by Kubernetes inside a short-lived Job in namespace `buro-agentic`. Later Secret
+sources take precedence over earlier ConfigMap sources, matching the gateway's
+environment. Explicit URI references override envFrom sources. Other ContextForge
+credentials (Redis, signing keys, API tokens) are not injected into the Job.
+
+In this mode, default dry run checks references and scheduling only. On `--apply`,
+a small Job first validates PostgreSQL connectivity, the primary role, sufficient
+provisioning privileges and unused destination names. This happens before the
+administrator password prompt or permanent Superset Secrets are created. It
+needs a PostgreSQL administrator credential; ordinary ContextForge application
+credentials are not silently promoted or granted more privileges.
+
+The Job uses the existing URI's account, password, database and TLS settings,
+with its host redirected to the explicitly selected HA primary service. It
+does not write ContextForge's application tables. Superset receives fresh,
+separate metadata and analytics accounts. No PostgreSQL pods are changed.
+
+The installer reads Job status and sanitized pod termination messages through
+the Kubernetes API. It does not use `kubectl exec` or `kubectl logs` for database
+provisioning. Successful temporary Jobs, scripts and generated-password payloads
+are deleted; failed Jobs are retained for diagnosis. Initial image pull may take
+several minutes. If `--pull-secret` is used, the referenced Secret must exist in
+both namespaces; otherwise the Job uses ContextForge's existing pull references.
+
+The separate Superset initialization Job still runs normally afterward. No image
+rebuild is required for this mode because the database helper script is supplied
+through a ConfigMap and the already built image includes psycopg2.
+
 The read-only SQL check uses `psql --command` without streaming stdin. All psql
 calls use `-w` (never prompt for a database password), a five-second connection
 timeout and server statement/lock timeouts. Provisioning sends its credential
