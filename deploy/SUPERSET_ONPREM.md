@@ -96,6 +96,39 @@ The separate Superset initialization Job still runs normally afterward. No image
 rebuild is required for this mode because the database helper script is supplied
 through a ConfigMap and the already built image includes psycopg2.
 
+### Image pull and Job deadline troubleshooting
+
+An observed check Job was scheduled on `etlreg-virtual-machine` but could not
+pull `192.168.1.224:80/agentic-superset`: containerd's request to
+`https://192.168.1.224:80/v2/` timed out. The 600-second Job deadline then deleted
+the pending pod. This was an image distribution failure, before database code
+ran. Increasing the database timeout does not address it.
+
+On the administration machine, inspect registry Services:
+
+```bash
+kubectl -n registry get svc -o wide
+```
+
+On the selected node, inspect HTTP reachability and routing:
+
+```bash
+curl -I --connect-timeout 5 --max-time 10 http://192.168.1.224:80/v2/
+ip route get 192.168.1.224
+```
+
+HTTP 200 or an authentication response establishes reachability; a TCP timeout
+requires a route/firewall or reachable-endpoint fix. If the registry serves plain
+HTTP, containerd must also be explicitly configured for that endpoint. Do not
+assume disabling certificate verification will fix either a TCP timeout or an
+HTTP/HTTPS mismatch. Inspect existing containerd configuration before changes;
+the installer does not overwrite it or restart containerd.
+
+The installer now observes pod startup states while waiting and retains the
+last controlled diagnostic if the Job controller deletes the pod at its deadline.
+Pod events may also remain available after deletion; retrieve them using
+`kubectl get events --field-selector involvedObject.name=POD_NAME -n NAMESPACE`.
+
 The read-only SQL check uses `psql --command` without streaming stdin. All psql
 calls use `-w` (never prompt for a database password), a five-second connection
 timeout and server statement/lock timeouts. Provisioning sends its credential

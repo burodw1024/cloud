@@ -93,6 +93,39 @@ class ReferenceTests(SimpleTestCase):
         self.cluster.run.assert_not_called()
 
 
+    def test_deadline_retains_image_pull_diagnostic_after_controller_deletes_pod(self):
+        source = helper.discover(self.cluster, 'buro-agentic')
+        self.cluster.reset_mock()
+        self.cluster.get.side_effect = [
+            {'status': {}},
+            {'items': [{'status': {'phase': 'Pending', 'containerStatuses': [
+                {'state': {'waiting': {'reason': 'ImagePullBackOff', 'message': 'private registry details'}}}]}}]},
+            {'status': {'conditions': [{'type': 'Failed', 'status': 'True', 'reason': 'DeadlineExceeded'}]}},
+            {'items': []},
+        ]
+        output = io.StringIO()
+        with patch.object(helper.time, 'sleep'), contextlib.redirect_stdout(output), self.assertRaises(RuntimeError) as error:
+            helper.run_job(self.cluster, source, IMAGE, HOST, 'check')
+        self.assertIn('600-second deadline', str(error.exception))
+        self.assertIn('could not pull its image', str(error.exception))
+        self.assertIn('pod_wait_ImagePullBackOff', output.getvalue())
+        self.assertNotIn('private registry details', output.getvalue() + str(error.exception))
+        self.cluster.run.assert_not_called()
+
+    def test_pod_diagnostics_distinguish_scheduling_running_and_oom_without_raw_messages(self):
+        for status, expected in [
+            ({'conditions': [{'type': 'PodScheduled', 'status': 'False'}]}, 'pod_schedule_unschedulable'),
+            ({'containerStatuses': [{'state': {'running': {}}}]}, 'pod_running'),
+            ({'containerStatuses': [{'state': {'terminated': {'reason': 'OOMKilled', 'message': 'private text'}}}]}, 'pod_term_OOMKilled'),
+        ]:
+            self.assertEqual(helper.pod_diagnostic([{'status': status}]), expected)
+
+    def test_arbitrary_termination_message_code_is_not_echoed(self):
+        status = {'containerStatuses': [{'state': {'terminated': {'reason': 'Error',
+            'message': '{"code":"postgres_error_private-value"}'}}}]}
+        self.assertEqual(helper.pod_diagnostic([{'status': status}]), 'pod_term_Error')
+
+
 class FakeCursor:
     def __init__(self, admin=True, collision=False):
         self.admin = admin

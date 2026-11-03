@@ -5,6 +5,7 @@ Credential values are resolved by Kubernetes inside a short-lived Job. The
     Secret or ConfigMap data. Optional candidate keys are resolved in the Job.
 """
 import json
+import re
 import secrets
 import time
 
@@ -92,6 +93,9 @@ except Exception:
 '''
 
 MESSAGES = {
+    'database_setup_failed': 'The setup worker failed before returning a more specific database diagnostic. Inspect the retained pod state and startup events.',
+    'connection_needs_username_and_password': 'The ContextForge URI does not contain the username and password required by this setup mode.',
+    'invalid_generated_account_set': 'The generated Superset account payload was invalid. Inspect the retained setup resources.',
     'database_uri_reference_missing': 'ContextForge has no supported database URI key in its referenced settings. Expected DATABASE_URL, SQLALCHEMY_DATABASE_URI, POSTGRES_DSN or DB_URI. Credential values were not read by the installer.',
     'provisioning_requires_postgres_admin_credential': 'ContextForge uses a non-admin PostgreSQL account. A PostgreSQL administrator credential reference is required to create the separate Superset databases. No account privileges were changed.',
     'connection_is_not_postgresql': 'The selected ContextForge database reference is not a PostgreSQL URI.',
@@ -99,7 +103,45 @@ MESSAGES = {
     'superset_database_names_already_exist': 'Superset database names already exist. Review partial state rather than overwriting data.',
     'destination_is_standby': 'The selected PostgreSQL primary service currently routes to a standby.',
     'postgres_error_connection_failed': 'The setup Job could not connect to PostgreSQL. Check account access, network policy and TLS configuration.',
+    'pod_wait_ImagePullBackOff': 'The setup pod could not pull its image. Check registry reachability, registry HTTP/TLS configuration and image-pull credentials on etlreg-virtual-machine.',
+    'pod_wait_ErrImagePull': 'The setup pod failed to pull its image. Check the pod image-pull events on etlreg-virtual-machine.',
+    'pod_wait_CreateContainerConfigError': 'The setup container configuration could not be created. Check referenced Secret/ConfigMap names and image-pull settings.',
+    'pod_wait_CreateContainerError': 'The setup container could not be created. Inspect container-runtime and security-context events.',
+    'pod_wait_ContainerCreating': 'The setup pod remained in ContainerCreating. Inspect its network, volume and image-pull events.',
+    'pod_schedule_unschedulable': 'The setup pod could not be scheduled on the selected node. Inspect its scheduling events.',
+    'pod_term_OOMKilled': 'The setup container was killed for exceeding its memory limit.',
+    'pod_term_Error': 'The setup process exited with an error before returning a database diagnostic. Inspect its logs if the pod is retained.',
+    'pod_running': 'The setup container started but did not return a completed database check before the deadline.',
+    'pod_pending': 'The setup pod remained pending. Inspect its scheduling and startup events.',
 }
+
+
+def pod_diagnostic(pods):
+    """Use controlled reason codes; never echo arbitrary pod messages or env data."""
+    fallback = None
+    for pod in pods:
+        status = pod.get('status', {})
+        for container in status.get('containerStatuses', []):
+            state = container.get('state', {})
+            terminated = state.get('terminated', {})
+            try:
+                decoded = json.loads(terminated.get('message', ''))
+                code = decoded.get('code') if isinstance(decoded, dict) else None
+                if isinstance(code, str) and (code in MESSAGES or re.fullmatch(r'postgres_error_(?:[0-9A-Z]{5}|connection_failed)', code)):
+                    return code
+            except (ValueError, AttributeError):
+                pass
+            for key, prefix in [('terminated', 'pod_term_'), ('waiting', 'pod_wait_')]:
+                code = prefix + state.get(key, {}).get('reason', '')
+                if code in MESSAGES:
+                    return code
+            if 'running' in state:
+                fallback = 'pod_running'
+        if any(c.get('type') == 'PodScheduled' and c.get('status') == 'False' for c in status.get('conditions', [])):
+            return 'pod_schedule_unschedulable'
+        if fallback is None and status.get('phase') == 'Pending':
+            fallback = 'pod_pending'
+    return fallback
 
 
 def discover(cluster, namespace, deployment='contextforge'):
@@ -182,6 +224,8 @@ def run_job(cluster, source, image, host, mode, passwords=None, pull_secret=None
     cluster.create(job)
     print(f'Database {mode} Job: {namespace}/{name}', flush=True)
     deadline = time.monotonic() + 660
+    last_inspection = float('-inf')
+    last_code = None
     while time.monotonic() < deadline:
         state = cluster.get('job', name, namespace=namespace)
         conditions = {c['type']: c.get('status') == 'True' for c in state.get('status', {}).get('conditions', [])}
@@ -190,18 +234,19 @@ def run_job(cluster, source, image, host, mode, passwords=None, pull_secret=None
             for kind in ['job', 'configmap'] + (['secret'] if inputs else []):
                 cluster.run('-n', namespace, 'delete', kind, name, '--wait=false')
             return
-        if conditions.get('Failed'):
+        if conditions.get('Failed') or time.monotonic() - last_inspection >= 10:
             pods = cluster.get('pods', namespace=namespace, extra=('-l', 'job-name=' + name))['items']
-            codes = []
-            for pod in pods:
-                for container in pod.get('status', {}).get('containerStatuses', []):
-                    message = container.get('state', {}).get('terminated', {}).get('message', '')
-                    try:
-                        codes.append(json.loads(message).get('code', 'database_setup_failed'))
-                    except (ValueError, AttributeError):
-                        continue
-            code = codes[0] if codes else 'database_setup_failed'
+            observed = pod_diagnostic(pods)
+            if observed and observed != last_code:
+                print('Database Job state: ' + observed, flush=True)
+                last_code = observed
+            last_inspection = time.monotonic()
+        if conditions.get('Failed'):
+            code = last_code or 'database_setup_failed'
             message = MESSAGES.get(code, 'Database Job failed; inspect the retained pod status. Diagnostic code: ' + code)
+            if any(c.get('reason') == 'DeadlineExceeded' for c in state.get('status', {}).get('conditions', [])):
+                message = 'Job exceeded its 600-second deadline. ' + message
             raise RuntimeError(message + f' Job retained: {namespace}/{name}')
         time.sleep(2)
-    raise RuntimeError(f'Database Job did not finish within 660 seconds: {namespace}/{name}. Inspect retained Job and pod events before retrying.')
+    detail = MESSAGES.get(last_code, 'No startup diagnostic was available.')
+    raise RuntimeError(f'Database Job did not finish within 660 seconds: {namespace}/{name}. {detail} Inspect Job and pod events before retrying.')
