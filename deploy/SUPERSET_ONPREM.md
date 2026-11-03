@@ -87,6 +87,14 @@ the installer. A partial installation retains objects and Secrets for review.
 It never automatically rotates credentials, drops databases or retries an
 uncertain migration. Do not rerun after a partial failure without inspecting it.
 
+If preflight reports a differently named, unused Superset deployment, the new
+instance can be installed alongside it using `--allow-existing-superset` on both
+preflight and apply commands. This option does not modify the older deployment,
+reuse its metadata, delete workloads or bypass collisions with `agentic-superset`
+resources, Secrets or database names. Existing services/controllers that would
+select the new pod also cause a stop, to avoid unintended adoption or exposure.
+The error identifies the resource name that blocked the installation.
+
 ## 3. Verify and open
 
 ```bash

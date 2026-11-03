@@ -111,6 +111,33 @@ def metadata(name):
     return {'name': name, 'namespace': NAMESPACE, 'labels': LABELS.copy()}
 
 
+def selects_new_pods(resource):
+    """Prevent older services/controllers from adopting or exposing the new pod."""
+    selector = resource.get('spec', {}).get('selector', {})
+    if not selector:
+        return False
+    if resource.get('kind') == 'Service':
+        return all(LABELS.get(key) == value for key, value in selector.items())
+    labels = selector.get('matchLabels', {})
+    expressions = selector.get('matchExpressions', [])
+    if not labels and not expressions:
+        return False
+    if any(LABELS.get(key) != value for key, value in labels.items()):
+        return False
+    for expression in expressions:
+        key, operator = expression['key'], expression['operator']
+        values = expression.get('values', [])
+        if operator == 'In' and LABELS.get(key) not in values:
+            return False
+        if operator == 'NotIn' and LABELS.get(key) in values:
+            return False
+        if operator == 'Exists' and key not in LABELS:
+            return False
+        if operator == 'DoesNotExist' and key in LABELS:
+            return False
+    return True
+
+
 def manifests(image, pull_secret=None):
     config = {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': metadata(APP + '-config'),
               'data': {'superset_config.py': CONFIG, 'bootstrap.py': BOOTSTRAP}}
@@ -210,6 +237,8 @@ def main():
     parser.add_argument('--context')
     parser.add_argument('--pull-secret')
     parser.add_argument('--cluster-domain', default='cluster.local')
+    parser.add_argument('--allow-existing-superset', action='store_true',
+                        help='Create an isolated installation alongside a differently named Superset workload; never overwrite installer resources.')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     if not re.fullmatch(r'[^\s@]+@sha256:[a-f0-9]{64}', args.image):
@@ -233,19 +262,32 @@ def main():
             raise RuntimeError('Selected node no longer has sufficient unreserved ' + resource)
     if len(active) >= int(node['status']['allocatable']['pods']):
         raise RuntimeError('Selected node has no free pod slots.')
-    # Listing the existing namespace also prevents accidentally starting a fresh
-    # installation over a running Superset instance or another managed resource.
+    # Independently named installations can coexist with separate credentials,
+    # databases and services. Actual name/selector collisions always stop.
     resources = cluster.get('deployments,statefulsets,jobs,services,configmaps', namespace=NAMESPACE)['items']
+    other_superset = []
     for resource in resources:
         name = resource['metadata']['name']
+        identity = resource['kind'] + '/' + name
         images = [c.get('image', '') for c in resource.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])]
-        if (name.startswith(APP) or (resource['kind'] in {'Deployment', 'StatefulSet'}
-                and any('superset' in image.lower() for image in images))):
-            raise RuntimeError('Existing Superset resources detected. Review them before a fresh installation.')
+        if name.startswith(APP) or selects_new_pods(resource):
+            raise RuntimeError('Installer resource or pod-selector collision: ' + identity
+                               + '. Inspect partial state; this resource will not be overwritten.')
+        if resource['kind'] in {'Deployment', 'StatefulSet'} and any('superset' in image.lower() for image in images):
+            other_superset.append(identity)
+    if other_superset:
+        names = ', '.join(other_superset)
+        if not args.allow_existing_superset:
+            raise RuntimeError('Other Superset workloads detected: ' + names
+                + '. To create a separate installation alongside them, pass --allow-existing-superset. '
+                'Database, credential and selector collision checks remain enforced.')
+        print('Separate Superset workloads found: ' + names + '. Creating the isolated ' + APP + ' installation.')
     secret_names = cluster.run('-n', NAMESPACE, 'get', 'secrets', '-o',
         'jsonpath={range .items[*]}{.metadata.name}{"\\n"}{end}').splitlines()
-    if any(name.startswith(APP) for name in secret_names):
-        raise RuntimeError('Installer credential references already exist. Review partial state rather than replacing them.')
+    collisions = [name for name in secret_names if name.startswith(APP)]
+    if collisions:
+        raise RuntimeError('Installer credential references already exist: ' + ', '.join(collisions)
+                           + '. Review partial state rather than replacing them.')
     endpoints = cluster.get('endpoints', PG_SERVICE, namespace=PG_NAMESPACE)
     if not any(s.get('addresses') and any(p['port'] == 5432 for p in s.get('ports', []))
                for s in endpoints.get('subsets', [])):

@@ -56,8 +56,10 @@ class FakeCluster:
 
 
 class SupersetInstallTests(SimpleTestCase):
-    def run_install(self, cluster, apply=False):
+    def run_install(self, cluster, apply=False, allow_existing=False):
         args = ['install_superset.py', '--image', IMAGE] + (['--apply'] if apply else [])
+        if allow_existing:
+            args.append('--allow-existing-superset')
         output = io.StringIO()
         with patch.object(installer, 'Cluster', return_value=cluster), patch('sys.argv', args), patch.object(
                 installer.getpass, 'getpass', return_value='test-only-password-12345'), contextlib.redirect_stdout(output):
@@ -129,6 +131,46 @@ class SupersetInstallTests(SimpleTestCase):
             with self.assertRaises(RuntimeError):
                 self.run_install(cluster, apply=True)
             self.assertFalse(any(event[0] in {'create', 'apply'} for event in cluster.events))
+
+    def test_separate_unused_installation_can_coexist_without_being_modified(self):
+        cluster = FakeCluster()
+        cluster.resources = [{'kind': 'Deployment', 'metadata': {'name': 'superset'}, 'spec': {
+            'template': {'spec': {'containers': [{'image': 'apache/superset:old'}]}}}}]
+        with self.assertRaisesRegex(RuntimeError, 'Deployment/superset'):
+            self.run_install(cluster)
+        self.run_install(cluster, apply=True, allow_existing=True)
+        for event in cluster.events:
+            if event[0] in {'create', 'apply'}:
+                self.assertTrue(event[1]['metadata']['name'].startswith(installer.APP))
+
+    def test_override_does_not_allow_own_name_secret_database_or_selector_collisions(self):
+        scenarios = [
+            {'kind': 'Deployment', 'metadata': {'name': installer.APP}},
+            {'kind': 'Service', 'metadata': {'name': 'old-public-service'},
+             'spec': {'selector': {'app.kubernetes.io/name': installer.APP}}},
+            {'kind': 'Deployment', 'metadata': {'name': 'old-controller'},
+             'spec': {'selector': {'matchExpressions': [{'key': 'app.kubernetes.io/name',
+                       'operator': 'In', 'values': [installer.APP]}]}}},
+        ]
+        for resource in scenarios:
+            cluster = FakeCluster(); cluster.resources = [resource]
+            with self.assertRaisesRegex(RuntimeError, 'collision'):
+                self.run_install(cluster, apply=True, allow_existing=True)
+            self.assertFalse(any(event[0] in {'create', 'apply'} for event in cluster.events))
+        for secret_names, database_result in [('agentic-superset-runtime\n', 'f\n'), ('', 'f\nagentic_superset\n')]:
+            cluster = FakeCluster(); cluster.secret_names = secret_names; cluster.sql_preflight = database_result
+            with self.assertRaises(RuntimeError):
+                self.run_install(cluster, apply=True, allow_existing=True)
+            self.assertFalse(any(event[0] in {'create', 'apply'} for event in cluster.events))
+
+    def test_unrelated_service_and_controller_selectors_do_not_match_new_pods(self):
+        for resource in [
+            {'kind': 'Service', 'spec': {'selector': {'app': 'superset'}}},
+            {'kind': 'Deployment', 'spec': {'selector': {'matchLabels': {'app': 'superset'}}}},
+            {'kind': 'Deployment', 'spec': {'selector': {'matchExpressions': [
+                {'key': 'app.kubernetes.io/name', 'operator': 'In', 'values': ['other']}]}}},
+        ]:
+            self.assertFalse(installer.selects_new_pods(resource))
 
     def test_manifest_has_required_placement_limits_probes_and_private_service(self):
         config, job, deployment, service = installer.manifests(IMAGE, 'registry-auth')
