@@ -185,10 +185,26 @@ class Cluster:
         self.command = ['kubectl'] + (['--context', context] if context else [])
 
     def run(self, *args, data=None, timeout=60):
-        result = subprocess.run(self.command + list(args), input=data, text=True,
-                                capture_output=True, timeout=timeout)
+        try:
+            result = subprocess.run(self.command + list(args), input=data, text=True,
+                                    capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            if 'psql' in args:
+                phase = 'database provisioning' if data else 'read-only PostgreSQL preflight'
+                raise RuntimeError(f'Timed out during {phase} after {timeout} seconds. '
+                    'Check Kubernetes exec connectivity and PostgreSQL local administrator access. '
+                    'No interactive database password prompt is used.') from None
+            raise RuntimeError('Kubernetes operation timed out: ' + ' '.join(args[:5])) from None
         if result.returncode:
             # Never print raw SQL/Secret data or provider error response bodies.
+            if 'psql' in args:
+                error = (result.stderr or '').lower()
+                if any(message in error for message in ('no password supplied', 'password authentication failed', 'peer authentication failed')):
+                    raise RuntimeError('PostgreSQL administrator authentication was rejected. '
+                        'Check local access for postgres in the primary pod; no interactive password was requested.')
+                if any(message in error for message in ('unable to upgrade connection', 'error dialing backend', 'tls handshake timeout', 'i/o timeout')):
+                    raise RuntimeError('Kubernetes exec could not reach the PostgreSQL pod. '
+                        'Check the API server connection to the primary node kubelet.')
             raise RuntimeError('Kubernetes operation failed: ' + ' '.join(args[:5]) + '. Check cluster logs locally.')
         return result.stdout
 
@@ -228,7 +244,22 @@ def sql_for_accounts(passwords):
                    f'CREATE SCHEMA agentic AUTHORIZATION {WRITER};',
                    f'GRANT USAGE ON SCHEMA agentic TO {READER};',
                    f'ALTER DEFAULT PRIVILEGES FOR ROLE {WRITER} IN SCHEMA agentic GRANT SELECT ON TABLES TO {READER};']
-    return '\n'.join(statements) + '\n'
+    # Explicitly exit psql rather than relying on exec stdin EOF propagation.
+    return '\n'.join(statements) + '\n\\quit\n'
+
+
+def psql_command(pod, container, sql=None):
+    """Read-only SQL uses argv; credential-bearing provisioning uses stdin only."""
+    provisioning = sql is None
+    command = ['-n', PG_NAMESPACE, 'exec', '--pod-running-timeout=10s']
+    if provisioning:
+        command.append('-i')
+    command += [pod, '-c', container, '--', 'env', 'PGCONNECT_TIMEOUT=5',
+        'PGOPTIONS=-c statement_timeout=' + ('60000' if provisioning else '10000') + ' -c lock_timeout=5000',
+        'psql', '-X', '-w', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At']
+    if not provisioning:
+        command += ['--command', sql]
+    return command
 
 
 def main():
@@ -301,12 +332,10 @@ def main():
     pg_container = next((c['name'] for c in containers if 'spilo' in c.get('image', '')), None)
     if not pg_container:
         raise RuntimeError('Cannot identify the existing PostgreSQL container.')
-    psql = ['-n', PG_NAMESPACE, 'exec', '-i', primary['metadata']['name'], '-c', pg_container,
-            '--', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At']
     check_sql = ("SELECT pg_is_in_recovery();\n"
         f"SELECT rolname FROM pg_roles WHERE rolname IN ('{META_USER}','{WRITER}','{READER}');\n"
         f"SELECT datname FROM pg_database WHERE datname IN ('{META_DB}','{ANALYTICS_DB}');\n")
-    existing = cluster.run(*psql, data=check_sql).strip().splitlines()
+    existing = cluster.run(*psql_command(primary['metadata']['name'], pg_container, check_sql), timeout=30).strip().splitlines()
     if existing != ['f']:
         raise RuntimeError('Primary verification failed or destination database/account names already exist. Review rather than overwrite.')
     if args.pull_secret:
@@ -334,7 +363,8 @@ def main():
         'SUPERSET_ADMIN_EMAIL': 'superset-admin@localhost.invalid', 'SUPERSET_ADMIN_PASSWORD': password}))
     cluster.create(secret_document(APP + '-analytics-writer', {'HOST': host, 'PORT': '5432',
         'NAME': ANALYTICS_DB, 'USER': WRITER, 'PASSWORD': credentials[WRITER], 'SSLMODE': 'require'}))
-    cluster.run(*psql, data=sql_for_accounts(credentials))
+    cluster.run(*psql_command(primary['metadata']['name'], pg_container),
+                data=sql_for_accounts(credentials), timeout=120)
     config, job, deployment, service = manifests(args.image, args.pull_secret)
     cluster.apply(config)
     cluster.create(job)

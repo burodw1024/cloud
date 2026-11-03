@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -42,7 +43,7 @@ class FakeCluster:
         self.events.append(('run', args, data))
         if 'secrets' in args:
             return self.secret_names
-        if data and data.startswith('SELECT pg_is_in_recovery'):
+        if '--command' in args and args[-1].startswith('SELECT pg_is_in_recovery'):
             return self.sql_preflight
         if 'wait' in args and self.fail_job:
             raise RuntimeError('Initialization failed')
@@ -209,3 +210,43 @@ class SupersetInstallTests(SimpleTestCase):
         cluster = FakeCluster(); cluster.endpoint = {'subsets': []}
         with self.assertRaises(RuntimeError):
             self.run_install(cluster, apply=True)
+
+    def test_read_only_psql_avoids_stdin_and_password_prompts(self):
+        cluster = FakeCluster()
+        self.run_install(cluster)
+        read = next(event for event in cluster.events if 'psql' in event[1])
+        self.assertNotIn('-i', read[1])
+        self.assertIn('-w', read[1])
+        self.assertIn('PGCONNECT_TIMEOUT=5', read[1])
+        self.assertIn('--command', read[1])
+        self.assertIsNone(read[2])
+
+    def test_credential_sql_uses_stdin_with_explicit_exit(self):
+        cluster = FakeCluster()
+        self.run_install(cluster, apply=True)
+        provision = next(event for event in cluster.events if event[0] == 'run' and event[2] and event[2].startswith('CREATE ROLE'))
+        self.assertIn('-i', provision[1])
+        self.assertIn('-w', provision[1])
+        self.assertNotIn('--command', provision[1])
+        self.assertTrue(provision[2].endswith('\\quit\n'))
+        self.assertNotIn('PASSWORD', ' '.join(provision[1]))
+
+    def test_exec_timeout_has_actionable_error_and_hides_input(self):
+        cluster = installer.Cluster(None)
+        with patch.object(installer.subprocess, 'run', side_effect=installer.subprocess.TimeoutExpired(['kubectl'], 30)):
+            with self.assertRaisesRegex(RuntimeError, 'read-only PostgreSQL preflight'):
+                cluster.run('exec', '--', 'psql', '-w', '--command', 'SELECT 1', timeout=30)
+            with self.assertRaises(RuntimeError) as error:
+                cluster.run('exec', '-i', '--', 'psql', '-w', data='private provisioning SQL', timeout=120)
+            self.assertIn('database provisioning', str(error.exception))
+            self.assertNotIn('private provisioning SQL', str(error.exception))
+
+    def test_authentication_and_transport_errors_are_distinguished_without_response_bodies(self):
+        cluster = installer.Cluster(None)
+        for stderr, expected in [('fe_sendauth: no password supplied private-value', 'authentication'),
+                                 ('error dialing backend: private-value', 'Kubernetes exec')]:
+            with patch.object(installer.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stderr=stderr)):
+                with self.assertRaises(RuntimeError) as error:
+                    cluster.run('exec', '--', 'psql', '-w')
+                self.assertIn(expected, str(error.exception))
+                self.assertNotIn('private-value', str(error.exception))

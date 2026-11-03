@@ -54,6 +54,25 @@ Your administration account must be allowed to exec that pod, and local
 PostgreSQL administrator access must work there. This is for provisioning only;
 the deployed application does not receive PostgreSQL superuser credentials.
 
+The read-only SQL check uses `psql --command` without streaming stdin. All psql
+calls use `-w` (never prompt for a database password), a five-second connection
+timeout and server statement/lock timeouts. Provisioning sends its credential
+SQL only on stdin and explicitly exits with `\quit`, avoiding reliance on exec
+stdin EOF. A preflight timeout occurs before credentials or databases are created.
+
+If preflight still times out, run these read-only probes from the same machine:
+
+```bash
+timeout 15s kubectl -n postgres-ha-test exec acid-postgres-test-0 -c postgres -- /bin/echo exec-ok
+timeout 20s kubectl -n postgres-ha-test exec acid-postgres-test-0 -c postgres -- \
+  env PGCONNECT_TIMEOUT=5 psql -X -w -U postgres -d postgres -Atc 'SELECT pg_is_in_recovery()'
+```
+
+The first isolates Kubernetes exec transport; the second adds PostgreSQL access.
+If failover has changed the primary, substitute the current pod selected by
+`cluster-name=acid-postgres-test,spilo-role=master`. Do not treat a transport
+timeout as a reason to recreate or restart the PostgreSQL cluster.
+
 The apply command asks for a new Superset administrator password locally,
 without echoing it. Passwords are generated or entered on premises, retained
 in Kubernetes Secrets, and never printed or passed as CLI arguments. Cluster
