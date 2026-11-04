@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 set +x
 umask 077
-REVIEWED_TREE='1ddca327b330788663a5bb0b381ec1fd7abb6a3a'
+REVIEWED_TREE='bd1751c981542d568783b850208f7434b99d2a24'
 SOURCE_URL=https://github.com/burodw1024/cloud.git
 SOURCE_BRANCH='main'
 if [[ "${1:-}" == --describe ]]; then
