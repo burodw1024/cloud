@@ -60,7 +60,7 @@ class BusinessModuleAdmin(admin.ModelAdmin):
 class AgentToolAdmin(admin.ModelAdmin):
     list_display = ("name", "display_name", "module", "category", "is_active", "requires_approval", "created_at")
     search_fields = ("name", "display_name", "description", "category")
-    list_filter = ("module", "category", "is_active", "requires_approval", "requires_loan_scope")
+    list_filter = ("module", "category", "is_active", "requires_approval", "requires_loan_scope", "loan_access_mode")
 
 
 @admin.register(AgentRunLog)

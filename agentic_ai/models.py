@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
@@ -98,12 +100,24 @@ class AgentTool(models.Model):
     is_active = models.BooleanField(default=True)
     requires_approval = models.BooleanField(default=False)
     requires_loan_scope = models.BooleanField(default=False)
+    loan_access_mode = models.CharField(max_length=10, default="SIGNED",
+        choices=[("SIGNED", "Per-user signed access"), ("FIXED", "Fixed NiFi branch scope")])
+    fixed_branch_codes = models.JSONField(default=list, blank=True,
+        help_text="Exact full branch allowlist enforced by this tool's NiFi endpoint.")
+
     allowed_roles = models.JSONField(default=list, blank=True)
 
     def clean(self):
         super().clean()
         if self.name != self.name.strip() or not self.name.strip():
             raise ValidationError({"name": "Use the exact nonempty gateway tool name without surrounding whitespace."})
+        codes = self.fixed_branch_codes
+        if (not isinstance(codes, list) or len(codes) > 1000
+                or any(not isinstance(code, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,31}', code) for code in codes)
+                or len(set(codes)) != len(codes)):
+            raise ValidationError({'fixed_branch_codes': 'Use up to 1000 distinct exact branch codes as strings.'})
+        if self.loan_access_mode == 'FIXED' and not codes:
+            raise ValidationError({'fixed_branch_codes': 'Enter the full branch scope enforced by the NiFi endpoint.'})
         roles = self.allowed_roles
         if not isinstance(roles, list) or any(not isinstance(role, str) or not role.strip() or role != role.strip() for role in roles):
             raise ValidationError({"allowed_roles": 'Use a JSON list of exact group names, for example ["manager", "cashflow"].'})

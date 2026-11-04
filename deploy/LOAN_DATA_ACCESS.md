@@ -199,3 +199,10 @@ Only active staff with the existing integration-management permissions
 can save/check this connection. Changes are audited atomically. Import remains
 under **Data access → Branch & zone directory**, requiring
 `manage_loan_directory`; user scope grants remain a separate action.
+
+## Fixed-scope endpoints
+
+An explicit per-tool fixed NiFi scope mode is available for preconfigured legacy
+endpoints. It retains user branch/zone grants and group permissions without a
+signed token. See [FIXED_BRANCH_LOAN_ACCESS.md](FIXED_BRANCH_LOAN_ACCESS.md).
+The signed-access requirements above remain the default.
