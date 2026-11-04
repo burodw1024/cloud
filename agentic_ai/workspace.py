@@ -50,6 +50,7 @@ def workspace_context(user, module_slug=''):
         'tool_name', 'created_at')[:3])
     return {'capabilities': catalog, 'capability_count': len(catalog),
             'has_loan_capabilities': any(item['name'] in loan_names for item in catalog),
+            'has_savings_capabilities': any('saving' in (item['name'] + ' ' + item['description']).casefold() or 'সঞ্চ' in item['description'] for item in catalog),
             'business_modules': modules, 'selected_module': selected_module,
             'recent_activity': activity, 'pending_approvals': approvals,
             'pending_approval_count': AgentApprovalRequest.objects.filter(user=user, status='pending').count()}

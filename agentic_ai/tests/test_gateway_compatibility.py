@@ -70,3 +70,9 @@ class GatewayCompatibilityTests(unittest.TestCase):
         self.verifier['verify'](previous, self.baked, self.baseline)
         with self.assertRaises(ValueError):
             self.verifier['verify'](previous + '\nUNREVIEWED_CHANGE = True\n', self.baked, self.baseline)
+
+    def test_previously_published_fixed_scope_gateway_is_exactly_recognized(self):
+        previous = (Path(__file__).resolve().parent / 'fixtures/fixed_scope_gateway.py.txt').read_text()
+        self.verifier['verify'](previous, self.baked, self.baseline)
+        with self.assertRaises(ValueError):
+            self.verifier['verify'](previous + '\nUNREVIEWED_CHANGE = True\n', self.baked, self.baseline)
