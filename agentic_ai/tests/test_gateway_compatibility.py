@@ -64,3 +64,9 @@ class GatewayCompatibilityTests(unittest.TestCase):
         self.verifier['verify'](previous, self.baked, self.baseline)
         with self.assertRaises(ValueError):
             self.verifier['verify'](previous + "\n# unknown edit\n", self.baked, self.baseline)
+
+    def test_user_scoped_release_is_accepted_without_allowing_unreviewed_changes(self):
+        previous = (Path(__file__).resolve().parent / 'fixtures/user_scoped_gateway.py.txt').read_text()
+        self.verifier['verify'](previous, self.baked, self.baseline)
+        with self.assertRaises(ValueError):
+            self.verifier['verify'](previous + '\nUNREVIEWED_CHANGE = True\n', self.baked, self.baseline)
