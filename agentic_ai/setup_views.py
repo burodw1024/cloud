@@ -8,6 +8,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.models import Group
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -208,6 +209,8 @@ def setup_page(request):
                     "requires_approval": record.requires_approval if record else not bool(tool.annotations and tool.annotations.readOnlyHint),
                     "requires_loan_scope": tool.name in mandatory_scope_tools or bool(record and record.requires_loan_scope),
                     "loan_scope_mandatory": tool.name in mandatory_scope_tools,
+                    "loan_access_mode": record.loan_access_mode if record else "SIGNED",
+                    "fixed_branch_codes": record.fixed_branch_codes if record else [],
                     "loan_scope_contract": tool.inputSchema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') == 'string' and TOKEN_FIELD in tool.inputSchema.get('required', []),
                 })
             cache.set(cache_key, {"url": config["url"], "tools": catalog}, 300)
@@ -245,6 +248,17 @@ def setup_page(request):
                     value = item.get(field)
                     if field in item and (not isinstance(value, str) or len(value) > maximum):
                         raise ValueError
+                if 'loan_access_mode' in item and item['loan_access_mode'] not in ('SIGNED', 'FIXED'):
+                    raise ValueError
+                if 'fixed_branch_codes' in item:
+                    candidate = AgentTool(name=name, loan_access_mode=item.get('loan_access_mode', 'SIGNED'),
+                                          fixed_branch_codes=item['fixed_branch_codes'])
+                    try:
+                        candidate.clean()
+                    except ValidationError:
+                        return _reply({"ok": False, "error": "Enter distinct exact branch codes for the fixed NiFi scope."}, 400)
+                if item.get('loan_access_mode') == 'FIXED' and not item.get('fixed_branch_codes'):
+                    return _reply({"ok": False, "error": "Fixed mode requires the full NiFi branch allowlist."}, 400)
                 if 'requires_loan_scope' in item and not isinstance(item['requires_loan_scope'], bool):
                     raise ValueError
                 if item["enabled"] and not selected:
@@ -259,8 +273,13 @@ def setup_page(request):
                     record.is_active = item["enabled"]
                     record.allowed_roles = item["roles"]
                     record.requires_approval = item["requires_approval"]
+                    for field in ('loan_access_mode', 'fixed_branch_codes'):
+                        if field in item:
+                            setattr(record, field, item[field])
+                    if record.loan_access_mode == 'FIXED':
+                        record.requires_loan_scope = True
                     if 'requires_loan_scope' in item:
-                        record.requires_loan_scope = item['requires_loan_scope']
+                        record.requires_loan_scope = item['requires_loan_scope'] or record.loan_access_mode == 'FIXED'
                     for field in ("display_name", "category", "example_question"):
                         if field in item:
                             setattr(record, field, item[field].strip() or ("General" if field == "category" else ""))

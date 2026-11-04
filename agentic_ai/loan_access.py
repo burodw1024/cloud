@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import LoanAccessPolicy, LoanBranch, LoanZone
+from .models import AgentTool, LoanAccessPolicy, LoanBranch, LoanZone
 from .loan_scope_backend import TOKEN_FIELD, ISSUER, AUDIENCE, canonical, authorization_receipt
 
 
@@ -60,7 +60,12 @@ def snapshot(user):
 
 def current_access(user, metadata):
     try:
-        return metadata['subject'] == str(user.pk) and snapshot(user)['version'] == metadata['version']
+        valid = metadata['subject'] == str(user.pk) and snapshot(user)['version'] == metadata['version']
+        if valid and metadata.get('mode') == 'FIXED':
+            record = AgentTool.objects.filter(name=metadata.get('tool'), is_active=True).first()
+            valid = bool(record and record.loan_access_mode == 'FIXED'
+                         and sorted(record.fixed_branch_codes) == metadata.get('branches'))
+        return valid
     except (LoanAccessDenied, KeyError, TypeError, AttributeError):
         return False
 
@@ -94,6 +99,12 @@ class LoanGrant:
     access: dict
 
 
+@dataclass
+class FixedLoanGrant:
+    access: dict
+    branches: list
+
+
 def authorize(user, name, arguments, tool, backend_arguments=None):
     forbidden = {TOKEN_FIELD, 'auth.branch_codes', 'authorized_branches'}
     if forbidden.intersection(arguments) or forbidden.intersection(backend_arguments or {}):
@@ -105,6 +116,29 @@ def authorize(user, name, arguments, tool, backend_arguments=None):
     if ('branch_code' in arguments and 'branchCode' in arguments) or ('zone_code' in arguments and 'zoneCode' in arguments):
         raise LoanAccessDenied('Use the declared branch and zone parameter contract without duplicate aliases.')
     access = snapshot(user)
+    record = AgentTool.objects.filter(name=name).first()
+    if record and record.loan_access_mode == 'FIXED':
+        record.full_clean()
+        schema = getattr(tool, 'inputSchema', {})
+        if TOKEN_FIELD in schema.get('required', []):
+            raise LoanAccessUnavailable('This backend requires signed access. Select signed mode for this tool.')
+        fixed = sorted(record.fixed_branch_codes)
+        directory = {row['code']: row for row in access['directory']}
+        # A branch filter cannot safely narrow a backend's aggregate access scope.
+        if not set(fixed).issubset(directory):
+            raise LoanAccessDenied('This tool requires access to every branch in its fixed NiFi scope. Ask your administrator for a narrower endpoint or the appropriate branch/zone grant.')
+        for params in (arguments, backend_arguments or {}):
+            branch = params.get('branch_code', params.get('branchCode'))
+            zone = params.get('zone_code', params.get('zoneCode'))
+            zone_name = params.get('zoneName')
+            if branch and branch not in fixed:
+                raise LoanAccessDenied('The requested branch is outside this tool’s fixed NiFi scope.')
+            if zone and not any(directory[code]['zone__code'] == zone for code in fixed):
+                raise LoanAccessDenied('The requested zone is outside this tool’s fixed NiFi scope.')
+            if zone_name and not any(directory[code]['zone__name'] == zone_name for code in fixed):
+                raise LoanAccessDenied('The requested zone is outside this tool’s fixed NiFi scope.')
+        return FixedLoanGrant({'subject': access['subject'], 'version': access['version'],
+                               'mode': 'FIXED', 'tool': name, 'branches': fixed}, fixed)
     # The backend must explicitly declare the signed-token contract. Never
     # silently send an unrestricted legacy request when integration is missing.
     schema = getattr(tool, 'inputSchema', {})
@@ -155,6 +189,29 @@ def authorize(user, name, arguments, tool, backend_arguments=None):
 
 
 def validate_response(raw, grant):
+    if isinstance(grant, FixedLoanGrant):
+        # No signed receipt is expected; NiFi must enforce the full configured
+        # scope before SQL aggregation. Explicit returned branches are checked.
+        def check(value):
+            if isinstance(value, str):
+                try:
+                    decoded = json.loads(value)
+                except (ValueError, TypeError):
+                    return
+                if isinstance(decoded, (dict, list)):
+                    check(decoded)
+            elif isinstance(value, dict):
+                for key, item in value.items():
+                    if key in {'BRANCHCODE', 'branchCode', 'branch_code'} and item is not None and item not in grant.branches:
+                        raise LoanAccessDenied('The backend returned a branch outside the fixed NiFi scope.')
+                    if key == 'authorized_branch_count' and (type(item) is not int or not 0 <= item <= len(grant.branches)):
+                        raise LoanAccessDenied('The backend scope exceeds the fixed NiFi scope.')
+                    check(item)
+            elif isinstance(value, list):
+                for item in value:
+                    check(item)
+        check(raw)
+        return
     if grant.token in json.dumps(raw):
         raise LoanAccessDenied('The backend echoed authorization credentials.')
     # Locate an envelope, never print or persist the signed token or raw data.

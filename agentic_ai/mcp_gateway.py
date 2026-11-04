@@ -119,7 +119,7 @@ def _decision(user, name, arguments, tool=None, backend_arguments=None):
                 "answer": "Permission denied for this MCP tool."}
     from .loan_access import protected_tools, authorize, LoanAccessDenied, LoanAccessUnavailable
     loan_grant = None
-    if record.requires_loan_scope or name in protected_tools():
+    if record.requires_loan_scope or record.loan_access_mode == 'FIXED' or name in protected_tools():
         try:
             loan_grant = authorize(user, name, arguments, tool, backend_arguments)
         except LoanAccessUnavailable as exc:
@@ -407,7 +407,7 @@ async def _run(config, user, query, allowed_names):
             tools = await discover_tools(session, allowed_names)
             if not tools:
                 return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
-            from .loan_access import strip_server_authorization, LoanGrant, validate_response, current_access
+            from .loan_access import strip_server_authorization, LoanGrant, FixedLoanGrant, validate_response, current_access
             original_tools = {tool.name: tool for tool in tools}
             tools = strip_server_authorization(tools)
             from .member_scope import scoped_tools, member_call
@@ -461,12 +461,13 @@ async def _run(config, user, query, allowed_names):
             plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
             state.update(tool=name, plan=plan)
             decision = await sync_to_async(_decision)(user, name, arguments, original_tools[name], backend_arguments)
-            loan_grant = decision if isinstance(decision, LoanGrant) else None
+            loan_grant = decision if isinstance(decision, (LoanGrant, FixedLoanGrant)) else None
             if decision and not loan_grant:
                 return dict(decision, plan=plan)
             if loan_grant:
                 from .loan_scope_backend import TOKEN_FIELD
-                backend_arguments[TOKEN_FIELD] = loan_grant.token
+                if isinstance(loan_grant, LoanGrant):
+                    backend_arguments[TOKEN_FIELD] = loan_grant.token
                 _validator(original_tools[name].inputSchema).validate(backend_arguments)
                 state['loan_access'] = loan_grant.access
             # Persist intent before dispatch; if audit storage is unavailable, do not call.
