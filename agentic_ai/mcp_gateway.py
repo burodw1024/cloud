@@ -413,7 +413,10 @@ async def _run(config, user, query, allowed_names):
             from .member_scope import scoped_tools, member_call
             projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
             from .loan_question_help import is_loan_question_help, loan_question_help
-            if is_loan_question_help(query):
+            from .business_question_help import question_domain, business_question_help, is_business_question_help
+            if is_loan_question_help(query) or is_business_question_help(query):
+                if question_domain(query) != 'loans':
+                    return await sync_to_async(business_question_help)(user, query, tools, projection_tools)
                 from .loan_access import own_access_summary
                 examples = await sync_to_async(own_access_summary)(user)
                 return loan_question_help(tools, projection_tools, examples)

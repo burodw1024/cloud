@@ -26,7 +26,7 @@ def execute_query(**kwargs):
 
 def _can_replay_result(user, result):
     """A cached report must obey current authorization, just like a new call."""
-    if result.get("kind") == "loan_question_help":
+    if result.get("kind") in {"loan_question_help", "business_question_help"}:
         # Rediscover capabilities: tool schemas and role grants can change.
         return False
     tool_name = result.get("tool")
