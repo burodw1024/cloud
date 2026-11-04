@@ -110,3 +110,24 @@ intended, `UPDATE_CONTEXTFORGE_TIMEOUTS=1` explicitly enables the existing check
 HTTPX timeout upgrade path; it still fails before mutation if its preflight fails.
 Inspect the saved preflight log to diagnose that check rather than assuming every
 failure means a missing timeout patch.
+
+## Summary validation and diagnostics
+
+The summary validator compares exact decimal values, accepting Bengali digits,
+Western/Indian thousands grouping and trailing decimal zeros without rounding.
+ISO date components are treated as dates rather than negative amounts, allowing
+the same day/year in natural Bengali date wording. Unsupported numbers remain
+blocked. The original report is never modified.
+
+A completed answer that fails language/number validation gets at most one fresh
+summary attempt with stricter instructions. Provider errors and timeouts are not
+retried. Both attempts share a 120-second deadline, within the existing 150-second
+cache lock. Report-tool execution is never retried. Successful retry usage includes
+reported tokens from both responses.
+
+Failures expose a stable code and log only that code and exception class. No
+provider body, exception message, report data, credentials or summary token is
+logged. Look for `Bangla summary failed` and `Bangla summary rejected` in Django
+logs. A successful small model probe does not prove a large report will pass
+validation or finish within the deadline. Cloud regression tests use mock models;
+live report generation still needs on-prem verification.
