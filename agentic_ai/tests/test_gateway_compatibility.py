@@ -76,3 +76,9 @@ class GatewayCompatibilityTests(unittest.TestCase):
         self.verifier['verify'](previous, self.baked, self.baseline)
         with self.assertRaises(ValueError):
             self.verifier['verify'](previous + '\nUNREVIEWED_CHANGE = True\n', self.baked, self.baseline)
+
+    def test_published_business_guide_gateway_remains_a_known_upgrade_source(self):
+        previous = (Path(__file__).resolve().parent / 'fixtures/business_guide_gateway.py.txt').read_text()
+        self.verifier['verify'](previous, self.baked, self.baseline)
+        with self.assertRaises(ValueError):
+            self.verifier['verify'](previous + '\nUNREVIEWED_CHANGE = True\n', self.baked, self.baseline)

@@ -38,3 +38,26 @@ and backend branch restrictions still apply when users submit a real report.
 The release recognizes the exact previously published fixed-scope MCP source in
 its upgrade compatibility check; unreviewed live changes remain blocked. Cloud
 checks use synthetic tools and do not verify live NiFi/Oracle reporting.
+
+## Model argument validation
+
+Normal report requests still use the configured project model and strict tool
+schemas. Model selection now includes an Asia/Dhaka calendar reference, including
+the previous complete month's inclusive start and exclusive end. The reference
+is frozen across a repair attempt. It also describes declared savings operations
+and instructs the model to omit unspecified optional identifiers instead of
+sending blank/null values. No branch, zone or authorization values are invented.
+
+If a completed selection violates its schema, selection alone is retried once
+with schema-defined field names and validation rule feedback. Provider/network
+errors, malformed responses and tool execution are not retried. Report dispatch
+only occurs after successful validation and the existing permission/approval
+checks. Both inference attempts use the same usage meter and overall request
+deadline. If repair also fails, the UI reports the field and rule; Django logs
+`MCP argument validation failed` with schema-only details, never argument values,
+unknown extra key names, report data or tokens.
+
+This addresses invalid selection recovery and diagnostics. The on-prem failing
+model response was not captured in cloud, so live report validation remains
+required. A successful discovery-only single-tool probe is not proof that the
+app's mixed-tool selection or NiFi execution has succeeded.
