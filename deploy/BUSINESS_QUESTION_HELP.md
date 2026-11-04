@@ -61,3 +61,25 @@ This addresses invalid selection recovery and diagnostics. The on-prem failing
 model response was not captured in cloud, so live report validation remains
 required. A successful discovery-only single-tool probe is not proof that the
 app's mixed-tool selection or NiFi execution has succeeded.
+
+## Keep savings reporting separate from message delivery
+
+For an explicit savings transaction report request (deposits, withdrawals, net
+movement or the named savings report), the model now receives only tools from
+its already-authorized catalog whose declared savings report schema includes
+operation, from_date and to_date_exclusive plus a supported report operation.
+The same contract predicate is used by the question guide. Loan tools, generic
+DB tools and WhatsApp delivery tools are not candidates for that savings request.
+Descriptions mentioning savings alone do not qualify a messaging tool.
+
+If no authorized savings report contract is available, return an explanatory
+clarification without inference or dispatch. Do not fall back to a messaging tool
+or grant access to another tool. Tool aliases are rebuilt from the narrowed
+catalog, and responses naming removed aliases are rejected. Savings balance columns in existing loan-member inquiries and mixed-domain
+requests retain the existing catalog and validation behavior. This is relevance
+filtering, not a substitute for roles, approvals or backend branch restrictions.
+
+The separate WhatsApp preview/confirmation API and its permissions are unchanged.
+After deployment, wait for `kubectl -n rag rollout status deployment/buro-django`
+to complete before testing a new report. If logs still show messaging selection,
+verify which pod/image produced them and that the request explicitly named savings.

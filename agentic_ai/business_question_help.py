@@ -21,6 +21,28 @@ def question_domain(query):
     return 'business'
 
 
+def is_savings_report_request(query):
+    # Loan member reports can contain savings balance columns. Do not route
+    # those existing inquiries to the deposits/withdrawals transaction endpoint.
+    return question_domain(query) == 'savings' and bool(re.search(
+        r'\b(?:deposits?|withdrawals?|net\s+movement|savings?[- ]reports?)\b'
+        r'|জমা|উত্তোলন|নিট পরিবর্তন|সঞ্চয়ের প্রতিবেদন|সঞ্চয় রিপোর্ট', query, re.I))
+
+
+SAVINGS_OPERATIONS = {'period-summary', 'branch-summary', 'zone-summary',
+                      'zone-branches', 'branch-product-summary', 'zone-product-summary'}
+
+
+def is_savings_report_tool(tool):
+    props = tool.inputSchema.get('properties', {})
+    return bool(re.search(r'saving|সঞ্চ|সেভিং', tool.name + ' ' + (tool.description or ''), re.I)
+                and tool.inputSchema.get('type') == 'object'
+                and all(props.get(key, {}).get('type') == 'string'
+                        for key in ('operation', 'from_date', 'to_date_exclusive'))
+                and any(isinstance(op, str) and op in SAVINGS_OPERATIONS
+                        for op in props['operation'].get('enum', [])))
+
+
 def savings_question_help(tools, today=None):
     today = today or timezone.localdate(timezone=ZoneInfo('Asia/Dhaka'))
     end = today.replace(day=1)
@@ -28,13 +50,9 @@ def savings_question_help(tools, today=None):
     period = f'{start.isoformat()} থেকে {end.isoformat()} পর্যন্ত (শেষ তারিখ বাদ দিয়ে)'
     sections, sources = [], []
     for tool in tools:
-        if not re.search(r'saving|সঞ্চ|সেভিং', tool.name + ' ' + (tool.description or ''), re.I):
+        if not is_savings_report_tool(tool):
             continue
         props = tool.inputSchema.get('properties', {})
-        if (tool.inputSchema.get('type') != 'object'
-                or any(props.get(key, {}).get('type') != 'string'
-                       for key in ('operation', 'from_date', 'to_date_exclusive'))):
-            continue
         operations = props['operation'].get('enum', [])
         questions = []
         def has(field):

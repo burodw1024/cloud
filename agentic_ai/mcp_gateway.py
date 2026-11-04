@@ -249,6 +249,15 @@ async def _model_response(config, payload):
 
 
 async def _select_tool(config, query, tools):
+    from .business_question_help import is_savings_report_request, is_savings_report_tool
+    if is_savings_report_request(query):
+        # Narrow only the already-authorized catalog. Message delivery and loan
+        # tools cannot answer a savings report request. Sharing remains a
+        # separate preview/confirmation flow, never a reporting fallback.
+        tools = [tool for tool in tools if is_savings_report_tool(tool)]
+        if not tools:
+            answer = 'আপনার জন্য অনুমোদিত savings report tool পাওয়া যায়নি। প্রশাসককে savings-report-এর activation, group access ও module publication যাচাই করতে বলুন।'
+            return {'content': answer, 'selection_mode': 'savings_catalog'}, None
     # A validation failure happens before dispatch. Retry only model selection,
     # once, with schema-only feedback; never retry provider errors or tool calls.
     config = {**config, '_selection_date': timezone.localdate(timezone=ZoneInfo('Asia/Dhaka'))}

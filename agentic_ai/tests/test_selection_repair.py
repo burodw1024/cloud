@@ -27,7 +27,7 @@ ARGS = {'operation': 'branch-summary', 'from_date': '2026-10-01', 'to_date_exclu
 
 
 def body(args):
-    return {'choices': [{'message': {'tool_calls': [{'function': {'name': 'mcp_tool_1', 'arguments': json.dumps(args)}}]}}]}
+    return {'choices': [{'message': {'tool_calls': [{'function': {'name': 'mcp_tool_0', 'arguments': json.dumps(args)}}]}}]}
 
 
 class SelectionRepairTests(SimpleTestCase):
@@ -70,7 +70,7 @@ class SelectionRepairTests(SimpleTestCase):
         invalid = body({**ARGS, 'private_key_name': 'secret-financial-data'})['choices'][0]['message']
         with self.assertLogs('agentic_ai.mcp_gateway', level='WARNING') as logs:
             with self.assertRaises(gateway.GatewayError) as error:
-                gateway._validate_call(invalid, {'mcp_tool_1': 'savings-report'}, {'mcp_tool_1': SCHEMA})
+                gateway._validate_call(invalid, {'mcp_tool_0': 'savings-report'}, {'mcp_tool_0': SCHEMA})
         for text in (str(logs.output), str(error.exception), error.exception.selection_feedback):
             self.assertNotIn('private_key_name', text)
             self.assertNotIn('secret-financial-data', text)
