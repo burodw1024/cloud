@@ -1,7 +1,12 @@
 """On-demand Bangla analysis of server-held, already authorized report projections."""
+import asyncio
+import logging
 import json
 import re
 import secrets
+from decimal import Decimal, InvalidOperation
+
+import httpx
 from urllib.parse import urlsplit
 
 from asgiref.sync import async_to_sync, sync_to_async
@@ -11,6 +16,7 @@ from django.views.decorators.csrf import csrf_protect
 from chat.dynamic_config import get_setting
 from .mcp_gateway import GatewayError, _http_url, _model_response
 
+logger = logging.getLogger(__name__)
 TTL = 1800
 SAFE_COLUMNS = {
     'RANK', 'RANK_NO', 'BRANCHCODE', 'ZONECODE', 'AREACODE', 'DIVISIONCODE',
@@ -96,22 +102,85 @@ def summary_config():
             'model_key': get_setting('MCP_GATEWAY_TOKEN'), 'timeout': 120, 'usage_meter': []}
 
 
-async def generate_summary(report):
-    config = await sync_to_async(summary_config)()
-    body = await _model_response(config, {'model': config['model'], 'stream': False,
-        'max_tokens': 1400, 'messages': [{'role': 'system', 'content': POLICY},
-        {'role': 'user', 'content': json.dumps({**report, 'field_labels': FIELD_LABELS}, ensure_ascii=False)}]})
-    text = body['choices'][0]['message']['content']
+class SummaryValidationError(ValueError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
+def numeric_claims(text):
+    """Compare exact numeric values, accepting grouping/decimal formatting.
+
+    ISO date components are unsigned: a date separator is not a minus sign.
+    No rounding or lakhs/crores conversion is accepted.
+    """
+    text = text.translate(str.maketrans('০১২৩৪৫৬৭৮৯', '0123456789'))
+    numbers = set()
+    def date_parts(match):
+        numbers.update(Decimal(part) for part in match.group().split('-'))
+        return ' '
+    text = re.sub(r'(?<![0-9])\d{4}-\d{2}-\d{2}(?![0-9])', date_parts, text)
+    for token in re.findall(r'(?<![0-9])[-+]?\d+(?:[.,]\d+)*', text):
+        if ',' in token:
+            if not re.fullmatch(r'[-+]?(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?', token):
+                numbers.add(token)  # Invalid grouping must not silently change a value.
+                continue
+            token = token.replace(',', '')
+        try:
+            numbers.add(Decimal(token))
+        except InvalidOperation:
+            numbers.add(token)
+    return numbers
+
+
+def validate_summary(body, report):
+    try:
+        text = body['choices'][0]['message']['content']
+    except (KeyError, IndexError, TypeError):
+        raise SummaryValidationError('summary_invalid_response') from None
     if not isinstance(text, str) or not text.strip() or len(text) > 10000 or not re.search('[\u0980-\u09ff]', text):
-        raise ValueError('Invalid Bangla summary')
-    # Reject introduced numeric claims, including Bangla digits converted for comparison.
-    digits = str.maketrans('০১২৩৪৫৬৭৮৯', '0123456789')
-    pattern = r'(?<![0-9])[-+]?\d+(?:[.,]\d+)*'
-    source_numbers = set(re.findall(pattern, json.dumps(report, ensure_ascii=False).translate(digits)))
-    if not set(re.findall(pattern, text.translate(digits))) <= source_numbers:
-        raise ValueError('Summary introduced a number absent from the report')
-    return {'ok': True, 'summary': text.strip(), 'model': config['model'],
-            'usage': body.get('usage', {}), 'language': 'bn'}
+        raise SummaryValidationError('summary_invalid_bangla')
+    if not numeric_claims(text) <= numeric_claims(json.dumps(report, ensure_ascii=False)):
+        raise SummaryValidationError('summary_unsupported_numbers')
+    return text.strip()
+
+
+async def _generate_summary(report):
+    config = await sync_to_async(summary_config)()
+    messages = [{'role': 'system', 'content': POLICY},
+                {'role': 'user', 'content': json.dumps({**report, 'field_labels': FIELD_LABELS}, ensure_ascii=False)}]
+    usages = []
+    for attempt in range(2):
+        # Retry only a completed but invalid summary, never an HTTP/provider failure.
+        body = await _model_response(config, {'model': config['model'], 'stream': False,
+            'max_tokens': 1400, 'messages': messages})
+        usages.append(body.get('usage', {}) if isinstance(body, dict) else {})
+        try:
+            text = validate_summary(body, report)
+        except SummaryValidationError as exc:
+            logger.warning('Bangla summary rejected code=%s attempt=%s', exc.code, attempt + 1)
+            if attempt:
+                raise
+            messages = [*messages, {'role': 'user', 'content':
+                'আগের উত্তর যাচাইয়ে গ্রহণযোগ্য হয়নি। সংক্ষিপ্ত বাংলা অনুচ্ছেদে আবার লিখুন। '
+                'নম্বরযুক্ত তালিকা দেবেন না। নতুন সংখ্যা বা হিসাব যোগ করবেন না। '
+                'অঙ্কের প্রয়োজন না হলে সংখ্যা না লিখে প্রতিবেদনের পরিধি ও মাপকাঠি ব্যাখ্যা করুন।'}]
+            continue
+        usage = body.get('usage', {})
+        if attempt:
+            # Include billed tokens from the rejected first answer as well.
+            usage = {key: sum(u.get(key, 0) for u in usages if isinstance(u, dict)
+                              and type(u.get(key)) is int and u[key] >= 0)
+                     for key in ('prompt_tokens', 'completion_tokens', 'total_tokens')
+                     if any(isinstance(u, dict) and type(u.get(key)) is int for u in usages)}
+        return {'ok': True, 'summary': text, 'model': config['model'],
+                'usage': usage, 'language': 'bn', 'attempts': attempt + 1}
+
+
+async def generate_summary(report):
+    # Both validation attempts share the deadline; the 150-second cache lock
+    # outlasts inference, and access is rechecked before releasing any result.
+    return await asyncio.wait_for(_generate_summary(report), timeout=120)
 
 
 @csrf_protect
@@ -169,6 +238,20 @@ def summary_api(request):
             cache.delete(lock)
     except (json.JSONDecodeError, UnicodeError):
         return _response({'ok': False, 'error': 'Malformed JSON'}, 400)
-    except Exception:
-        # Never expose provider response bodies, report contents or credentials.
-        return _response({'ok': False, 'error': 'বাংলা বিশ্লেষণ তৈরি করা যায়নি। মূল প্রতিবেদন অপরিবর্তিত আছে। ContextForge model configuration and llm.invoke permission should be checked.'}, 502)
+    except Exception as exc:
+        code = 'summary_failed'
+        hint = 'বাংলা বিশ্লেষণ তৈরি করা যায়নি। মূল প্রতিবেদন অপরিবর্তিত আছে।'
+        if isinstance(exc, SummaryValidationError):
+            code = exc.code
+            hint = 'মডেলের বাংলা উত্তর বা সংখ্যাগুলো প্রতিবেদনের সঙ্গে যাচাই করা যায়নি। মূল প্রতিবেদন অপরিবর্তিত আছে।'
+        elif isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError)):
+            code = 'summary_timeout'
+            hint = 'বাংলা বিশ্লেষণ তৈরির সময়সীমা শেষ হয়েছে। মূল প্রতিবেদন অপরিবর্তিত আছে।'
+        elif isinstance(exc, httpx.HTTPStatusError):
+            status = exc.response.status_code
+            code = 'summary_authentication' if status in (401, 403) else 'summary_provider_http_error'
+        elif isinstance(exc, GatewayError):
+            code = 'summary_configuration' if exc.code in ('summary_configuration', 'model_configuration_error') else 'summary_model_error'
+        # Never log exception messages, provider bodies, report data or tokens.
+        logger.warning('Bangla summary failed code=%s exception_type=%s', code, type(exc).__name__)
+        return _response({'ok': False, 'code': code, 'error': hint}, 502)

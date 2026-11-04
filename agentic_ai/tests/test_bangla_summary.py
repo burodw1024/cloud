@@ -129,3 +129,54 @@ class BanglaSummaryTests(TestCase):
             return {'ok': True, 'summary': 'বিশ্লেষণ', 'model': 'openrouter/auto', 'usage': {}}
         generate.side_effect = revoke
         self.assertEqual(self.post().status_code, 403)
+
+    def test_equivalent_formatted_numbers_and_bangla_date_are_accepted(self):
+        body = {'choices': [{'message': {'content': '৩০ সেপ্টেম্বর ২০২৬ অনুযায়ী বকেয়া ৫৭৪,৫২৮.০০।'}}]}
+        report = {'report_date': '2026-09-30', 'rows': [{'DUEAMOUNT': '574528'}]}
+        self.assertEqual(summary.validate_summary(body, report), body['choices'][0]['message']['content'])
+        body['choices'][0]['message']['content'] = 'বকেয়া ৫,৭৪,৫২৮।'
+        summary.validate_summary(body, report)
+        body['choices'][0]['message']['content'] = 'বকেয়া 574,529.00।'
+        with self.assertRaises(summary.SummaryValidationError):
+            summary.validate_summary(body, report)
+
+    @patch.object(summary, 'summary_config', return_value={'model': 'openrouter/auto'})
+    @patch.object(summary, '_model_response', new_callable=AsyncMock)
+    def test_invalid_summary_gets_one_retry_and_both_calls_usage_is_counted(self, model, config):
+        from asgiref.sync import async_to_sync
+        def answer(text):
+            return {'choices': [{'message': {'content': text}}],
+                    'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}}
+        model.side_effect = [answer('বকেয়া 999999।'), answer('বকেয়া 574528।')]
+        result = async_to_sync(summary.generate_summary)({'rows': [{'DUEAMOUNT': '574528'}]})
+        self.assertEqual(result['attempts'], 2)
+        self.assertEqual(result['usage']['total_tokens'], 30)
+        self.assertEqual(model.await_count, 2)
+
+    @patch.object(summary, 'summary_config', return_value={'model': 'openrouter/auto'})
+    @patch.object(summary, '_model_response', new_callable=AsyncMock)
+    def test_http_failure_is_not_retried(self, model, config):
+        from asgiref.sync import async_to_sync
+        import httpx
+        model.side_effect = httpx.ReadTimeout('private provider detail')
+        with self.assertRaises(httpx.ReadTimeout):
+            async_to_sync(summary.generate_summary)({'rows': []})
+        model.assert_awaited_once()
+
+    @patch.object(summary, 'generate_summary', new_callable=AsyncMock)
+    def test_failure_code_logged_without_provider_data_or_report_contents(self, generate):
+        generate.side_effect = RuntimeError('secret provider body private-name 574528')
+        with self.assertLogs('agentic_ai.bangla_summary', level='WARNING') as logs:
+            response = self.post()
+        self.assertEqual(response.json()['code'], 'summary_failed')
+        self.assertNotIn('llm.invoke', response.json()['error'])
+        for secret in ('secret provider body', 'private-name', '574528', self.token):
+            self.assertNotIn(secret, str(logs.output))
+            self.assertNotIn(secret, response.content.decode())
+
+    @patch.object(summary, 'generate_summary', new_callable=AsyncMock)
+    def test_validation_failure_has_specific_code_and_preserves_original(self, generate):
+        generate.side_effect = summary.SummaryValidationError('summary_unsupported_numbers')
+        response = self.post()
+        self.assertEqual(response.json()['code'], 'summary_unsupported_numbers')
+        self.assertIsNotNone(cache.get('agentic:summary:' + self.token))
