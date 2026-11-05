@@ -166,3 +166,68 @@ class MigrationExecutor:
             self.assertTrue(state['rolled_out'])
             self.assertEqual(sum('create' in c for c in calls),1)
             self.assertFalse(any('migrate' in c for c in calls if 'logs' not in c))
+
+    def test_backup_retry_recovers_hot_journal_and_keeps_failed_backup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = base/'app'
+            (project/'deploy').mkdir(parents=True)
+            data = base/'data'
+            failed = data/'deployment-backups/recovery-test'
+            failed.mkdir(parents=True)
+            preserved = failed/'db.sqlite3'
+            preserved.write_bytes(b'original failed backup evidence')
+            database = data/'db.sqlite3'
+            crash = '''
+import os, sqlite3, sys
+connection = sqlite3.connect(sys.argv[1])
+connection.execute('PRAGMA journal_mode=DELETE')
+connection.execute('PRAGMA cache_size=10')
+connection.execute('CREATE TABLE employee (id INTEGER, content BLOB)')
+connection.executemany('INSERT INTO employee VALUES (?, ?)', [(i, b'a'*8192) for i in range(200)])
+connection.commit()
+connection.execute('BEGIN IMMEDIATE')
+connection.execute("UPDATE employee SET content = ?", (b'b'*8192,))
+os._exit(0)
+'''
+            subprocess.run([sys.executable, '-c', crash, str(database)], check=True)
+            self.assertTrue(Path(str(database)+'-journal').exists())
+            # Reproduce the production failure: a read-only source cannot
+            # recover the hot rollback journal left by an interrupted writer.
+            with sqlite3.connect(database.as_uri()+'?mode=ro', uri=True) as src, sqlite3.connect(':memory:') as dst:
+                with self.assertRaisesRegex(sqlite3.OperationalError, 'readonly'):
+                    src.backup(dst)
+            checkpoint = base/'migrated'
+            script = '''import os, sqlite3
+from pathlib import Path
+assert Path(__file__).name == 'migrate_release.py'
+root=Path('/data')
+release=os.environ['AGENT_RELEASE_ID']
+backups=root/'deployment-backups'/release
+backups.mkdir(parents=True,exist_ok=False,mode=0o700)
+for name in ('db.sqlite3',):
+    path=root/name
+    with sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True,timeout=30) as src:
+        with sqlite3.connect(str(backups/name)) as dst:
+            src.backup(dst)
+            assert dst.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+'''+f"Path({str(checkpoint)!r}).write_text('migration reached after successful backup')\n"
+            (project/'deploy/migrate_release.py').write_text(script)
+            code = self.helper['backup_retry_code'](hashlib.sha256(script.encode()).hexdigest())
+            code = code.replace("'/app/deploy/migrate_release.py'", repr(str(project/'deploy/migrate_release.py')))
+            code = code.replace("'/app'", repr(str(project))).replace("'/data'", repr(str(data)))
+            # The imported script keeps its actual /data string until execution.
+            (project/'deploy/migrate_release.py').write_text(script)
+            # Redirect Path('/data') only in the script loaded by the recovery
+            # after SHA verification, preserving the production entrypoint test.
+            code = code.replace("script_text = script_text.replace(original,", "script_text = script_text.replace(\"'/data'\", " + repr(repr(str(data))) + ")\nscript_text = script_text.replace(original,")
+            result = self.execute(code, base)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(checkpoint.exists())
+            self.assertEqual(preserved.read_bytes(), b'original failed backup evidence')
+            backup = data/'deployment-backups/recovery-test-backup-retry/db.sqlite3'
+            with sqlite3.connect(backup) as conn:
+                self.assertEqual(conn.execute('SELECT content FROM employee LIMIT 1').fetchone()[0], b'a'*8192)
+            second = self.execute(code, base)
+            self.assertNotEqual(second.returncode, 0)
+            self.assertIn('Backup retry already exists', second.stderr)

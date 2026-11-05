@@ -1,7 +1,9 @@
-"""Resume the verified post-migration phase of a stopped, failed release.
+"""Recover a stopped release using its existing imported image and saved manifests.
 
-Uses existing imported images and saved manifests. Never rebuilds, reruns migrate,
-replaces a backup, deletes failed Jobs, or removes a lock before readiness passes.
+Default mode resumes post-migration checks only. --retry-backup handles the
+confirmed read-only backup failure before migrations, retains the failed backup,
+and creates a new verified backup before running migrations. Neither mode restores
+a database or removes the release lock before readiness passes.
 """
 import argparse
 import copy
@@ -47,10 +49,43 @@ exec(compile(post_migration, '/app/deploy/migrate_release.py:post-migration', 'e
 '''.replace('EXPECTED_SHA', repr(expected_sha))
 
 
-def build_recovery(saved, expected_sha):
+def backup_retry_code(expected_sha):
+    return """import hashlib, os, sys
+from pathlib import Path
+os.chdir('/app')
+sys.path.insert(0, '/app')
+root = Path('/data')
+release = os.environ['AGENT_RELEASE_ID']
+failed = root/'deployment-backups'/release
+assert failed.is_dir(), 'Original failed backup directory is missing'
+assert not (failed/'migration-complete.json').exists(), 'Release already completed; do not retry backup'
+script_text = Path('/app/deploy/migrate_release.py').read_text()
+assert hashlib.sha256(script_text.encode()).hexdigest() == EXPECTED_SHA, 'Imported image differs from saved source'
+original = "backups=root/'deployment-backups'/release"
+assert script_text.count(original) == 1, 'Unrecognized backup directory entrypoint'
+retry = root/'deployment-backups'/(release+'-backup-retry')
+assert not retry.exists(), 'Backup retry already exists; inspect it before any further action'
+source = root/'db.sqlite3'
+for path in (root, source, root/'db.sqlite3-journal', root/'db.sqlite3-wal', root/'db.sqlite3-shm', failed):
+    if path.exists():
+        st = path.stat()
+        print('SQLite recovery path:', path, 'uid=',st.st_uid,'gid=',st.st_gid,'mode=',oct(st.st_mode & 0o777), flush=True)
+print('Recovery process uid/gid:', os.getuid(), os.getgid(), flush=True)
+script_text = script_text.replace(original, "backups=root/'deployment-backups'/(release+'-backup-retry')")
+old = "sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True,timeout=30)"
+new = "sqlite3.connect(path.as_uri()+'?mode=rw',uri=True,timeout=30)"
+assert script_text.count(old) == 1 or script_text.count(new) == 1, 'Unrecognized SQLite source connection'
+script_text = script_text.replace(old, new)
+print('Retrying backup in a new directory, then migrating. Original failed backup retained; no database restore.', flush=True)
+__file__ = '/app/deploy/migrate_release.py'
+exec(compile(script_text, '/app/deploy/migrate_release.py:backup-retry', 'exec'), globals())
+""".replace('EXPECTED_SHA', repr(expected_sha))
+
+
+def build_recovery(saved, expected_sha, retry_backup=False):
     job = copy.deepcopy(saved)
     original = job['metadata']['name']
-    job['metadata'] = {'name': original+'-resume', 'namespace': saved['metadata']['namespace']}
+    job['metadata'] = {'name': original+('-backup-retry' if retry_backup else '-resume'), 'namespace': saved['metadata']['namespace']}
     job.pop('status', None)
     spec = job['spec']
     spec.update(backoffLimit=0, activeDeadlineSeconds=2100)
@@ -58,8 +93,8 @@ def build_recovery(saved, expected_sha):
     require(len(pod['containers']) == 1, 'Unexpected migration container count')
     container = pod['containers'][0]
     require(container.get('imagePullPolicy') == 'Never', 'Recovery must use the imported image')
-    require(container['command'] == ['python', '/app/deploy/migrate_release.py'], 'This helper only supports the reported absolute-script failure')
-    container['command'] = ['python', '-c', recovery_code(expected_sha)]
+    require(container['command'] == ['python', '/app/deploy/migrate_release.py'], 'Unrecognized migration script entrypoint')
+    container['command'] = ['python', '-c', backup_retry_code(expected_sha) if retry_backup else recovery_code(expected_sha)]
     container.pop('args', None)
     container['workingDir'] = '/app'
     spec['template']['metadata'] = {'labels': {'agentic-release-job': job['metadata']['name']}}
@@ -69,6 +104,7 @@ def build_recovery(saved, expected_sha):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('stage', type=Path)
+    parser.add_argument('--retry-backup', action='store_true', help='Recover the reported read-only backup failure before migrations; retain the original failed backup.')
     parser.add_argument('--context', required=True)
     parser.add_argument('--url', required=True)
     parser.add_argument('--cert', type=Path, default=Path.home()/'.config/agentic/tls/tls.crt')
@@ -113,7 +149,12 @@ def main():
     require(args.url.startswith('https://'), 'HTTPS URL required')
     source = stage.parent/'project/deploy/migrate_release.py'
     require(source.is_file(), 'Saved build source is missing')
-    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest())
+    if args.retry_backup:
+        logs = subprocess.check_output(command+['logs', 'job/'+original_job, '-c', 'migrate'], text=True)
+        require('src.backup(dst)' in logs and 'sqlite3.OperationalError: attempt to write a readonly database' in logs
+                and 'SQLite database and existing shared cache backed up:' not in logs,
+                'Backup retry only supports the confirmed read-only backup failure before migrations')
+    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup)
     recovery_name = recovery['metadata']['name']
     require(len(recovery_name) <= 63, 'Recovery Job name is too long')
     prior = subprocess.check_output(command+['get','job',recovery_name,'--ignore-not-found','-o','json'], text=True).strip()
@@ -143,7 +184,8 @@ def main():
     require(len(pods) == 1, 'Expected exactly one application pod after recovery')
     pod = pods[0]
     statuses = pod.get('status', {}).get('containerStatuses', [])
-    require(len(statuses)==2 and all(c.get('ready') and c.get('restartCount')==0 for c in statuses), 'Recovered pod is not 2/2 ready with zero restarts')
+    expected_count = len(after['spec']['template'].get('spec', {}).get('containers', [])) or 2
+    require(len(statuses)==expected_count and all(c.get('ready') and c.get('restartCount')==0 for c in statuses), 'Recovered pod does not have all expected containers ready with zero restarts')
     require(next(c['image'] for c in pod['spec']['containers'] if c['name']=='django') ==
             saved['spec']['template']['spec']['containers'][0]['image'], 'Unexpected running image')
     pod_name = pod['metadata']['name']

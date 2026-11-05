@@ -20,7 +20,9 @@ backups.mkdir(parents=True,exist_ok=False,mode=0o700)
 for name in ('db.sqlite3','cache.sqlite3'):
     path=root/name
     if path.exists():
-        with sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True,timeout=30) as src:
+        # SQLite may need to recover a journal after an interrupted writer.
+        # mode=rw permits that recovery but refuses to create a missing source.
+        with sqlite3.connect(path.as_uri()+'?mode=rw',uri=True,timeout=30) as src:
             with sqlite3.connect(str(backups/name)) as dst:
                 src.backup(dst)
                 assert dst.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
