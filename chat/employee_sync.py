@@ -21,7 +21,7 @@ def normalize(payload):
         if not isinstance(row, dict) or any(key not in row for key in FIELDS):
             raise ValueError(f'Row {index}: all five employee columns are required.')
         values = {}
-        for key, limit in zip(FIELDS, (128, 150, 255, 32, 64)):
+        for key, limit in zip(FIELDS, (128, 150, 255, 255, 64)):
             value = row[key]
             if not isinstance(value, (str, int)) or isinstance(value, bool):
                 raise ValueError(f'Row {index}: {key} must be a string or integer.')
@@ -29,6 +29,20 @@ def normalize(payload):
             if (not value and key != 'BRANCH') or len(value) > limit or any(ord(c) < 32 for c in value):
                 raise ValueError(f'Row {index}: invalid {key}.')
             values[key] = value
+        for key, limit in (('SITECODE', 32), ('DESIGNATIONNAME', 255), ('GENDER', 64), ('EMP_WORKSPACE', 64)):
+            value = row.get(key, '')
+            if value is None:
+                value = ''
+            if not isinstance(value, (str, int)) or isinstance(value, bool):
+                raise ValueError(f'Row {index}: {key} must be a string or integer.')
+            value = str(value).strip()
+            if len(value) > limit or any(ord(c) < 32 for c in value):
+                raise ValueError(f'Row {index}: invalid {key}.')
+            values[key] = value
+        # Legacy five-column feeds used BRANCH as the code. Never truncate it.
+        if 'SITECODE' not in row and len(values['BRANCH']) > 32:
+            raise ValueError(f'Row {index}: provide SITECODE when BRANCH contains a location name.')
+        values['_legacy_branch_code'] = 'SITECODE' not in row
         if values['EMPLOYEEID'] in ids or values['EMPLOYEECODE'] in codes:
             raise ValueError('Duplicate employee ID or code. No changes applied.')
         ids.add(values['EMPLOYEEID'])
@@ -92,11 +106,18 @@ def sync_employees():
             if is_new:
                 user.groups.add(config.default_group)
             profile, _ = UserProfile.objects.get_or_create(user=user)
-            profile.branch_code = row['BRANCH']
+            # Zone/area/head-office location codes are not branch access grants.
+            if row['_legacy_branch_code']:
+                profile.branch_code = row['BRANCH']
+            else:
+                profile.branch_code = row['SITECODE'] if row['EMP_WORKSPACE'].casefold() == 'branch' else ''
             profile.save(update_fields=['branch_code'])
             entry = entry or EmployeeDirectoryEntry(user=user)
             entry.employee_id, entry.employee_code = row['EMPLOYEEID'], row['EMPLOYEECODE']
             entry.employee_name, entry.branch, entry.status = row['EMPLOYEENAME'], row['BRANCH'], row['EMPSTATUS']
+            entry.site_code = row['SITECODE']
+            entry.designation, entry.gender = row['DESIGNATIONNAME'], row['GENDER']
+            entry.workspace = row['EMP_WORKSPACE']
             entry.synced_at = timezone.now()
             entry.full_clean()
             entry.save()

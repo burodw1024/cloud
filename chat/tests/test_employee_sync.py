@@ -101,3 +101,47 @@ class EmployeeSyncTests(TestCase):
             response.status_code = 302
             with self.assertRaises(ValueError):
                 fetch(self.config)
+
+    def test_nifi_location_name_and_site_code_are_separate(self):
+        self.row.update(BRANCH='BURO Training Center, Khulna', SITECODE='03',
+                        DESIGNATIONNAME='Guard', GENDER='Male', EMP_WORKSPACE='Branch')
+        self.sync()
+        entry = EmployeeDirectoryEntry.objects.get()
+        self.assertEqual(entry.branch, 'BURO Training Center, Khulna')
+        self.assertEqual(entry.site_code, '03')
+        self.assertEqual(entry.designation, 'Guard')
+        self.assertEqual(entry.gender, 'Male')
+        self.assertEqual(entry.workspace, 'Branch')
+        self.assertEqual(entry.user.profile.branch_code, '03')
+
+    def test_zone_location_is_not_a_branch_or_head_office_grant(self):
+        self.row.update(BRANCH='Feni Zone', SITECODE='Z32', EMP_WORKSPACE='Zone')
+        self.sync()
+        entry = EmployeeDirectoryEntry.objects.get()
+        self.assertEqual(entry.site_code, 'Z32')
+        self.assertEqual(entry.user.profile.branch_code, '')
+        self.assertFalse(entry.user.profile.is_head_office)
+        self.assertEqual(entry.user.profile.allowed_branch_codes, '')
+
+    def test_new_feed_repairs_old_branch_name_and_preserves_groups(self):
+        self.row['BRANCH'] = 'Jinarpur Branch'
+        self.sync()
+        custom = Group.objects.create(name='Root assigned')
+        user = User.objects.get()
+        user.groups.set([custom])
+        self.row.update(SITECODE='888', EMP_WORKSPACE='Branch', DESIGNATIONNAME='Assistant Programme Organiser')
+        self.sync()
+        user.refresh_from_db()
+        self.assertEqual(user.profile.branch_code, '888')
+        self.assertEqual(list(user.groups.all()), [custom])
+        self.assertEqual(User.objects.count(), 1)
+
+    def test_long_branch_name_supported_with_site_code(self):
+        self.row.update(BRANCH='A long employee office name exceeding thirty two characters', SITECODE='050', EMP_WORKSPACE='Branch')
+        self.sync()
+        self.assertEqual(User.objects.get().profile.branch_code, '050')
+
+    def test_invalid_optional_data_rejected(self):
+        self.row['SITECODE'] = {'invalid': 'code'}
+        with self.assertRaises(ValueError):
+            normalize([self.row])

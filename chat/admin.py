@@ -109,10 +109,10 @@ class EmployeeSyncSettingsAdmin(EmployeeRootAdmin):
 
 @admin.register(EmployeeDirectoryEntry)
 class EmployeeDirectoryEntryAdmin(EmployeeRootAdmin):
-    list_display = ('employee_code', 'employee_name', 'branch', 'status', 'synced_at')
-    search_fields = ('employee_id', 'employee_code', 'employee_name', 'branch')
-    list_filter = ('status',)
-    readonly_fields = ('user', 'employee_id', 'employee_code', 'employee_name', 'branch', 'status', 'synced_at')
+    list_display = ('employee_code', 'employee_name', 'designation', 'branch', 'site_code', 'workspace', 'status', 'synced_at')
+    search_fields = ('employee_id', 'employee_code', 'employee_name', 'branch', 'site_code')
+    list_filter = ('status', 'workspace')
+    readonly_fields = ('user', 'employee_id', 'employee_code', 'employee_name', 'branch', 'site_code', 'designation', 'gender', 'workspace', 'status', 'synced_at')
 
     def has_add_permission(self, request):
         return False
