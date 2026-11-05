@@ -98,12 +98,17 @@ class EmployeeSyncSettingsAdmin(EmployeeRootAdmin):
     def sync_now(self, request, object_id):
         if not self.has_change_permission(request) or request.method != 'POST':
             raise PermissionDenied
-        from .employee_sync import sync_employees
+        from .employee_sync import sync_lock, SyncBusy
+        from django.db import OperationalError
         try:
-            result = sync_employees()
-            self.message_user(request, result, messages.SUCCESS)
-        except (ValueError, ValidationError) as exc:
-            self.message_user(request, str(exc), messages.ERROR)
+            with sync_lock():
+                EmployeeSyncSettings.objects.filter(pk=1).update(
+                    sync_requested=True, last_result='Queued: waiting for employee sync worker.')
+            self.message_user(request, 'Employee sync queued. Refresh this page to see progress.', messages.SUCCESS)
+        except SyncBusy as exc:
+            self.message_user(request, str(exc), messages.WARNING)
+        except OperationalError:
+            self.message_user(request, 'Database is busy. Wait for the current import to finish before requesting another sync.', messages.WARNING)
         return redirect('admin:chat_employeesyncsettings_change', 1)
 
 

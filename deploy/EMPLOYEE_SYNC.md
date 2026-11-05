@@ -9,7 +9,9 @@ python manage.py migrate
 Open System Settings → Employee API sync settings (also in Django admin).
 Create the singleton settings record, select the default Django group, configure
 an HTTP/HTTPS NiFi URL, set active statuses to `Regular`, choose an interval
-(default 300 seconds), and enable sync. Save, then click **Sync now**.
+(default 300 seconds), and enable sync. Save, then click **Queue sync using saved settings**. The worker processes the
+request within a few seconds, even when periodic sync is disabled. Refresh the
+settings page to see Queued, Running counts, or the final result.
 Only superusers and the designated `root_123` staff account can manage this module.
 The directory list shows the last imported employee data; settings show the last
 successful sync timestamp and worker result. Restrict this endpoint to your trusted
@@ -25,8 +27,12 @@ run a supervised process using the same production settings and database:
 python manage.py sync_employees --watch
 ```
 
-The worker reads settings each cycle, pauses imports when disabled, retries API
-failures on the configured interval, and reconnects to the database between runs.
+The worker checks settings every two seconds. Disabled periodic sync still permits
+explicitly queued requests. Failures back off for the configured interval. A shared
+OS file lock beside the SQLite database prevents simultaneous worker, CLI and web
+imports in the on-prem pod. Password hashing happens outside write transactions.
+Progress is saved after the first employee, then every 25 employees and at the end,
+and printed in worker logs. Database-lock errors do not crash the worker.
 For other deployments, cron can instead run `python manage.py sync_employees`.
 Use one scheduling mechanism per deployment. Keep separate writers stopped
 during database migrations.
@@ -51,8 +57,10 @@ NiFi must answer HTTP GET with HTTP 200, Content-Type `application/json`, and:
 
 An object containing a `rows` or `data` array is also accepted. Send IDs, codes
 and site codes as strings to preserve leading zeroes. The response must include all
-five columns per row. A malformed response, duplicate identity or account conflict
-aborts the full import. Empty responses do not delete or deactivate accounts.
+five columns per row. Malformed responses and known identity conflicts are checked before employee writes.
+Each employee is then committed separately so SQLite is not locked for the whole
+import. If an error occurs mid-import, completed employees remain saved; correct
+the error and retry safely. Empty responses do not delete or deactivate accounts.
 Employees omitted from a response remain unchanged; return their inactive status
 explicitly to disable their login. Active statuses are case insensitive.
 
@@ -98,7 +106,7 @@ tool name must match the registered name. Loan reports also require a separate
 loan access policy and scope; syncing a branch does not grant that policy.
 Do not choose the privileged `admin` group as the ordinary employee default.
 
-Pre-release checks passed: 350 application tests, including 68 focused tool
-access/selection tests; 14 employee sync tests. Live NiFi connectivity, gateway
+Pre-release checks passed: 353 application tests, including 68 focused tool
+access/selection tests; 20 employee sync tests. Live NiFi connectivity, gateway
 credentials/catalog and model behavior must still be verified on-prem. The
 launcher already runs one authenticated report check after deployment.

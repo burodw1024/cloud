@@ -253,6 +253,7 @@ class EmployeeSyncSettings(models.Model):
     default_group = models.ForeignKey('auth.Group', on_delete=models.PROTECT, null=True, blank=True)
     active_statuses = models.CharField(max_length=255, default='Regular', help_text='Comma-separated EMPSTATUS values allowed to log in (case insensitive).')
     interval_seconds = models.PositiveIntegerField(default=300)
+    sync_requested = models.BooleanField(default=False, editable=False)
     last_sync_at = models.DateTimeField(null=True, blank=True, editable=False)
     last_result = models.TextField(blank=True, editable=False)
 

@@ -3,7 +3,7 @@
 {{ block.super }}
 {% if original %}
 <p>New accounts use employee code as username and join the selected default group. Later syncs preserve passwords and group changes. Staff and root accounts are protected.</p>
-<p>Run the employee sync worker to keep this directory updated automatically.</p>
-<button type="submit" formaction="{% url 'admin:chat_employee_sync_now' original.pk %}" formnovalidate>Sync now using saved settings</button>
+<p>The employee sync worker processes queued imports and scheduled syncs. Refresh this page to see Last result progress.</p>
+<button type="submit" formaction="{% url 'admin:chat_employee_sync_now' original.pk %}" formnovalidate>Queue sync using saved settings</button>
 {% endif %}
 {% endblock %}

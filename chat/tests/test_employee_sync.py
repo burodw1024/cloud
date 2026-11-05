@@ -86,7 +86,7 @@ class EmployeeSyncTests(TestCase):
         self.assertTrue(model_admin.has_change_permission(request))
         self.client.force_login(request.user)
         response = self.client.get('/admin/chat/employeesyncsettings/1/change/')
-        self.assertContains(response, 'Sync now using saved settings')
+        self.assertContains(response, 'Queue sync using saved settings')
 
     def test_fetch_uses_get_and_rejects_redirect(self):
         from chat.employee_sync import fetch
@@ -145,3 +145,88 @@ class EmployeeSyncTests(TestCase):
         self.row['SITECODE'] = {'invalid': 'code'}
         with self.assertRaises(ValueError):
             normalize([self.row])
+
+
+    def test_concurrent_sync_is_rejected_before_api_fetch(self):
+        from chat.employee_sync import sync_lock, SyncBusy
+        with sync_lock(), patch('chat.employee_sync.fetch') as fetch:
+            with self.assertRaises(SyncBusy):
+                sync_employees()
+            fetch.assert_not_called()
+        self.sync()  # Releasing the OS lock permits the next import.
+
+    def test_admin_queues_import_without_waiting_for_api(self):
+        root = User.objects.create_superuser(username='root', password='root')
+        self.client.force_login(root)
+        with patch('chat.employee_sync.fetch') as fetch:
+            response = self.client.post('/admin/chat/employeesyncsettings/1/sync/')
+        self.assertEqual(response.status_code, 302)
+        fetch.assert_not_called()
+        self.config.refresh_from_db()
+        self.assertTrue(self.config.sync_requested)
+        self.assertTrue(self.config.last_result.startswith('Queued:'))
+
+    def test_progress_and_queue_flag(self):
+        from django.core.management import call_command
+        from io import StringIO
+        self.config.sync_requested = True
+        self.config.save()
+        output = StringIO()
+        with patch('chat.employee_sync.fetch', return_value=normalize([self.row])):
+            call_command('sync_employees', stdout=output)
+        self.config.refresh_from_db()
+        self.assertFalse(self.config.sync_requested)
+        self.assertIn('Running: 1/1', output.getvalue())
+        self.assertIn('Processed 1/1', self.config.last_result)
+
+    def test_late_failure_keeps_completed_employees_and_reports_failure(self):
+        from chat import employee_sync
+        from django.db import OperationalError
+        second = {**self.row, 'EMPLOYEEID': '13', 'EMPLOYEECODE': '0013'}
+        real_sync_row = employee_sync._sync_row
+        def write(row, *args):
+            if row['EMPLOYEEID'] == '13':
+                raise OperationalError('database is locked')
+            return real_sync_row(row, *args)
+        with patch('chat.employee_sync.fetch', return_value=normalize([self.row, second])), patch('chat.employee_sync._sync_row', side_effect=write):
+            with self.assertRaises(OperationalError):
+                sync_employees()
+        self.assertTrue(User.objects.filter(username='0012').exists())
+        self.assertFalse(User.objects.filter(username='0013').exists())
+        self.config.refresh_from_db()
+        self.assertIn('earlier completed employees remain saved', self.config.last_result)
+
+    def test_worker_survives_locked_database_and_backs_off(self):
+        from django.core.management import call_command
+        from django.db import OperationalError
+        from io import StringIO
+        errors = StringIO()
+        with patch('chat.management.commands.sync_employees.sync_employees', side_effect=OperationalError('database is locked')) as sync, \
+             patch('chat.management.commands.sync_employees.time.monotonic', return_value=0), \
+             patch('chat.management.commands.sync_employees.time.sleep', side_effect=[None, KeyboardInterrupt]):
+            with self.assertRaises(KeyboardInterrupt):
+                call_command('sync_employees', watch=True, stderr=errors)
+        sync.assert_called_once()
+        self.assertIn('retrying', errors.getvalue())
+
+
+from django.test import TransactionTestCase
+
+
+class EmployeeSyncTransactionTests(TransactionTestCase):
+    def test_password_hashing_runs_without_a_database_transaction(self):
+        from django.db import connection
+        from chat import employee_sync
+        group = Group.objects.create(name='Default')
+        EmployeeSyncSettings.objects.create(enabled=True, url='https://nifi.example/employees', default_group=group)
+        rows = normalize([dict(EMPLOYEEID='12', EMPLOYEECODE='0012', EMPLOYEENAME='Employee Name', BRANCH='001', EMPSTATUS='Regular')])
+        real_hash = employee_sync.make_password
+        def hash_without_lock(password):
+            self.assertFalse(connection.in_atomic_block)
+            return real_hash(password)
+        def committed_progress(message):
+            self.assertFalse(connection.in_atomic_block)
+            self.assertTrue(User.objects.filter(username='0012').exists())
+        with patch('chat.employee_sync.fetch', return_value=rows), patch('chat.employee_sync.make_password', side_effect=hash_without_lock) as hashing:
+            sync_employees(progress=committed_progress)
+        hashing.assert_called_once_with(INITIAL_PASSWORD)
