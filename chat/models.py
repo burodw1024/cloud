@@ -244,3 +244,42 @@ class SystemSetting(models.Model):
     def delete(self, *args, **kwargs):
         cache.delete(f"system_setting:{self.key}")
         return super().delete(*args, **kwargs)
+
+
+class EmployeeSyncSettings(models.Model):
+    """Singleton configuration for the employee directory GET endpoint."""
+    enabled = models.BooleanField(default=False)
+    url = models.URLField(max_length=2048, blank=True)
+    default_group = models.ForeignKey('auth.Group', on_delete=models.PROTECT, null=True, blank=True)
+    active_statuses = models.CharField(max_length=255, default='Regular', help_text='Comma-separated EMPSTATUS values allowed to log in (case insensitive).')
+    interval_seconds = models.PositiveIntegerField(default=300)
+    last_sync_at = models.DateTimeField(null=True, blank=True, editable=False)
+    last_result = models.TextField(blank=True, editable=False)
+
+    def clean(self):
+        from urllib.parse import urlsplit
+        super().clean()
+        parsed = urlsplit(self.url)
+        if self.url and (parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password or parsed.fragment):
+            raise ValidationError({'url': 'Use an HTTP or HTTPS URL without embedded credentials or fragments.'})
+        if self.enabled and (not self.url or not self.default_group_id or not self.active_statuses.strip()):
+            raise ValidationError('Enabled sync requires an API URL, default group and active statuses.')
+        if self.interval_seconds < 30:
+            raise ValidationError({'interval_seconds': 'Use an interval of at least 30 seconds.'})
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return 'Employee API sync settings'
+
+
+class EmployeeDirectoryEntry(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='employee_directory')
+    employee_id = models.CharField(max_length=128, unique=True)
+    employee_code = models.CharField(max_length=150, unique=True)
+    employee_name = models.CharField(max_length=255)
+    branch = models.CharField(max_length=32, blank=True)
+    status = models.CharField(max_length=64)
+    synced_at = models.DateTimeField(default=timezone.now)

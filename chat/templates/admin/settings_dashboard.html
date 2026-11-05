@@ -5,6 +5,7 @@ System Settings | {{ site_title|default:"Django site admin" }}
 {% endblock %}
 
 {% block content %}
+<p><a href="{% url 'admin:chat_employeesyncsettings_changelist' %}">Employee API sync settings</a></p>
 
 <style>
     .settings-wrapper {

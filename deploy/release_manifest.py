@@ -37,7 +37,7 @@ if sys.argv[1] == 'validate':
     spec = dep['spec']['template']['spec']
     require(dep['spec'].get('replicas',1) == 1, 'Expected exactly one existing replica. Resolve scaling before release.')
     containers = {c['name']:c for c in spec['containers']}
-    require(set(containers) == {'django','https'}, 'Unexpected application containers; refusing to replace an unknown spec.')
+    require(set(containers) in ({'django','https'}, {'django','https','employee-sync'}), 'Unexpected application containers; refusing to replace an unknown spec.')
     require({c['name'] for c in spec.get('initContainers',[])}=={'collect-static'}, 'Unexpected init containers; every runtime image must be explicitly imported.')
     node = read('node.json')
     require(node['metadata']['name']=='worker-99' and node['status']['nodeInfo']['architecture']=='amd64', 'Expected worker-99/linux-amd64.')
@@ -46,7 +46,7 @@ if sys.argv[1] == 'validate':
     pods = staged_pods(stage)
     require(len(pods)==1, 'Expected one active Deployment-owned Django pod; found: ' + describe(pods))
     require(pods[0]['spec'].get('nodeName')=='worker-99', 'Django is on a different node. Refusing to move HostPath data automatically: ' + describe(pods))
-    require(len(pods[0]['status'].get('containerStatuses',[]))==2 and all(c.get('ready') for c in pods[0]['status'].get('containerStatuses',[])), 'Existing deployment is not healthy; investigate before release.')
+    require(len(pods[0]['status'].get('containerStatuses',[]))==len(containers) and all(c.get('ready') for c in pods[0]['status'].get('containerStatuses',[])), 'Existing deployment is not healthy; investigate before release.')
     host = [v for v in spec['volumes'] if v.get('hostPath',{}).get('path')=='/opt/buro-ai/buro-django']
     require(len(host)==1, 'Existing persistent HostPath does not match the confirmed data directory.')
     require(any(m['name']==host[0]['name'] and m['mountPath']=='/data' for m in containers['django'].get('volumeMounts',[])), 'Django /data is not mounted from the confirmed HostPath.')
@@ -113,6 +113,15 @@ elif sys.argv[1] == 'render':
     for v in spec['volumes']:
         if v.get('configMap',{}).get('name')==old_name:
             v['configMap']['name']=cm['metadata']['name']
+    # Share the app's image, environment and /data mount. Keeping the worker
+    # in the same pod ensures release draining stops every SQLite writer.
+    worker=copy.deepcopy(django)
+    worker['name']='employee-sync'
+    worker['command']=['python','manage.py','sync_employees','--watch']
+    for key in ('args','ports','startupProbe','readinessProbe','livenessProbe','lifecycle'):
+        worker.pop(key,None)
+    environment(worker, {'PYTHONUNBUFFERED':'1'})
+    spec['containers']=[c for c in spec['containers'] if c['name']!='employee-sync']+[worker]
     write('nginx.after.json',cm)
     write('deployment.after.json',dep)
     migration=copy.deepcopy(django)

@@ -200,6 +200,7 @@ fi
 docker buildx build --platform linux/amd64 --load --tag "$APP_IMAGE" --label "org.opencontainers.image.revision=$SOURCE_COMMIT" .
 # Run isolated application tests inside the actual image, without production env/data/network.
 docker run --rm --network none --tmpfs /tmp:rw,mode=1777 -e DJANGO_SETTINGS_MODULE=agentic_ai.tests.settings "$APP_IMAGE" python -m django test agentic_ai.tests --verbosity 1
+docker run --rm --network none --tmpfs /tmp:rw,mode=1777 -e DJANGO_SETTINGS_MODULE=chat.tests.employee_settings "$APP_IMAGE" python -m django test chat.tests.test_employee_sync --verbosity 1
 if ! docker image inspect "$NGINX_SOURCE" >/dev/null 2>&1; then
   docker pull --platform linux/amd64 "$NGINX_SOURCE"
 fi
@@ -319,7 +320,7 @@ python3 - "$STAGE" "$REPORT_RC" "$PUBLIC_URL" "$RELEASE_ID" "$SOURCE_COMMIT" <<'
 import json,sys
 from pathlib import Path
 stage=Path(sys.argv[1]);report=stage/'report-verification.json'
-summary={'deployment_verified':True,'https_readiness_verified':True,'pod_ready':'2/2',
+summary={'deployment_verified':True,'https_readiness_verified':True,'pod_ready':'3/3',
          'url':sys.argv[3]+'/agentic/','release':sys.argv[4],'source_commit':sys.argv[5],
          'report':json.loads(report.read_text()) if report.exists() else {'verified':False,'error':'verification interrupted'}}
 (stage/'release-results.json').write_text(json.dumps(summary,indent=2))

@@ -123,3 +123,28 @@ class ReleaseManifestTests(unittest.TestCase):
         result=self.run_helper('validate')
         self.assertNotEqual(result.returncode,0)
         self.assertIn('found: none',result.stderr)
+
+    def test_employee_worker_shares_runtime_and_migration_excludes_it(self):
+        self.assertEqual(self.run_helper('validate').returncode, 0)
+        result = self.run_helper('render')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        spec = json.loads((self.stage/'deployment.after.json').read_text())['spec']['template']['spec']
+        app = next(c for c in spec['containers'] if c['name'] == 'django')
+        worker = next(c for c in spec['containers'] if c['name'] == 'employee-sync')
+        self.assertEqual(worker['command'], ['python', 'manage.py', 'sync_employees', '--watch'])
+        for key in ('image', 'imagePullPolicy', 'envFrom', 'volumeMounts'):
+            self.assertEqual(worker[key], app[key])
+        for key in ('ports', 'readinessProbe', 'livenessProbe', 'startupProbe'):
+            self.assertNotIn(key, worker)
+        job = json.loads((self.stage/'migration.json').read_text())
+        self.assertEqual([c['name'] for c in job['spec']['template']['spec']['containers']], ['migrate'])
+        self.assertEqual(spec['nodeName'], 'worker-99')
+
+    def test_next_release_accepts_healthy_employee_worker(self):
+        self.dep['spec']['template']['spec']['containers'].append({'name': 'employee-sync', 'image': 'old'})
+        self.write('deployment.before.json', self.dep)
+        pods = json.loads((self.stage/'pods.before.json').read_text())
+        pods['items'][0]['status']['containerStatuses'].append({'ready': True})
+        self.write('pods.before.json', pods)
+        result = self.run_helper('validate')
+        self.assertEqual(result.returncode, 0, result.stderr)

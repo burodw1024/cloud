@@ -43,9 +43,9 @@ if __name__ == '__main__':
         pod = pods[0]
         statuses = pod.get('status', {}).get('containerStatuses', [])
         if (pod.get('status', {}).get('phase') != 'Running'
-                or pod['spec'].get('nodeName') != 'worker-99' or len(statuses) != 2
+                or pod['spec'].get('nodeName') != 'worker-99' or len(statuses) != len(pod['spec'].get('containers', [{'name':'django'}, {'name':'https'}]))
                 or not all(c.get('ready') and c.get('restartCount') == 0 for c in statuses)):
-            raise SystemExit('Application pod must be on worker-99 and 2/2 Ready with zero restarts: ' + describe(pods))
+            raise SystemExit('Application pod must be on worker-99 and all containers Ready with zero restarts: ' + describe(pods))
         print(pod['metadata']['name'])
     else:
         raise SystemExit('Unknown ownership action')
