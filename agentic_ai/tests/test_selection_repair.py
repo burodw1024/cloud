@@ -27,7 +27,7 @@ ARGS = {'operation': 'branch-summary', 'from_date': '2026-10-01', 'to_date_exclu
 
 
 def body(args):
-    return {'choices': [{'message': {'tool_calls': [{'function': {'name': 'mcp_tool_1', 'arguments': json.dumps(args)}}]}}]}
+    return {'choices': [{'message': {'tool_calls': [{'function': {'name': 'mcp_tool_0', 'arguments': json.dumps(args)}}]}}]}
 
 
 class SelectionRepairTests(SimpleTestCase):
@@ -68,6 +68,7 @@ class SelectionRepairTests(SimpleTestCase):
 
     def test_diagnostics_never_log_argument_values_or_extra_keys(self):
         invalid = body({**ARGS, 'private_key_name': 'secret-financial-data'})['choices'][0]['message']
+        invalid['tool_calls'][0]['function']['name'] = 'mcp_tool_1'
         with self.assertLogs('agentic_ai.mcp_gateway', level='WARNING') as logs:
             with self.assertRaises(gateway.GatewayError) as error:
                 gateway._validate_call(invalid, {'mcp_tool_1': 'savings-report'}, {'mcp_tool_1': SCHEMA})
@@ -100,3 +101,27 @@ class SelectionRepairTests(SimpleTestCase):
             result = async_to_sync(gateway._run)(config, None, self.query, {LOAN_TOOL.name, TOOL.name})
         self.assertTrue(result['ok'], result)
         session.call_tool.assert_awaited_once_with('savings-report', arguments=ARGS)
+
+
+    @patch.object(gateway, '_select_tool_once', new_callable=AsyncMock)
+    def test_savings_catalog_excludes_delivery_and_loan_tools(self, select):
+        delivery = Tool(name='send-message', description='Share savings reports',
+                        inputSchema={'type': 'object', 'properties': {'message': {'type': 'string'}}})
+        select.return_value = ({}, ('savings-report', ARGS))
+        async_to_sync(gateway._select_tool)(self.config, self.query, [LOAN_TOOL, delivery, TOOL])
+        self.assertEqual(select.call_args.args[2], [TOOL])
+
+    @patch.object(gateway, '_select_tool_once', new_callable=AsyncMock)
+    def test_missing_authorized_savings_tool_does_not_fall_back(self, select):
+        response, selection = async_to_sync(gateway._select_tool)(self.config, self.query, [LOAN_TOOL])
+        self.assertIsNone(selection)
+        self.assertEqual(response['selection_mode'], 'savings_catalog')
+        select.assert_not_awaited()
+
+    def test_bengali_savings_and_mixed_domain_requests(self):
+        from agentic_ai.business_question_help import is_savings_report_request
+        self.assertTrue(is_savings_report_request('গত মাসের সঞ্চয় জমা ও উত্তোলন দেখাও'))
+        self.assertFalse(is_savings_report_request('Show loan and savings reports'))
+        self.assertFalse(is_savings_report_request('Send savings report by email'))
+        self.assertFalse(is_savings_report_request('Show savings balance'))
+        self.assertFalse(is_savings_report_request('Show savings balances recorded in the report for member 0000000042 in branch 0007 as of 2026-09-30.'))

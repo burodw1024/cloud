@@ -108,3 +108,34 @@ def business_question_help(user, query, tools, report_names):
     return {'ok': True, 'kind': 'business_question_help', 'tool_executed': False,
             'help_tools': sorted(set(sources)), 'question_groups': groups,
             'answer': '\n\n'.join(lines)}
+
+
+def is_savings_report_request(query):
+    """Constrain clear savings reports; leave mixed domains to clarification."""
+    if not isinstance(query, str) or question_domain(query) != 'savings':
+        return False
+    # Member reports may contain savings balance fields without being a
+    # savings-movement report. Preserve their existing scoped selection.
+    if re.search(r'\bbalances?\b|স্থিতি|ব্যালেন্স', query, re.I) and not re.search(r'\b(?:deposits?|withdrawals?)\b|জমা|উত্তোলন', query, re.I):
+        return False
+    # Delivery is a distinct operation with its own approval path.
+    if re.search(r'\b(?:send|share|email|whatsapp|telegram)\b|পাঠা|শেয়ার|শেয়ার', query, re.I):
+        return False
+    return bool(re.search(
+        r'\b(?:reports?|summar(?:y|ies)|deposits?|withdrawals?|net changes?)\b'
+        r'|রিপোর্ট|প্রতিবেদন|সারাংশ|জমা|উত্তোলন|নিট পরিবর্তন', query, re.I))
+
+
+def is_savings_report_tool(tool):
+    """Require savings identity plus a reporting contract, not a delivery tool."""
+    schema = getattr(tool, 'inputSchema', None)
+    if not isinstance(schema, dict) or schema.get('type') != 'object':
+        return False
+    identity = tool.name + ' ' + (tool.description or '')
+    if not re.search(r'saving|সঞ্চ|সেভিং', identity, re.I):
+        return False
+    props = schema.get('properties', {})
+    if not isinstance(props, dict):
+        return False
+    return all(isinstance(props.get(key), dict) and props[key].get('type') == 'string'
+               for key in ('operation', 'from_date', 'to_date_exclusive'))
