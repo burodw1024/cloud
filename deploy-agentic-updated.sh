@@ -43,8 +43,6 @@ python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ require
 [[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
 # This updater clones the existing Deployment and retains env/envFrom/Secrets.
 # It never builds a replacement production Secret from a local env file.
-k exec deployment/buro-django -c django -- python manage.py shell -c \
-  'from django.conf import settings; assert settings.SECRET_KEY and settings.ALLOWED_HOSTS, "Existing Django runtime configuration is incomplete"; print("Existing Kubernetes-backed Django configuration verified; secret values were not exported.")'
 docker info >/dev/null
 docker buildx version >/dev/null
 k get namespace rag >/dev/null
@@ -99,6 +97,9 @@ if [[ -s "$STAGE/existing-lock.json" ]]; then
   k get pods -l "job-name=$OLD_JOB" -o wide
   fail 'Another release lock exists. Its Job and pods were inspected above; resolve it explicitly before a new release.'
 fi
+# Validate live configuration only after ruling out an unfinished release.
+k exec deployment/buro-django -c django -- python manage.py shell -c \
+  'from django.conf import settings; from agentic_ai.mcp_gateway import gateway_enabled; assert settings.SECRET_KEY and settings.ALLOWED_HOSTS, "Existing Django runtime configuration is incomplete"; assert gateway_enabled(), "MCP gateway is disabled. Enable it in Integration settings before deployment; application writers were not stopped."; print("Existing Kubernetes-backed Django configuration and MCP enablement verified; secret values were not exported.")'
 k create configmap "$LOCK_NAME" --from-literal="release=$RELEASE_ID" --from-literal="job=$MIGRATION_JOB" >/dev/null
 LOCKED=1
 k get deployment buro-django -o json > "$STAGE/deployment.before.json"

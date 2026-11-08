@@ -1,3 +1,4 @@
+from agentic_ai.access_readiness import access_readiness
 from agentic_ai.user_access import user_access
 from django.urls import include, path
 from django.contrib.auth.views import LogoutView
@@ -14,6 +15,7 @@ patterns = [
     path("api/query/", agentic_query_api, name="agentic_query_api"),
     path("", query_page, name="query_page"),
     path("setup/", setup_page, name="setup"),
+    path("api/access-readiness/", access_readiness, name="access_readiness"),
     path("user-access/", user_access, name="user_access"),
     path("modules/", module_manager, name="modules"),
     path('data-access/', access_manager, name='data_access'),

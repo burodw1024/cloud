@@ -1,4 +1,24 @@
 (() => {
+    const check = document.getElementById('check-access-backend');
+    if (check) check.addEventListener('click', async () => {
+        const output = document.getElementById('backend-results');
+        check.disabled = true;
+        output.textContent = 'Checking MCP tool schemas…';
+        try {
+            const response = await fetch(check.dataset.url, {method: 'POST', credentials: 'same-origin',
+                headers: {'X-CSRFToken': document.querySelector('#readiness-csrf [name=csrfmiddlewaretoken]').value}});
+            const data = await response.json();
+            output.replaceChildren();
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Backend check failed.');
+            if (!data.tools.length) output.textContent = 'No registered financial tools found.';
+            data.tools.forEach(tool => {
+                const row = document.createElement('p');
+                const name = document.createElement('strong'); name.textContent = tool.title + ': ';
+                row.append(name, document.createTextNode(tool.message)); output.append(row);
+            });
+        } catch (error) { output.textContent = error.message || 'Could not check backend setup.'; }
+        finally { check.disabled = false; }
+    });
     const form = document.getElementById('permission-form');
     if (!form) return;
     document.querySelectorAll('[data-filter]').forEach(search => {

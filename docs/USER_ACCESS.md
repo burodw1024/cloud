@@ -57,3 +57,13 @@ administrator changes access.
 
 The old Data access page can still update financial scope independently; it
 does not replace the explicit tool selection. Review both when using that page.
+
+## Backend setup versus assigned access
+
+The console now includes a root-only Check backend setup action. It discovers MCP
+tools without running reports and explains missing token schemas, a missing
+Django signing key, paused tools/modules, and fixed scope. A detected schema is
+not a claim that the NiFi verifier or Oracle scope was tested. See
+`deploy/nifi/signed-loan/README.md` for the local integration implementation and
+staging acceptance steps. The assigned-access preview does not certify backend
+readiness.

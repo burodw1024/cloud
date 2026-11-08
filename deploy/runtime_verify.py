@@ -31,3 +31,8 @@ from agentic_ai.models import UserToolAccess
 assert UserToolAccess._meta.db_table in connection.introspection.table_names(), 'User access migration is missing'
 assert resolve('/agentic/user-access/').url_name == 'user_access'
 print('User access console route and database migration verified.')
+
+assert resolve('/agentic/api/access-readiness/').url_name == 'access_readiness'
+assert (APP_ROOT/'deploy/nifi/signed-loan/verify-loan-access.groovy').is_file()
+assert (APP_ROOT/'deploy/nifi/signed-loan/attach-loan-receipt.groovy').is_file()
+print('Backend diagnostics and staged NiFi integration scripts are present; live NiFi readiness is checked separately.')
