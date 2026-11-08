@@ -78,6 +78,10 @@ for _name, _description in {
     }
 
 
+for _name, _config in TOOL_REGISTRY.items():
+    _config["name"] = _name
+
+
 def available_tool_catalog(user):
     """Advertise only executable, role-approved capabilities with input contracts."""
     from .permissions import has_tool_permission

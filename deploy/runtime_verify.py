@@ -23,3 +23,11 @@ for flag,value in ((b'--workers',b'1'),(b'--worker-class',b'gthread'),(b'--threa
 assert os.environ['POLICY_WORK_DIR']=='/data/policy_rag'
 print('Effective Django, policy directory, Gunicorn and MCP settings verified. Credentials retained.')
 print('Gateway code sha256:',hashlib.sha256(Path('/app/agentic_ai/mcp_gateway.py').read_bytes()).hexdigest())
+
+# Migration must be complete before the new access console serves requests.
+from django.db import connection
+from django.urls import resolve
+from agentic_ai.models import UserToolAccess
+assert UserToolAccess._meta.db_table in connection.introspection.table_names(), 'User access migration is missing'
+assert resolve('/agentic/user-access/').url_name == 'user_access'
+print('User access console route and database migration verified.')

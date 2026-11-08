@@ -212,3 +212,11 @@ class LoanDirectoryConnection(models.Model):
     allow_http = models.BooleanField(default=False)
     encrypted_token = models.TextField()
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class UserToolAccess(models.Model):
+    """An explicit selection replaces group-derived tool access for this user."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='tool_access_policy')
+    tools = models.ManyToManyField(AgentTool, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)

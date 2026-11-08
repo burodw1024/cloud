@@ -95,6 +95,12 @@ def load_config():
 
 
 def _allowed(record, user, user_roles=None):
+    from .permissions import explicit_tool_permission
+    if not record.is_active or (record.module_id and not record.module.is_active):
+        return False
+    explicit = explicit_tool_permission(user, record.name)
+    if explicit is not None:
+        return explicit
     roles = record.allowed_roles
     if user_roles is None:
         user_roles = set(get_user_role_names(user))
