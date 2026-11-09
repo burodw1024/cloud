@@ -57,7 +57,8 @@ def verify(live, baked, baseline):
     previous = previous_file.read_text().splitlines() if previous_file.is_file() else []
     recognized_previous = bool(previous) and hashlib.sha256(live.encode()).hexdigest() in previous
     if live != baked and not recognized_previous and normalize(live) != baseline:
-        raise ValueError('Live MCP code contains an unrecognized change. Snapshot retained; incorporate that change in the cloud source before deployment. No code was overwritten.')
+        digest = hashlib.sha256(live.encode()).hexdigest()
+        raise ValueError('Live MCP code contains an unrecognized change. Snapshot retained; incorporate that change in the cloud source before deployment. No code was overwritten. Live MCP SHA256: ' + digest)
     tree = ast.parse(baked)
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
              and isinstance(node.func, ast.Attribute) and node.func.attr == 'update'

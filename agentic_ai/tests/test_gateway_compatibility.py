@@ -88,3 +88,21 @@ class GatewayCompatibilityTests(unittest.TestCase):
         self.verifier['verify'](previous, self.baked, self.baseline)
         with self.assertRaises(ValueError):
             self.verifier['verify'](previous + '\nUNREVIEWED_CHANGE = True\n', self.baked, self.baseline)
+
+    def test_published_user_access_backend_hash_is_allowlisted(self):
+        import hashlib
+        from unittest.mock import patch
+        known='7cb8016149093646690e730f22aaa34b07a1fc557bd84eda4df3aaab90ac0c80'
+        path=Path(__file__).resolve().parents[2]/'deploy/gateway_previous.sha256'
+        self.assertIn(known,path.read_text().splitlines())
+        live='KNOWN_PUBLIC_PREVIOUS_RELEASE'
+        real_sha256=hashlib.sha256
+        def digest(value):
+            if value==live.encode():
+                from types import SimpleNamespace
+                return SimpleNamespace(hexdigest=lambda:known)
+            return real_sha256(value)
+        with patch('hashlib.sha256',side_effect=digest):
+            self.verifier['verify'](live,self.baked,self.baseline)
+        with self.assertRaises(ValueError):
+            self.verifier['verify'](live+'\nUNREVIEWED_CHANGE=True',self.baked,self.baseline)
