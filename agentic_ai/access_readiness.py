@@ -16,13 +16,19 @@ def report_readiness(records, discovered, signing_ready, protected):
     schemas = {tool.name: tool.inputSchema for tool in discovered}
     results = []
     for record in records:
-        if not (record.requires_loan_scope or record.loan_access_mode == 'FIXED' or record.name in protected):
+        if not (record.requires_loan_scope or record.loan_access_mode in {'FIXED', 'APP'} or record.name in protected):
             continue
         schema = schemas.get(record.name)
         if not record.is_active or (record.module_id and not record.module.is_active):
             code, message = 'disabled', 'Tool or business module is paused.'
         elif schema is None:
             code, message = 'not_discovered', 'Registered tool was not returned by the connected MCP server.'
+        elif record.loan_access_mode in {'APP', 'UI'}:
+            from .application_scope import schema_supported
+            if schema_supported(schema):
+                code, message = 'application_scope_detected', 'Application scope input detected. Django sends this user’s permitted branches automatically; verify the trusted NiFi endpoint and Oracle filtering in staging.'
+            else:
+                code, message = 'missing_application_scope_contract', 'The MCP schema must declare required app_branch_codes as an array of strings for QueryLoanDueAppScope. No single branch filter or signing key is required.'
         elif record.loan_access_mode == 'FIXED':
             code, message = 'fixed_scope', 'Uses a fixed backend branch list; does not follow arbitrary per-user branch selections.'
         elif (schema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') != 'string'

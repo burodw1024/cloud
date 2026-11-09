@@ -60,7 +60,15 @@ def snapshot(user):
 
 def current_access(user, metadata):
     try:
-        valid = metadata['subject'] == str(user.pk) and snapshot(user)['version'] == metadata['version']
+        state = snapshot(user)
+        valid = metadata['subject'] == str(user.pk) and state['version'] == metadata['version']
+        if valid and metadata.get('mode') == 'APP':
+            record = AgentTool.objects.filter(name=metadata.get('tool'), is_active=True).first()
+            branches = metadata.get('branches')
+            allowed = {row['code'] for row in state['directory']}
+            valid = bool(record and record.loan_access_mode in {'APP', 'UI'} and isinstance(branches, list)
+                         and 1 <= len(branches) <= 5000 and all(isinstance(code, str) for code in branches)
+                         and branches == sorted(set(branches)) and set(branches) <= allowed)
         if valid and metadata.get('mode') == 'FIXED':
             record = AgentTool.objects.filter(name=metadata.get('tool'), is_active=True).first()
             valid = bool(record and record.loan_access_mode == 'FIXED'
@@ -86,8 +94,9 @@ def strip_server_authorization(tools):
     for tool in tools:
         schema = deepcopy(tool.inputSchema)
         schema.get('properties', {}).pop(TOKEN_FIELD, None)
+        schema.get('properties', {}).pop('app_branch_codes', None)
         if 'required' in schema:
-            schema['required'] = [key for key in schema['required'] if key != TOKEN_FIELD]
+            schema['required'] = [key for key in schema['required'] if key not in {TOKEN_FIELD, 'app_branch_codes'}]
         prepared.append(tool.model_copy(update={'inputSchema': schema}))
     return prepared
 
@@ -106,7 +115,7 @@ class FixedLoanGrant:
 
 
 def authorize(user, name, arguments, tool, backend_arguments=None):
-    forbidden = {TOKEN_FIELD, 'auth.branch_codes', 'authorized_branches'}
+    forbidden = {TOKEN_FIELD, 'app_branch_codes', 'auth.branch_codes', 'authorized_branches'}
     if forbidden.intersection(arguments) or forbidden.intersection(backend_arguments or {}):
         raise LoanAccessDenied('Authorization cannot be supplied in a question or tool arguments.')
     for key in ('branch_code', 'branchCode', 'zone_code', 'zoneCode', 'zoneName'):
@@ -117,6 +126,9 @@ def authorize(user, name, arguments, tool, backend_arguments=None):
         raise LoanAccessDenied('Use the declared branch and zone parameter contract without duplicate aliases.')
     access = snapshot(user)
     record = AgentTool.objects.filter(name=name).first()
+    if record and record.loan_access_mode in {'APP', 'UI'}:
+        from .application_scope import grant
+        return grant(access, name, arguments, tool, backend_arguments)
     if record and record.loan_access_mode == 'FIXED':
         record.full_clean()
         schema = getattr(tool, 'inputSchema', {})
@@ -189,6 +201,10 @@ def authorize(user, name, arguments, tool, backend_arguments=None):
 
 
 def validate_response(raw, grant):
+    from .application_scope import ApplicationLoanGrant, validate_response as validate_application_response
+    if isinstance(grant, ApplicationLoanGrant):
+        validate_application_response(raw, grant)
+        return
     if isinstance(grant, FixedLoanGrant):
         # No signed receipt is expected; NiFi must enforce the full configured
         # scope before SQL aggregation. Explicit returned branches are checked.

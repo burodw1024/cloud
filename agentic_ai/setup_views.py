@@ -209,7 +209,7 @@ def setup_page(request):
                     "requires_approval": record.requires_approval if record else not bool(tool.annotations and tool.annotations.readOnlyHint),
                     "requires_loan_scope": tool.name in mandatory_scope_tools or bool(record and record.requires_loan_scope),
                     "loan_scope_mandatory": tool.name in mandatory_scope_tools,
-                    "loan_access_mode": record.loan_access_mode if record else "SIGNED",
+                    "loan_access_mode": "APP" if tool.name == "loan-due-report" else record.loan_access_mode if record and record.loan_access_mode in {'UI', 'APP'} else "UI",
                     "fixed_branch_codes": record.fixed_branch_codes if record else [],
                     "loan_scope_contract": tool.inputSchema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') == 'string' and TOKEN_FIELD in tool.inputSchema.get('required', []),
                 })
@@ -248,10 +248,12 @@ def setup_page(request):
                     value = item.get(field)
                     if field in item and (not isinstance(value, str) or len(value) > maximum):
                         raise ValueError
-                if 'loan_access_mode' in item and item['loan_access_mode'] not in ('SIGNED', 'FIXED'):
+                if 'loan_access_mode' in item and item['loan_access_mode'] not in ('UI', 'APP'):
                     raise ValueError
+                if name == 'loan-due-report' and item.get('loan_access_mode', 'APP') != 'APP':
+                    return _reply({"ok": False, "error": "Loan Due Report uses application-managed User Access permissions."}, 400)
                 if 'fixed_branch_codes' in item:
-                    candidate = AgentTool(name=name, loan_access_mode=item.get('loan_access_mode', 'SIGNED'),
+                    candidate = AgentTool(name=name, loan_access_mode=item.get('loan_access_mode', 'UI'),
                                           fixed_branch_codes=item['fixed_branch_codes'])
                     try:
                         candidate.clean()
@@ -276,10 +278,16 @@ def setup_page(request):
                     for field in ('loan_access_mode', 'fixed_branch_codes'):
                         if field in item:
                             setattr(record, field, item[field])
-                    if record.loan_access_mode == 'FIXED':
+                    if record.loan_access_mode not in {'UI', 'APP'}:
+                        record.loan_access_mode = 'UI'
+                        record.fixed_branch_codes = []
+                    if item['name'] == 'loan-due-report':
+                        record.loan_access_mode = 'APP'
+                        record.fixed_branch_codes = []
+                    if record.loan_access_mode in {'FIXED', 'APP'}:
                         record.requires_loan_scope = True
                     if 'requires_loan_scope' in item:
-                        record.requires_loan_scope = item['requires_loan_scope'] or record.loan_access_mode == 'FIXED'
+                        record.requires_loan_scope = item['requires_loan_scope'] or record.loan_access_mode in {'FIXED', 'APP'}
                     for field in ("display_name", "category", "example_question"):
                         if field in item:
                             setattr(record, field, item[field].strip() or ("General" if field == "category" else ""))

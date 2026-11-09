@@ -12,7 +12,7 @@ from agentic_ai.models import AgentTool
 class AccessReadinessTests(TestCase):
     def setUp(self):
         self.root = User.objects.create_superuser('root', password='test')
-        self.record = AgentTool.objects.create(name='loan-due-report', requires_loan_scope=True)
+        self.record = AgentTool.objects.create(name='loan-due-report', requires_loan_scope=True, loan_access_mode='SIGNED')
         self.client.force_login(self.root)
 
     def schema(self, signed=True):
@@ -63,7 +63,7 @@ class AccessReadinessTests(TestCase):
 
 class AccessReadinessCommandTests(TestCase):
     def setUp(self):
-        AgentTool.objects.create(name='loan-due-report', requires_loan_scope=True)
+        AgentTool.objects.create(name='loan-due-report', requires_loan_scope=True, loan_access_mode='SIGNED')
 
     @patch('agentic_ai.management.commands.check_loan_backend.gateway_enabled', return_value=True)
     @patch('agentic_ai.management.commands.check_loan_backend.load_gateway_config', return_value={'timeout':1500, 'request_timeout':1800})

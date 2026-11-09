@@ -65,7 +65,7 @@ class AccessConsoleForm(forms.Form):
         if data.get('tools') is not None:
             from .loan_access import protected_tools
             protected = protected_tools()
-            scoped = [t for t in data['tools'] if t.requires_loan_scope or t.loan_access_mode == 'FIXED' or t.name in protected]
+            scoped = [t for t in data['tools'] if t.requires_loan_scope or t.loan_access_mode in {'FIXED', 'APP'} or t.name in protected]
             if scoped and data.get('mode') == 'NONE':
                 self.add_error('mode', 'These report tools need branch access. Choose branches or remove the report tools.')
             if data.get('mode') == 'ALL':
@@ -92,7 +92,7 @@ def preview(data):
     protected = protected_tools()
     codes = list(branches.order_by('code').values_list('code', flat=True))
     return {'tools': [{'title': t.display_name or t.name, 'example': t.example_question,
-                       'scoped': t.requires_loan_scope or t.loan_access_mode == 'FIXED' or t.name in protected,
+                       'scoped': t.requires_loan_scope or t.loan_access_mode in {'FIXED', 'APP'} or t.name in protected,
                        'approval': t.requires_approval,
                        'paused': not t.is_active or (t.module_id and not t.module.is_active)} for t in data['tools']],
             'branch_count': len(codes), 'codes': codes[:20], 'more': len(codes) > 20,

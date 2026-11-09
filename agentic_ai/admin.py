@@ -58,6 +58,10 @@ class BusinessModuleAdmin(admin.ModelAdmin):
 
 @admin.register(AgentTool)
 class AgentToolAdmin(admin.ModelAdmin):
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        if db_field.name == 'loan_access_mode':
+            kwargs['choices'] = [('UI', 'User Access permissions'), ('APP', 'User Access with financial branch scope')]
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
     list_display = ("name", "display_name", "module", "category", "is_active", "requires_approval", "created_at")
     search_fields = ("name", "display_name", "description", "category")
     list_filter = ("module", "category", "is_active", "requires_approval", "requires_loan_scope", "loan_access_mode")

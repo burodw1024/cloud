@@ -137,22 +137,17 @@ class FixedScopeSetupTests(TestCase):
     tool = setup_tests.GuidedSetupTests.tool
 
     @patch('agentic_ai.setup_views._save_settings')
-    def test_setup_saves_scope_and_older_clients_preserve_it(self, save):
+    def test_setup_uses_user_access_and_rejects_legacy_permission_modes(self, save):
         self.post('discover'); self.post('check_model')
-        response = self.post('save_tools', tools=[self.tool(loan_access_mode='FIXED', fixed_branch_codes=['0250'])])
-        self.assertEqual(response.status_code, 200, response.content)
-        record = AgentTool.objects.get()
-        self.assertTrue(record.requires_loan_scope)
-        self.assertEqual(record.loan_access_mode, 'FIXED')
-        self.assertEqual(record.fixed_branch_codes, ['0250'])
-        discovered = self.post('discover').json()['tools'][0]
-        self.assertEqual(discovered['fixed_branch_codes'], ['0250'])
-        self.assertEqual(discovered['loan_access_mode'], 'FIXED')
-        self.post('check_model')
-        self.assertEqual(self.post('save_tools', tools=[self.tool()]).status_code, 200)
-        record.refresh_from_db()
-        self.assertEqual(record.fixed_branch_codes, ['0250'])
-        self.assertEqual(record.loan_access_mode, 'FIXED')
+        for mode in ('SIGNED', 'FIXED'):
+            response=self.post('save_tools', tools=[self.tool(loan_access_mode=mode, fixed_branch_codes=['0250'])])
+            self.assertEqual(response.status_code,400,response.content)
+            self.assertFalse(AgentTool.objects.exists())
+        response=self.post('save_tools',tools=[self.tool(loan_access_mode='UI',fixed_branch_codes=[])])
+        self.assertEqual(response.status_code,200,response.content)
+        record=AgentTool.objects.get()
+        self.assertEqual(record.loan_access_mode,'UI')
+        self.assertEqual(record.fixed_branch_codes,[])
 
     def test_bad_scope_rejected_before_any_configuration_is_saved(self):
         self.post('discover'); self.post('check_model')

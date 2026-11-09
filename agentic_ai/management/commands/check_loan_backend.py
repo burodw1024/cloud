@@ -36,6 +36,6 @@ class Command(BaseCommand):
         self.stdout.write(json.dumps({'report_executed': False, 'tools': results}, ensure_ascii=False, indent=2))
         if not results:
             raise CommandError('No registered financial tools matched.')
-        if any(item['code'] != 'schema_detected' for item in results):
+        if any(item['code'] not in {'schema_detected', 'application_scope_detected'} for item in results):
             raise CommandError('Per-user backend setup is incomplete; see the tool status above.')
-        self.stdout.write('Input contracts detected. Verify NiFi token validation and Oracle branch restriction in staging before activation.')
+        self.stdout.write('Input contracts detected. Verify backend query scope and trusted endpoint access in staging before activation.')

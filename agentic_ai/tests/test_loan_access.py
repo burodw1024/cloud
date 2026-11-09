@@ -47,7 +47,7 @@ class LoanAccessTests(TestCase):
         self.policy = LoanAccessPolicy.objects.create(user=self.user, mode='SELECTED')
         self.policy.branches.add(self.branch)
         self.user.groups.add(Group.objects.create(name='loan_users'))
-        self.record = AgentTool.objects.create(name=NAME, allowed_roles=['loan_users'])
+        self.record = AgentTool.objects.create(name=NAME, allowed_roles=['loan_users'], loan_access_mode='SIGNED')
         self.key_patch = patch.dict(os.environ, {'LOAN_ACCESS_SIGNING_KEY': KEY})
         self.key_patch.start()
         self.addCleanup(self.key_patch.stop)
@@ -155,7 +155,7 @@ class LoanAccessTests(TestCase):
         from agentic_ai import whatsapp
         source = {'tool': NAME, 'plan': {'intent': 'mcp_tool_call'}, 'loan_access': self.grant().access}
         name = 'send-whatsapp-text'
-        AgentTool.objects.create(name=name, allowed_roles=['loan_users'])
+        AgentTool.objects.create(name=name, allowed_roles=['loan_users'], loan_access_mode='SIGNED')
         @asynccontextmanager
         async def transport(*a, **kw):
             yield None, None, None
