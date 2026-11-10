@@ -535,14 +535,17 @@ async def _run(config, user, query, allowed_names):
                 if isinstance(loan_grant, LoanGrant):
                     backend_arguments[TOKEN_FIELD] = loan_grant.token
                 elif isinstance(loan_grant, ApplicationLoanGrant):
-                    backend_arguments[SCOPE_FIELD] = list(loan_grant.branches)
+                    backend_arguments = dict(loan_grant.query)
+                    plan['params'] = dict(loan_grant.query)
+                    if not loan_grant.native_branch_filter:
+                        backend_arguments[SCOPE_FIELD] = list(loan_grant.branches)
                 _validator(original_tools[name].inputSchema).validate(backend_arguments)
                 state['loan_access'] = loan_grant.access
             # Persist intent before dispatch; if audit storage is unavailable, do not call.
             audit_id = config.get("audit_id")
             if audit_id:
                 updated = await sync_to_async(AgentRunLog.objects.filter(pk=audit_id).update)(
-                    selected_tool=name, tool_input=arguments, tool_output_summary="Tool dispatch started; result pending.")
+                    selected_tool=name, tool_input=plan["params"], tool_output_summary="Tool dispatch started; result pending.")
                 if updated != 1:
                     raise GatewayError("audit_unavailable", "Audit storage is unavailable; the tool was not executed.", 503)
             state["dispatched"] = True
@@ -563,7 +566,7 @@ async def _run(config, user, query, allowed_names):
                 if result.isError:
                     raise GatewayError("native_query_backend_error", "The loan query endpoint returned an error. No financial data was displayed.")
                 try:
-                    presentation = present_native_query(raw, arguments)
+                    presentation = present_native_query(raw, loan_grant.query if isinstance(loan_grant, ApplicationLoanGrant) else arguments)
                 except (ValueError, TypeError, KeyError) as exc:
                     raise GatewayError("invalid_native_query_result", "The loan query result could not be verified. No financial data was displayed.") from exc
                 return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}

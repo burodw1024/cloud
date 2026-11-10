@@ -67,3 +67,12 @@ not a claim that the NiFi verifier or Oracle scope was tested. See
 `deploy/nifi/signed-loan/README.md` for the local integration implementation and
 staging acceptance steps. The assigned-access preview does not certify backend
 readiness.
+
+## Updated native loan processor
+
+A processor without `app_branch_codes` is supported through its existing
+`branch_code` filter. Django validates or supplies one permitted branch; users
+with multiple permitted branches must choose one for each report. See
+`USER_ACCESS_APPLICATION_MODE.md` for the matching MCP schema, required response
+scope and backend filtering checks. Existing branch-list processors remain
+supported, and expiry/revocation checks still apply to both transports.
