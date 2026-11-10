@@ -167,7 +167,7 @@ else:
     print('Existing administrator preserved.')
 '''
     # A single release lock serializes this pipeline. Do not retry a failed migration job.
-    command = 'set -eu\npython manage.py check --deploy --fail-level ERROR\npython manage.py migrate --noinput\npython manage.py shell -c ' + __import__('shlex').quote(bootstrap_code)
+    command = 'set -eu\npython manage.py check --deploy --fail-level ERROR\npython manage.py migrate --noinput\npython manage.py check_audit_storage\npython manage.py shell -c ' + __import__('shlex').quote(bootstrap_code)
     if env.get('CHECK_MCP') == '1':
         command += '\npython manage.py list_mcp_tools --check-model'
     migration = app_container('migrate', ['/bin/sh', '-ec', command])

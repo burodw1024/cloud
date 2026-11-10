@@ -6,6 +6,8 @@ from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_safe
 
+from agentic_ai.models import AgentRunLog
+
 
 @require_safe
 def live(request):
@@ -21,6 +23,10 @@ def ready(request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             healthy = cursor.fetchone()[0] == 1
+        # SELECT 1 alone succeeds even if a release's audit migrations were skipped.
+        # Select every audit column, including on an empty table, without writing
+        # a probe record or taking a SQLite write lock on every readiness poll.
+        list(AgentRunLog.objects.values()[:1])
         key = "buro:health:" + os.environ.get("HOSTNAME", "web")
         cache.set(key, "ready", 30)
         healthy = healthy and cache.get(key) == "ready"
