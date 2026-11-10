@@ -30,6 +30,7 @@ for name in ('db.sqlite3','cache.sqlite3'):
 print('SQLite database and existing shared cache backed up:',backups,flush=True)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE','buro_first.settings_production')
 subprocess.run(['python','manage.py','migrate','--noinput'],check=True)
+subprocess.run(['python','manage.py','check_audit_storage'],check=True)
 import django
 django.setup()
 from django.conf import settings

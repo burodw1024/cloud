@@ -623,8 +623,8 @@ def run_mcp_query(user=None, query="", session_id=None):
             user_query=query, detected_intent="mcp_tool_call", status="failed", risk_level="medium",
             session_id=session_id, error_message=f"request_id={request_id}; request pending",
         )
-    except Exception:
-        logger.error("MCP audit unavailable request_id=%s", request_id)
+    except Exception as exc:
+        logger.error("MCP audit unavailable request_id=%s exception_type=%s; run manage.py check_audit_storage with the deployed settings", request_id, type(exc).__name__)
         return {"ok": False, "code": "audit_unavailable", "http_status": 503, "request_id": request_id,
                 "answer": "Audit storage is unavailable; the tool was not executed."}
     try:

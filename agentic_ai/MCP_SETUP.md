@@ -138,7 +138,23 @@ bounded duplicate protection, not permanent exactly-once execution. Backends for
 state-changing tools must implement durable idempotency themselves.
 
 An audit attempt is persisted before external calls and its chosen arguments
-before dispatch. If audit storage is unavailable, the tool does not execute.
+are saved before dispatch. To diagnose `audit_unavailable`, run these commands
+inside the application container using its existing Django settings and database:
+
+```sh
+python manage.py showmigrations agentic_ai
+python manage.py check_audit_storage
+```
+
+Back up the database before applying pending migrations with
+`python manage.py migrate --noinput`, then repeat `check_audit_storage`.
+For example, a database missing migration `0003_agentrunlog_usage_summary`
+cannot save audit records with the current model. If migrations are current,
+check database permissions, free disk space and concurrent write locks.
+The audit probe rolls back its insert/update and never calls a business tool.
+Readiness also verifies audit columns, and release jobs verify audit writes.
+
+If audit storage is unavailable, the tool does not execute.
 Audit history is read-only in Django admin. Viewing logs/approval lists requires
 the corresponding Django view permissions in addition to staff access.
 
