@@ -123,8 +123,7 @@ class ApplicationScopeTests(TestCase):
         self.assertIn('report_date',visible.inputSchema['required'])
         self.assertNotIn('branch_code',visible.inputSchema['required'])
 
-    def test_legacy_or_signed_schema_does_not_silently_become_app_mode(self):
-        with self.assertRaises(LoanAccessUnavailable):authorize(self.user,NAME,ARGS,Tool(name=NAME,inputSchema=SCHEMA))
+    def test_signed_schema_does_not_silently_become_app_mode(self):
         tool=app_tool();tool.inputSchema['required'].append('loan_access_token')
         with self.assertRaises(LoanAccessUnavailable):authorize(self.user,NAME,ARGS,tool)
 
@@ -182,3 +181,95 @@ class ApplicationScopeTests(TestCase):
         response,session=self.run_gateway(revoke=True)
         self.assertFalse(response['ok'])
         self.assertEqual(response['code'],'loan_scope_unverified')
+
+
+class NativeBranchApplicationTests(TestCase):
+    setUp = ApplicationScopeTests.setUp
+
+    def grant(self, args=None):
+        return authorize(self.user, NAME, dict(ARGS if args is None else args),
+                         Tool(name=NAME, inputSchema=deepcopy(SCHEMA)))
+
+    def test_native_schema_and_auto_branch_preserve_leading_zeros(self):
+        from agentic_ai.access_readiness import report_readiness
+        tool = Tool(name=NAME, inputSchema=SCHEMA)
+        self.assertEqual(report_readiness([self.record], [tool], False, {NAME})[0]['code'],
+                         'application_scope_detected')
+        original = dict(ARGS)
+        grant = self.grant(original)
+        self.assertTrue(grant.native_branch_filter)
+        self.assertEqual(grant.query['branch_code'], '0003')
+        self.assertNotIn('branch_code', original)
+        self.assertNotIn(SCOPE_FIELD, grant.query)
+
+    def test_multiple_branches_require_checked_explicit_branch(self):
+        self.policy.branches.add(self.other)
+        for params in (ARGS, {**ARGS, 'zone_code': self.zone.code}):
+            with self.assertRaisesMessage(LoanAccessDenied, 'Choose one permitted branch'):
+                self.grant(params)
+        self.assertEqual(self.grant({**ARGS, 'branch_code': '0250'}).branches, ['0250'])
+        self.policy.mode = 'ALL'
+        self.policy.save()
+        with self.assertRaises(LoanAccessDenied):
+            self.grant()
+        self.assertEqual(self.grant({**ARGS, 'branch_code': '0003'}).branches, ['0003'])
+
+    def test_unauthorized_branch_denied(self):
+        with self.assertRaises(LoanAccessDenied):
+            self.grant({**ARGS, 'branch_code': '0250'})
+
+    def test_native_envelope_requires_exact_branch_and_scope(self):
+        grant = self.grant()
+        body = result(grant.query)
+        body['scope'].pop('authorization_mode')
+        validate_response({'structuredContent': body}, grant)
+        for field, value in [('branch_code', None), ('branch_code', '0250'),
+                             ('authorized_branch_count', 2), ('authorized_branch_count', True)]:
+            bad = deepcopy(body)
+            bad['scope'][field] = value
+            with self.assertRaises(LoanAccessDenied):
+                validate_response({'structuredContent': bad}, grant)
+        for row in ({'BRANCHCODE': '0250'}, {'DUEAMOUNT': 10}):
+            bad = deepcopy(body)
+            bad['data'] = [row]
+            with self.assertRaises(LoanAccessDenied):
+                validate_response({'structuredContent': bad}, grant)
+
+    def run_gateway(self, revoke=False, multiple=False):
+        if multiple:
+            self.policy.branches.add(self.other)
+        @asynccontextmanager
+        async def transport(*args, **kwargs):
+            yield None, None, None
+        session = AsyncMock()
+        session.__aenter__.return_value = session
+        session.list_tools.return_value = SimpleNamespace(
+            tools=[Tool(name=NAME, inputSchema=SCHEMA)], nextCursor=None)
+        async def call(name, arguments):
+            self.assertEqual(arguments, {**ARGS, 'branch_code': '0003'})
+            if revoke:
+                await sync_to_async(LoanAccessPolicy.objects.filter(pk=self.policy.pk).update)(mode='NONE')
+            body = result(arguments)
+            body['scope'].pop('authorization_mode')
+            return CallToolResult(content=[], structuredContent=body)
+        session.call_tool.side_effect = call
+        config = {'url': 'https://gateway.example/mcp', 'token': '', 'timeout': 2, 'request_timeout': 3}
+        with patch('mcp.client.streamable_http.streamablehttp_client', transport), patch('mcp.ClientSession', return_value=session), patch.object(gateway, 'load_config', return_value=config), patch.object(gateway, '_select_tool', return_value=({}, (NAME, dict(ARGS)))):
+            response = gateway.run_mcp_query(self.user, QUERY)
+        return response, session
+
+    def test_gateway_sends_native_filter_and_presents_effective_query(self):
+        response, session = self.run_gateway()
+        self.assertTrue(response['ok'], response)
+        self.assertEqual(response['raw']['structuredContent']['filters']['branch_code'], '0003')
+        session.call_tool.assert_awaited_once()
+
+    def test_gateway_blocks_broad_scope_before_dispatch(self):
+        response, session = self.run_gateway(multiple=True)
+        self.assertFalse(response['ok'], response)
+        session.call_tool.assert_not_awaited()
+
+    def test_gateway_withholds_revoked_result(self):
+        response, session = self.run_gateway(revoke=True)
+        self.assertFalse(response['ok'], response)
+        self.assertEqual(response['code'], 'loan_scope_unverified')

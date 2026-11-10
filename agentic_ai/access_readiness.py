@@ -26,9 +26,9 @@ def report_readiness(records, discovered, signing_ready, protected):
         elif record.loan_access_mode in {'APP', 'UI'}:
             from .application_scope import schema_supported
             if schema_supported(schema):
-                code, message = 'application_scope_detected', 'Application scope input detected. Django sends this user’s permitted branches automatically; verify the trusted NiFi endpoint and Oracle filtering in staging.'
+                code, message = 'application_scope_detected', 'Application reporting contract detected. Django supplies the permitted branch list or one checked branch_code; verify Oracle filtering before aggregation in staging.'
             else:
-                code, message = 'missing_application_scope_contract', 'The MCP schema must declare required app_branch_codes as an array of strings for QueryLoanDueAppScope. No single branch filter or signing key is required.'
+                code, message = 'missing_application_scope_contract', 'The MCP schema must declare native branch_code and report_date strings without requiring loan_access_token. If app_branch_codes is declared, it must be a required array of strings.'
         elif record.loan_access_mode == 'FIXED':
             code, message = 'fixed_scope', 'Uses a fixed backend branch list; does not follow arbitrary per-user branch selections.'
         elif (schema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') != 'string'

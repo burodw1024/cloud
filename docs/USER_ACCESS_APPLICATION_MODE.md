@@ -24,9 +24,43 @@ Legacy signing/fixed helpers remain for backward compatibility and tests; migrat
 tools and normal setup use UI/APP. Do not manually change database rows back to
 legacy modes. New AgentTool records default to UI.
 
-## Loan transport setup (not user permission administration)
+## Native processor without app_branch_codes
 
-The loan service must actually execute the application-resolved branch filter.
+For the updated processor that accepts the same report fields but no
+`app_branch_codes`, use
+`deploy/contracts/loan-due-query.native-branch.input.schema.json` in ContextForge.
+Keep the existing POST URL, authentication, credentials and report parameters.
+Forward the entire JSON body, including `branch_code`, with leading zeros intact.
+The application detects this native contract automatically; no database migration
+or change to saved User Access policies is needed.
+
+Django checks an explicit branch against the user's current branch/zone grants.
+If the effective grant contains exactly one branch, Django supplies its
+`branch_code` after validating the model request. The effective filter is also
+used for response validation, presentation and dispatch auditing. No
+`app_branch_codes` or loan token is sent to this processor.
+
+For users with multiple permitted branches, ask for one branch explicitly.
+Requests for several branches, broad zone rankings or all permitted branches are
+blocked before dispatch when they cannot be represented by a single checked
+branch filter. They are never implemented by filtering an already ranked result.
+Use the branch-list contract below for cross-branch reporting.
+
+The trusted NiFi endpoint must apply `branch_code` before every SQL aggregation
+and top-N limit. Its unchanged response must echo the requested branch/zone,
+confirm `authorized_branch_count=1`, and return the standard report metadata,
+row count and data. Native mode does not require an `authorization_mode` marker.
+Django rejects another branch, an unconfirmed scope, or changed/revoked grants.
+Verify this filtering with a controlled dataset before serving reports.
+
+Run `check_loan_backend --tool loan-due-report` after rediscovery. Both supported
+contracts return `application_scope_detected`; this is schema discovery only,
+not a live SQL filtering test.
+
+## Branch-list transport setup (not user permission administration)
+
+For processors that still support the branch-list contract, the loan service
+must actually execute the application-resolved branch filter.
 Use QueryLoanDueAppScope 1.0.1 on the trusted loan endpoint. Keep this endpoint
 restricted to the application/gateway; it accepts the caller's scope and does
 not authenticate users itself.
@@ -49,7 +83,7 @@ and validates the response and current policy before display or replay.
 ALL resolves to all current active permitted branches; optional branch/zone
 filters narrow the scope. Nothing defaults to unrestricted financial access.
 
-Other financial endpoints must support their corresponding application-scope
+Other financial endpoints must support their corresponding checked scope
 contract before execution. This release does not change the savings processor's
 SQL, old static NiFi allowlists, Oracle filtering or network accessibility.
 Missing transport support produces a setup error; it does not silently execute
