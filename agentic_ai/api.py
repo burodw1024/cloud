@@ -39,7 +39,7 @@ def _can_replay_result(user, result):
         from .models import AgentTool
         from .mcp_gateway import _allowed
         record = AgentTool.objects.filter(name=tool_name, is_active=True).first()
-        if record and (record.requires_loan_scope or record.loan_access_mode == 'FIXED') and not current_access(user, result.get('loan_access')):
+        if record and (record.requires_loan_scope or record.loan_access_mode in {'FIXED', 'APP'}) and not current_access(user, result.get('loan_access')):
             return False
         return bool(record and _allowed(record, user))
     from .permissions import has_tool_permission
