@@ -95,6 +95,12 @@ def load_config():
 
 
 def _allowed(record, user, user_roles=None):
+    from .permissions import explicit_tool_permission
+    if not record.is_active or (record.module_id and not record.module.is_active):
+        return False
+    explicit = explicit_tool_permission(user, record.name)
+    if explicit is not None:
+        return explicit
     roles = record.allowed_roles
     if user_roles is None:
         user_roles = set(get_user_role_names(user))
@@ -122,7 +128,7 @@ def _decision(user, name, arguments, tool=None, backend_arguments=None):
                 "answer": "Permission denied for this MCP tool."}
     from .loan_access import protected_tools, authorize, LoanAccessDenied, LoanAccessUnavailable
     loan_grant = None
-    if record.requires_loan_scope or record.loan_access_mode == 'FIXED' or name in protected_tools():
+    if record.requires_loan_scope or record.loan_access_mode in {'FIXED', 'APP'} or name in protected_tools():
         try:
             loan_grant = authorize(user, name, arguments, tool, backend_arguments)
         except LoanAccessUnavailable as exc:
@@ -463,6 +469,7 @@ async def _run(config, user, query, allowed_names):
             tools = await discover_tools(session, allowed_names)
             if not tools:
                 return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
+            from .application_scope import ApplicationLoanGrant, SCOPE_FIELD
             from .loan_access import strip_server_authorization, LoanGrant, FixedLoanGrant, validate_response, current_access
             original_tools = {tool.name: tool for tool in tools}
             tools = strip_server_authorization(tools)
@@ -520,20 +527,25 @@ async def _run(config, user, query, allowed_names):
             plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
             state.update(tool=name, plan=plan)
             decision = await sync_to_async(_decision)(user, name, arguments, original_tools[name], backend_arguments)
-            loan_grant = decision if isinstance(decision, (LoanGrant, FixedLoanGrant)) else None
+            loan_grant = decision if isinstance(decision, (LoanGrant, FixedLoanGrant, ApplicationLoanGrant)) else None
             if decision and not loan_grant:
                 return dict(decision, plan=plan)
             if loan_grant:
                 from .loan_scope_backend import TOKEN_FIELD
                 if isinstance(loan_grant, LoanGrant):
                     backend_arguments[TOKEN_FIELD] = loan_grant.token
+                elif isinstance(loan_grant, ApplicationLoanGrant):
+                    backend_arguments = dict(loan_grant.query)
+                    plan['params'] = dict(loan_grant.query)
+                    if not loan_grant.native_branch_filter:
+                        backend_arguments[SCOPE_FIELD] = list(loan_grant.branches)
                 _validator(original_tools[name].inputSchema).validate(backend_arguments)
                 state['loan_access'] = loan_grant.access
             # Persist intent before dispatch; if audit storage is unavailable, do not call.
             audit_id = config.get("audit_id")
             if audit_id:
                 updated = await sync_to_async(AgentRunLog.objects.filter(pk=audit_id).update)(
-                    selected_tool=name, tool_input=arguments, tool_output_summary="Tool dispatch started; result pending.")
+                    selected_tool=name, tool_input=plan["params"], tool_output_summary="Tool dispatch started; result pending.")
                 if updated != 1:
                     raise GatewayError("audit_unavailable", "Audit storage is unavailable; the tool was not executed.", 503)
             state["dispatched"] = True
@@ -554,7 +566,7 @@ async def _run(config, user, query, allowed_names):
                 if result.isError:
                     raise GatewayError("native_query_backend_error", "The loan query endpoint returned an error. No financial data was displayed.")
                 try:
-                    presentation = present_native_query(raw, arguments)
+                    presentation = present_native_query(raw, loan_grant.query if isinstance(loan_grant, ApplicationLoanGrant) else arguments)
                 except (ValueError, TypeError, KeyError) as exc:
                     raise GatewayError("invalid_native_query_result", "The loan query result could not be verified. No financial data was displayed.") from exc
                 return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}

@@ -101,7 +101,7 @@ class AgentTool(models.Model):
     requires_approval = models.BooleanField(default=False)
     requires_loan_scope = models.BooleanField(default=False)
     loan_access_mode = models.CharField(max_length=10, default="SIGNED",
-        choices=[("SIGNED", "Per-user signed access"), ("FIXED", "Fixed NiFi branch scope")])
+        choices=[("UI", "User Access permissions"), ("APP", "Application-managed branch scope"), ("SIGNED", "Legacy signed access"), ("FIXED", "Legacy fixed NiFi scope")])
     fixed_branch_codes = models.JSONField(default=list, blank=True,
         help_text="Exact full branch allowlist enforced by this tool's NiFi endpoint.")
 
@@ -118,6 +118,12 @@ class AgentTool(models.Model):
             raise ValidationError({'fixed_branch_codes': 'Use up to 1000 distinct exact branch codes as strings.'})
         if self.loan_access_mode == 'FIXED' and not codes:
             raise ValidationError({'fixed_branch_codes': 'Enter the full branch scope enforced by the NiFi endpoint.'})
+        if self.loan_access_mode == 'APP':
+            if codes:
+                raise ValidationError({'fixed_branch_codes': 'Clear fixed branches for application-managed scope.'})
+            self.requires_loan_scope = True
+        if self.loan_access_mode == 'UI' and codes:
+            raise ValidationError({'fixed_branch_codes': 'User Access manages the branch scope. Clear the legacy fixed list.'})
         roles = self.allowed_roles
         if not isinstance(roles, list) or any(not isinstance(role, str) or not role.strip() or role != role.strip() for role in roles):
             raise ValidationError({"allowed_roles": 'Use a JSON list of exact group names, for example ["manager", "cashflow"].'})
@@ -211,4 +217,12 @@ class LoanDirectoryConnection(models.Model):
     url = models.URLField(max_length=2048)
     allow_http = models.BooleanField(default=False)
     encrypted_token = models.TextField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class UserToolAccess(models.Model):
+    """An explicit selection replaces group-derived tool access for this user."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='tool_access_policy')
+    tools = models.ManyToManyField(AgentTool, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
