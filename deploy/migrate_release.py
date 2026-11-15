@@ -52,23 +52,27 @@ clear_setting_cache()
 # User accounts, role registrations, approval flags, selected model and tokens stay unchanged.
 from agentic_ai.mcp_gateway import gateway_enabled,load_config,discover_gateway,probe_model
 from asgiref.sync import async_to_sync
-assert gateway_enabled(), 'Expected the existing MCP gateway to be enabled; configuration was preserved.'
-config=load_config()
-assert config['url']==updates['MCP_GATEWAY_URL']
-assert config['timeout']==1500 and config['request_timeout']==1800
-assert config['token'], 'Existing gateway token is missing; no replacement token was generated.'
-tools=async_to_sync(discover_gateway)(config)
-assert any(tool.name=='loan-due-report' for tool in tools), 'Server-scoped loan-due-report tool not found.'
-# Synthetic model probe only: NEVER call the real loan report as a deployment test.
-probe=async_to_sync(probe_model)(config)
-assert probe['gateway_tool_executed'] is False
-from agentic_ai.report_presentation import present_report
-from agentic_ai.mcp_gateway import _model_response
-presentation=async_to_sync(present_report)(config,
-    'Show only outstanding principal from this already scoped sample report.',
-    {'structuredContent':{'rows':[{'OUTSTANDINGP':'123.45','DUEAMOUNT':'7.00'}]}}, _model_response)
-assert presentation['raw']['structuredContent']['columns']==['OUTSTANDINGP'], 'Selected model failed the synthetic report-column selection probe.'
-print('MCP discovery, project-model selection and synthetic report formatting passed; no real report was executed.',flush=True)
+model_probe_passed = False
+if gateway_enabled():
+    config=load_config()
+    assert config['url']==updates['MCP_GATEWAY_URL']
+    assert config['timeout']==1500 and config['request_timeout']==1800
+    assert config['token'], 'Existing gateway token is missing; no replacement token was generated.'
+    tools=async_to_sync(discover_gateway)(config)
+    assert any(tool.name=='loan-due-report' for tool in tools), 'Server-scoped loan-due-report tool not found.'
+    # Synthetic model probe only: NEVER call the real loan report as a deployment test.
+    probe=async_to_sync(probe_model)(config)
+    assert probe['gateway_tool_executed'] is False
+    from agentic_ai.report_presentation import present_report
+    from agentic_ai.mcp_gateway import _model_response
+    presentation=async_to_sync(present_report)(config,
+        'Show only outstanding principal from this already scoped sample report.',
+        {'structuredContent':{'rows':[{'OUTSTANDINGP':'123.45','DUEAMOUNT':'7.00'}]}}, _model_response)
+    assert presentation['raw']['structuredContent']['columns']==['OUTSTANDINGP'], 'Selected model failed the synthetic report-column selection probe.'
+    print('MCP discovery, project-model selection and synthetic report formatting passed; no real report was executed.',flush=True)
+    model_probe_passed = True
+else:
+    print('MCP gateway remains disabled; external gateway/model probes skipped. Enable it through Integration settings when ready.', flush=True)
 subprocess.run(['python','manage.py','check','--deploy','--fail-level','ERROR'],check=True)
-(backups/'migration-complete.json').write_text(json.dumps({'release':release,'model_probe_passed':True}))
+(backups/'migration-complete.json').write_text(json.dumps({'release':release,'model_probe_passed':model_probe_passed,'gateway_enabled':gateway_enabled()}))
 print('Migration completed; existing users, approvals and credentials preserved.',flush=True)
