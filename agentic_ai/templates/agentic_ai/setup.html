@@ -8,7 +8,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <main>
 <a href="{% url 'agentic_ai:query_page' %}">← Ask your assistant</a>
 <p class="muted">BURO Insight AI · Administration</p><h1>Integration settings</h1>
-<p>Connect your gateway, choose who can use each tool, then test a question.</p>
+<p>Connect your gateway, choose who can use each tool, then test a question.</p><section class="card"><h2>Superset reporting</h2><p>Connect the production service, test report storage and choose a default template in one setup screen.</p><a href="{% url 'agentic_ai:reporting_settings' %}">Open reporting setup →</a></section>
 <p id="setup-status" class="status" role="status" aria-live="polite">{% if enabled %}Gateway tools are enabled.{% else %}Complete these steps to enable gateway tools.{% endif %}</p>
 {% csrf_token %}
 <section class="card" aria-labelledby="directory-heading"><h2 id="directory-heading">Branch &amp; zone directory API</h2>

@@ -6,6 +6,8 @@ from agentic_ai.whatsapp import whatsapp_api
 from agentic_ai.setup_views import query_page, setup_page
 from agentic_ai.review import dashboard, logs_api
 from agentic_ai.performance_dashboard import performance_dashboard
+from agentic_ai.dashboard_studio import studio, dashboard_api
+from agentic_ai.reporting_admin import reporting_settings
 from agentic_ai.module_admin import module_manager
 from agentic_ai.access_admin import access_manager, directory_manager
 patterns = [
@@ -17,6 +19,9 @@ patterns = [
     path("modules/", module_manager, name="modules"),
     path('data-access/', access_manager, name='data_access'),
     path('data-access/directory/', directory_manager, name='access_directory'),
+    path("analytics/", studio, name="analytics"),
+    path("api/dashboards/", dashboard_api, name="dashboard_publish_api"),
+    path("reporting-settings/", reporting_settings, name="reporting_settings"),
     path("performance/", performance_dashboard, name="performance"),
     path("dashboard/", dashboard, name="dashboard"),
     path("api/logs/", logs_api, name="logs_api"),

@@ -74,6 +74,7 @@ def remember_report(user, result):
     params = result.get('plan', {}).get('params', {})
     projected['filters'] = {key: params[key] for key in ('report_date', 'branch_code', 'zone_code',
         'disbursed_from', 'disbursed_to', 'level', 'sort_by', 'sort_order', 'top_n') if key in params}
+    projected['truncated'] = bool(projected.get('truncated') or len(report['rows']) > 100)
     projected['columns'] = columns
     projected['rows'] = [{c: row.get(c) for c in columns} for row in report['rows'][:100]]
     encoded = json.dumps(projected, ensure_ascii=False, allow_nan=False)

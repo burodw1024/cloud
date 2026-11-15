@@ -104,6 +104,7 @@ def agentic_query_api(request):
                 if not _can_replay_result(request.user, previous["result"]):
                     return _response({"ok": False, "code": "permission_denied",
                                       "error": "This report is no longer available to your current roles."}, 403)
+                request.session['dashboard_report_token'] = previous['result'].get('summary_token')
                 return _response({**previous["result"], "replayed": True}, previous["status"])
         rate_key = f"agentic:rate:{request.user.pk}:{int(time.time()) // 60}"
         if cache.add(rate_key, 1, 120):
@@ -132,6 +133,7 @@ def agentic_query_api(request):
                   "answer": "The request failed unexpectedly. Ask an administrator to review the attempt. No automatic retry was sent."}
     from .bangla_summary import remember_report
     result = remember_report(request.user, result)
+    request.session['dashboard_report_token'] = result.get('summary_token')
     status = result.pop("http_status", 200)
     try:
         from .whatsapp import remember_result
