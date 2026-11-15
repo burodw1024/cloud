@@ -72,6 +72,37 @@ class MigrationExecutor:
             self.assertIn('Pending migrations found', result.stderr)
             self.assertFalse(checkpoint.exists())
 
+    def test_disabled_gateway_recovery_preserves_backup_and_skips_external_probes(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                _, checkpoint, backups = self.fixture(base)
+                script_path = base/'app/deploy/migrate_release.py'
+                script = ("raise RuntimeError('must not repeat migration')\n\nimport django\ndjango.setup()\n"
+                    f"def gateway_enabled(): return {enabled!r}\n"
+                    "assert gateway_enabled(), 'Expected the existing MCP gateway to be enabled; configuration was preserved.'\n"
+                    "raise RuntimeError('external probe failure')\n"
+                    "subprocess.run(['python','manage.py','check'], check=True)\n"
+                    "(backups/'migration-complete.json').write_text(json.dumps({'model_probe_passed':True}))\n")
+                script_path.write_text(script)
+                code = self.helper['recovery_code'](hashlib.sha256(script.encode()).hexdigest(), True)
+                code = code.replace("'/app/deploy/migrate_release.py'", repr(str(script_path)))
+                code = code.replace("'/app'", repr(str(base/'app'))).replace("'/data'", repr(str(base/'data')))
+                # Stub the final Django system check, retaining its invocation.
+                code = code.replace('import django\ndjango.setup()', "import django\ndjango.setup()\nsubprocess.run = lambda *a, **k: None")
+                before = (backups/'db.sqlite3').read_bytes()
+                result = self.execute(code, base)
+                self.assertEqual((backups/'db.sqlite3').read_bytes(), before)
+                if enabled:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('external probe failure', result.stderr)
+                    self.assertFalse((backups/'migration-complete.json').exists())
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    import json
+                    self.assertEqual(json.loads((backups/'migration-complete.json').read_text()),
+                                     {'model_probe_passed': False, 'gateway_enabled': False})
+
     def test_missing_backup_blocks_recovery(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

@@ -20,7 +20,7 @@ def require(ok, message):
         raise RuntimeError(message)
 
 
-def recovery_code(expected_sha):
+def recovery_code(expected_sha, preserve_disabled_gateway=False):
     return '''import hashlib, json, os, sqlite3, subprocess, sys
 from pathlib import Path
 os.chdir('/app')
@@ -45,8 +45,20 @@ assert not executor.migration_plan(executor.loader.graph.leaf_nodes()), 'Pending
 assert not (backups/'migration-complete.json').exists(), 'Post-migration phase already marked complete; inspect before retrying'
 print('Existing backup verified; no pending migrations. Resuming post-migration checks only.', flush=True)
 post_migration = 'import django\\ndjango.setup()\\n' + script_text.split(marker, 1)[1]
+GATEWAY_RECOVERY_PATCH
 exec(compile(post_migration, '/app/deploy/migrate_release.py:post-migration', 'exec'), globals())
-'''.replace('EXPECTED_SHA', repr(expected_sha))
+'''.replace('EXPECTED_SHA', repr(expected_sha)).replace('GATEWAY_RECOVERY_PATCH', '''
+start_marker = "assert gateway_enabled(), 'Expected the existing MCP gateway to be enabled; configuration was preserved.'"
+end_marker = "subprocess.run(['python','manage.py','check'"
+assert post_migration.count(start_marker) == 1 and post_migration.count(end_marker) == 1, 'Unrecognized gateway verification block'
+start = post_migration.index(start_marker)
+end = post_migration.index(end_marker, start)
+block = post_migration[start:end].split('\\n', 1)[1]
+replacement = "model_probe_passed = False\\nif gateway_enabled():\\n" + ''.join('    '+line+'\\n' for line in block.splitlines())
+replacement += "    model_probe_passed = True\\nelse:\\n    print('MCP gateway remains disabled; external probes skipped.', flush=True)\\n"
+post_migration = post_migration[:start] + replacement + post_migration[end:]
+post_migration = post_migration.replace("'model_probe_passed':True", "'model_probe_passed':model_probe_passed,'gateway_enabled':gateway_enabled()")
+''' if preserve_disabled_gateway else '')
 
 
 def backup_retry_code(expected_sha):
@@ -82,7 +94,7 @@ exec(compile(script_text, '/app/deploy/migrate_release.py:backup-retry', 'exec')
 """.replace('EXPECTED_SHA', repr(expected_sha))
 
 
-def build_recovery(saved, expected_sha, retry_backup=False):
+def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_gateway=False):
     job = copy.deepcopy(saved)
     original = job['metadata']['name']
     job['metadata'] = {'name': original+('-backup-retry' if retry_backup else '-resume'), 'namespace': saved['metadata']['namespace']}
@@ -94,7 +106,7 @@ def build_recovery(saved, expected_sha, retry_backup=False):
     container = pod['containers'][0]
     require(container.get('imagePullPolicy') == 'Never', 'Recovery must use the imported image')
     require(container['command'] == ['python', '/app/deploy/migrate_release.py'], 'Unrecognized migration script entrypoint')
-    container['command'] = ['python', '-c', backup_retry_code(expected_sha) if retry_backup else recovery_code(expected_sha)]
+    container['command'] = ['python', '-c', backup_retry_code(expected_sha) if retry_backup else recovery_code(expected_sha, preserve_disabled_gateway)]
     container.pop('args', None)
     container['workingDir'] = '/app'
     spec['template']['metadata'] = {'labels': {'agentic-release-job': job['metadata']['name']}}
@@ -105,10 +117,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('stage', type=Path)
     parser.add_argument('--retry-backup', action='store_true', help='Recover the reported read-only backup failure before migrations; retain the original failed backup.')
+    parser.add_argument('--preserve-disabled-gateway', action='store_true', help='Recover the confirmed gateway-enabled assertion failure without enabling a paused integration.')
     parser.add_argument('--context', required=True)
     parser.add_argument('--url', required=True)
     parser.add_argument('--cert', type=Path, default=Path.home()/'.config/agentic/tls/tls.crt')
     args = parser.parse_args()
+    require(not (args.retry_backup and args.preserve_disabled_gateway), 'Choose either backup retry or gateway recovery')
     stage = args.stage.resolve()
     def read(name): return json.loads((stage/name).read_text())
     saved = read('migration.json')
@@ -154,7 +168,12 @@ def main():
         require('src.backup(dst)' in logs and 'sqlite3.OperationalError: attempt to write a readonly database' in logs
                 and 'SQLite database and existing shared cache backed up:' not in logs,
                 'Backup retry only supports the confirmed read-only backup failure before migrations')
-    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup)
+    if args.preserve_disabled_gateway:
+        logs = subprocess.check_output(command+['logs', 'job/'+original_job, '-c', 'migrate'], text=True)
+        require('SQLite database and existing shared cache backed up:' in logs
+                and 'AssertionError: Expected the existing MCP gateway to be enabled; configuration was preserved.' in logs,
+                'Gateway recovery requires the confirmed post-migration gateway-enabled assertion failure')
+    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup, args.preserve_disabled_gateway)
     recovery_name = recovery['metadata']['name']
     require(len(recovery_name) <= 63, 'Recovery Job name is too long')
     prior = subprocess.check_output(command+['get','job',recovery_name,'--ignore-not-found','-o','json'], text=True).strip()
