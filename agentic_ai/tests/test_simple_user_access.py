@@ -88,3 +88,24 @@ class ApplicationSetupTests(TestCase):
         response = self.post('save_tools', tools=[self.tool(loan_access_mode='UI', fixed_branch_codes=[])])
         self.assertEqual(response.status_code, 400)
         self.assertFalse(AgentTool.objects.exists())
+
+    @patch('agentic_ai.setup_views._save_settings')
+    def test_fixed_tool_can_switch_to_user_access_without_legacy_branches(self, save):
+        native = Tool(name='loan-due-report', inputSchema=SCHEMA)
+        record = AgentTool.objects.create(name=native.name, loan_access_mode='FIXED',
+                                         fixed_branch_codes=['0253'], requires_loan_scope=True)
+        with patch('agentic_ai.setup_views.discover_gateway', new=AsyncMock(return_value=[native])):
+            for mode in ('UI', 'APP'):
+                record.loan_access_mode = 'FIXED'
+                record.fixed_branch_codes = ['0253']
+                record.save()
+                self.post('discover')
+                self.post('check_model')
+                response = self.post('save_tools', tools=[dict(name=native.name, enabled=True,
+                    roles=['manager'], requires_approval=False, requires_loan_scope=True,
+                    loan_access_mode=mode, fixed_branch_codes=[])])
+                self.assertEqual(response.status_code, 200, response.content)
+                record.refresh_from_db()
+                self.assertEqual(record.loan_access_mode, mode)
+                self.assertEqual(record.fixed_branch_codes, [])
+                self.assertTrue(record.requires_loan_scope)

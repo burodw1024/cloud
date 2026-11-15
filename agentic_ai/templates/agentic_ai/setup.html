@@ -119,6 +119,8 @@ function renderTools(tools,roles){
   const branches=document.createElement('input');branches.type='text';branches.value=(tool.fixed_branch_codes||[]).join(',');branchLabel.append(branches);card.append(branchLabel);
   const note=document.createElement('small');note.textContent='Configure this exact fixed allowlist in NiFi. Users need an allowed group and Django branch/zone access covering every listed branch. No signing key is needed in fixed mode.';card.append(note);
   const updateMode=()=>{const fixed=mode.value==='FIXED';branchLabel.hidden=!fixed;note.hidden=!fixed;const app=['UI','APP'].includes(mode.value);scopeStatus.textContent=app?'Assign users and their permitted branches in User access. No signing token is required. The native backend must apply the supplied branch filter.':(tool.loan_scope_contract?'Backend declares signed access.':'Signed access requires the backend token contract. Choose User Access permissions for an existing compatible native branch-filtered endpoint.');scopeStatus.hidden=fixed||(!app&&!loanScope.input.checked);loanScope.input.disabled=fixed||app||!!tool.loan_scope_mandatory;if(fixed||app)loanScope.input.checked=true;};mode.onchange=updateMode;updateMode();
+  // Application-managed scope comes from User access, never the legacy allowlist.
+  mode.addEventListener('change',()=>{if(['UI','APP'].includes(mode.value))branches.value='';});
   catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,loanScope:loanScope.input,mode,branches,choices,metadata});
  });
 }
