@@ -5,6 +5,7 @@ from .whatsapp import whatsapp_api
 from .setup_views import query_page, setup_page
 from .module_admin import module_manager
 from .access_admin import access_manager, directory_manager
+from .performance_dashboard import performance_dashboard
 
 app_name = "agentic_ai"
 
@@ -13,6 +14,7 @@ urlpatterns = [
     path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),
     path("", query_page, name="query_page"),
+    path("performance/", performance_dashboard, name="performance"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("setup/", setup_page, name="setup"),
     path("modules/", module_manager, name="modules"),
