@@ -109,9 +109,9 @@ function renderTools(tools,roles){
   roles.forEach(role=>{const choice=checkbox(role,tool.roles.includes(role));roleList.append(choice.label);choices.push({role,input:choice.input});});
   fieldset.append(roleList);card.append(fieldset);
   const approval=checkbox('Ask for approval before running',tool.requires_approval);card.append(approval.label);list.append(card);
-  const loanScope=checkbox('Enforce user branch/zone access (loan tools)',tool.requires_loan_scope);loanScope.input.disabled=!!tool.loan_scope_mandatory;card.append(loanScope.label);
+  const loanScope=checkbox('Enforce user branch/zone access',tool.requires_loan_scope);loanScope.input.disabled=!!tool.loan_scope_mandatory;card.append(loanScope.label);
   const scopeStatus=document.createElement('small');scopeStatus.textContent=(tool.loan_scope_mandatory?'Mandatory for this loan tool. ':'')+(tool.loan_scope_contract?'Backend declares the signed-access input.':'Signed-access input is not declared; scoped loan execution needs a backend update.');scopeStatus.hidden=!loanScope.input.checked;loanScope.input.addEventListener('change',()=>{scopeStatus.hidden=!loanScope.input.checked;});card.append(scopeStatus);
-  const modeLabel=document.createElement('label');modeLabel.textContent='Loan access mode';
+  const modeLabel=document.createElement('label');modeLabel.textContent='Branch access mode';
   const mode=document.createElement('select');
   [['UI','User Access permissions (application-managed)'],['APP','Application-managed branch scope'],['SIGNED','Legacy signed access'],['FIXED','Legacy fixed NiFi branch scope']].forEach(([value,text])=>{const option=document.createElement('option');option.value=value;option.textContent=text;mode.append(option);});
   mode.value=tool.loan_access_mode||'SIGNED';modeLabel.append(mode);card.append(modeLabel);
