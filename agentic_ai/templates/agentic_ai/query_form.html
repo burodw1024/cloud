@@ -36,6 +36,7 @@
             <p id="whatsapp-status" role="status" aria-live="polite"></p>
         </section>
         {% endif %}
+        {% include 'agentic_ai/report_templates.html' %}
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>
             <input class="report-search" id="report-search" type="search" placeholder="Find in displayed rows…" autocomplete="off" aria-controls="agent-table">
@@ -284,6 +285,7 @@
         if (waBusy) return;
         const question = form.elements.message.value.trim();
         if (!question) return;
+        window.BuroReportTemplates?.reset();
         loanSuggestions.hidden = true; loanSuggestions.replaceChildren();
         waResultId=null;waPending=null;if(waPanel){waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=true);document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
         chartReport = null; chartButton.hidden = true; chartPanel.hidden = true; chartBars.replaceChildren();
@@ -364,6 +366,7 @@
                     });
                 });
                 tableWrap.append(table); tableWrap.hidden = false; toolbar.hidden = false;
+                window.BuroReportTemplates?.show(report,body);
                 requestAnimationFrame(updateTableHint);
                 searchCount.textContent = report.rows.length + ' displayed rows';
                 result.textContent = body.summary || (typeof answer === 'string' ? answer.split('\n')[0] : 'Report returned.');

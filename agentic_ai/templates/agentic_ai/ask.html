@@ -164,9 +164,9 @@ tbody tr:hover { background:var(--soft) }
 <a href="/">Main chat</a></nav></div>
 {% if user.is_staff %}<div><div class="nav-label">ADMINISTRATION</div><nav class="side-nav" aria-label="Administration">
 {% if perms.agentic_ai.add_businessmodule and perms.agentic_ai.change_businessmodule and perms.agentic_ai.change_agenttool %}<a href="{% url 'agentic_ai:modules' %}">Business modules</a>{% endif %}
-{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Integration settings</a>{% endif %}
+{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Integration settings</a><a href="{% url 'agentic_ai:reporting_settings' %}">Reporting setup</a>{% endif %}
 {% if perms.agentic_ai.manage_loan_access %}<a href="{% url 'agentic_ai:data_access' %}">Data access</a>{% elif perms.agentic_ai.manage_loan_directory %}<a href="{% url 'agentic_ai:access_directory' %}">Branch directory</a>{% endif %}
-{% if perms.agentic_ai.view_agentrunlog %}<a href="{% url 'agentic_ai:dashboard' %}">User attempts</a>{% endif %}
+{% if perms.agentic_ai.view_agentrunlog %}<a href="{% url 'agentic_ai:dashboard' %}">User attempts</a><a href="{% url 'agentic_ai:performance' %}">Query performance</a>{% endif %}
 </nav></div>{% endif %}
 <div class="side-note"><strong>A little insight. A big difference.</strong>Explore reports through the tools available to your role.</div></aside>
 <main class="workspace"><header class="topbar"><div>Workspace &nbsp; / &nbsp; <strong>My workspace</strong></div><div class="profile"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">◐</button><span>{{ user.get_short_name|default:user.username }}</span><span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span></div></header>
@@ -204,6 +204,7 @@ tbody tr:hover { background:var(--soft) }
 {% if own_loan_access %}<section class="personal-card" aria-label="My loan data access"><h2>My loan data access</h2><p>{{ own_loan_access.label }}</p>{% if own_loan_access.count %}<p>{{ own_loan_access.count }} active branch{{ own_loan_access.count|pluralize }} · {{ own_loan_access.codes }}{% if own_loan_access.more %}…{% endif %}</p>{% endif %}</section>
 {% endif %}
 {% include 'agentic_ai/query_form.html' %}
+{% include 'agentic_ai/production_reports.html' %}
 <section class="capability-directory" id="capabilities" aria-labelledby="capabilities-title">
 <div class="section-heading"><div><span class="section-kicker">DISCOVER YOUR WORKSPACE</span><h2 id="capabilities-title">The right capability. Within reach.</h2><p class="directory-description">Explore registered services available to your role. Choose one to prepare a question.</p></div><span class="workspace-label">{{ capability_count }} registered</span></div>
 <div class="directory-controls"><label class="sr-only" for="capability-search">Search capabilities</label><input id="capability-search" class="capability-search" type="search" placeholder="Search capabilities, services, or topics…" autocomplete="off"><div class="category-list" id="category-list" role="group" aria-label="Capability categories"></div></div>

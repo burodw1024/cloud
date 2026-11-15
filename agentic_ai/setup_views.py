@@ -54,9 +54,10 @@ def query_page(request):
     from .workspace import workspace_context
     from .whatsapp import settings_status
     from .loan_access import own_access_summary
+    from .reporting_config import workspace_settings
     workspace = workspace_context(request.user, request.GET.get('module', ''))
     response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": settings_status(request.user),
-                      'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})
+                      'reporting':workspace_settings(request.user), 'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})
     response["Cache-Control"] = "no-store"
     return response
 

@@ -64,3 +64,7 @@ jsonschema>=4.23,<5
 
 # Existing policy module imports the OpenAI Responses client.
 openai>=2,<3
+
+# Optional Superset snapshot publishing
+psycopg==3.2.9
+psycopg-binary==3.2.9
