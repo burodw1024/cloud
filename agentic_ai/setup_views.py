@@ -192,6 +192,8 @@ def setup_page(request):
         if action == "discover":
             from .loan_access import protected_tools
             from .loan_scope_backend import TOKEN_FIELD
+            from .application_scope import schema_supported
+            from .native_loan_query import supports_native_query
             mandatory_scope_tools = protected_tools()
             config = load_gateway_config()
             tools = async_to_sync(discover_gateway)(config)
@@ -211,6 +213,7 @@ def setup_page(request):
                     "loan_scope_mandatory": tool.name in mandatory_scope_tools,
                     "loan_access_mode": record.loan_access_mode if record else "SIGNED",
                     "fixed_branch_codes": record.fixed_branch_codes if record else [],
+                    "application_scope_supported": schema_supported(tool.inputSchema) and supports_native_query(tool, {tool.name}),
                     "loan_scope_contract": tool.inputSchema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') == 'string' and TOKEN_FIELD in tool.inputSchema.get('required', []),
                 })
             cache.set(cache_key, {"url": config["url"], "tools": catalog}, 300)
@@ -248,8 +251,11 @@ def setup_page(request):
                     value = item.get(field)
                     if field in item and (not isinstance(value, str) or len(value) > maximum):
                         raise ValueError
-                if 'loan_access_mode' in item and item['loan_access_mode'] not in ('SIGNED', 'FIXED'):
+                if 'loan_access_mode' in item and item['loan_access_mode'] not in ('UI', 'APP', 'SIGNED', 'FIXED'):
                     raise ValueError
+                if (item.get('enabled') and item.get('loan_access_mode') in {'UI', 'APP'}
+                        and not known[name].get('application_scope_supported')):
+                    return _reply({'ok': False, 'error': f'{name} needs the native branch_code/report_date query schema for User Access permissions. Its current schema is incompatible; no settings were saved.'}, 400)
                 if 'fixed_branch_codes' in item:
                     candidate = AgentTool(name=name, loan_access_mode=item.get('loan_access_mode', 'SIGNED'),
                                           fixed_branch_codes=item['fixed_branch_codes'])
@@ -279,7 +285,7 @@ def setup_page(request):
                     if record.loan_access_mode == 'FIXED':
                         record.requires_loan_scope = True
                     if 'requires_loan_scope' in item:
-                        record.requires_loan_scope = item['requires_loan_scope'] or record.loan_access_mode == 'FIXED'
+                        record.requires_loan_scope = item['requires_loan_scope'] or record.loan_access_mode in {'UI', 'APP', 'FIXED'}
                     for field in ("display_name", "category", "example_question"):
                         if field in item:
                             setattr(record, field, item[field].strip() or ("General" if field == "category" else ""))

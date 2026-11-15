@@ -156,7 +156,7 @@ def authorize(user, name, arguments, tool, backend_arguments=None):
     schema = getattr(tool, 'inputSchema', {})
     if (schema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') != 'string'
             or TOKEN_FIELD not in schema.get('required', [])):
-        raise LoanAccessUnavailable(f'User access is assigned, but the MCP tool {name} does not declare the required string loan_access_token. An administrator must complete the ContextForge and NiFi signed-access setup. No report was executed.')
+        raise LoanAccessUnavailable(f'User access is assigned, but the MCP tool {name} does not declare the required string loan_access_token. This tool is configured for legacy signed access. An administrator should open Integration settings and select User Access permissions for a compatible native branch-filtered endpoint, or complete the signed backend setup if signed mode is intended. No report was executed.')
     props = schema.get('properties', {})
     if ('branchCode' in props and 'reportDate' in props and 'report_date' not in props
             and arguments.get('operation') != 'rank_overdue_members'

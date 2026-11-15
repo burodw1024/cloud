@@ -132,6 +132,21 @@ class ApplicationScopeTests(TestCase):
             result = gateway.run_mcp_query(self.user, QUERY)
         return result, session
 
+    def test_user_access_mode_dispatches_without_token_and_rechecks_revocation(self):
+        self.record.loan_access_mode = 'UI'
+        self.record.save()
+        access = UserToolAccess.objects.create(user=self.user)
+        access.tools.add(self.record)
+        self.user.groups.clear()
+        result, session = self.run_native_gateway()
+        self.assertTrue(result['ok'], result)
+        arguments = session.call_tool.call_args.kwargs['arguments']
+        self.assertEqual(arguments['branch_code'], '0253')
+        self.assertNotIn('loan_access_token', arguments)
+        result, _ = self.run_native_gateway(revoke=True)
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['code'], 'loan_scope_unverified')
+
     def test_real_gateway_accepts_app_grant_and_rechecks_revocation(self):
         result, session = self.run_native_gateway()
         self.assertTrue(result['ok'], result)

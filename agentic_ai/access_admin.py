@@ -11,15 +11,28 @@ from django.contrib.auth.decorators import permission_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError, OperationalError
+from django.db.models import Q
 from django.http import Http404, HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 
-from .models import LoanAccessPolicy, LoanAccessEvent, LoanZone, LoanBranch
+from .models import LoanAccessPolicy, LoanAccessEvent, LoanZone, LoanBranch, AgentTool, UserToolAccess
+
+
+class ToolAccessChoices(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, tool):
+        module = tool.module.name if tool.module else 'General'
+        return f'{module}: {tool.display_name or tool.name}'
 
 
 class AccessForm(forms.ModelForm):
+    tool_access = forms.ChoiceField(required=False, label='Module and tool access',
+        choices=[('GROUPS', 'Keep group-based access'), ('SELECTED', 'Choose tools for this user')],
+        help_text='Choose tools to grant access directly, without changing Django groups. An empty selection blocks all tools.')
+    tools = ToolAccessChoices(queryset=AgentTool.objects.none(), required=False,
+        widget=forms.CheckboxSelectMultiple, label='Allowed tools by module')
+    tool_version = forms.CharField(widget=forms.HiddenInput, required=False)
     reason = forms.CharField(min_length=8, max_length=500, widget=forms.Textarea(attrs={'rows': 2}),
                              help_text='Record the business justification or approval reference.')
     version = forms.CharField(widget=forms.HiddenInput)
@@ -43,6 +56,22 @@ class AccessForm(forms.ModelForm):
             self.fields['user'].disabled = True
         else:
             self.fields['user'].queryset = self.fields['user'].queryset.filter(loan_access_policy__isnull=True)
+        subject_id = self.instance.user_id if self.instance.pk else self.initial.get('user')
+        if subject_id and not self.instance.pk:
+            self.fields['user'].queryset = self.fields['user'].queryset.filter(pk=subject_id)
+        tool_policy = UserToolAccess.objects.filter(user_id=subject_id).first() if subject_id else None
+        self.can_manage_tools = actor.has_perm('agentic_ai.change_usertoolaccess')
+        if self.can_manage_tools:
+            self.fields['tools'].queryset = AgentTool.objects.filter(is_active=True).filter(
+                Q(module__isnull=True) |
+                Q(module__is_active=True)
+            ).select_related('module').order_by('module__name', 'name')
+            self.initial['tool_access'] = 'SELECTED' if tool_policy else 'GROUPS'
+            self.initial['tools'] = list(tool_policy.tools.values_list('pk', flat=True)) if tool_policy else []
+            self.initial['tool_version'] = tool_policy.updated_at.isoformat() if tool_policy else 'new'
+        else:
+            for field in ('tool_access', 'tools', 'tool_version'):
+                self.fields.pop(field)
         self.fields['zones'].queryset = LoanZone.objects.all()
         self.fields['branches'].queryset = LoanBranch.objects.select_related('zone').all()
         if not actor.has_perm('agentic_ai.grant_all_loan_access'):
@@ -68,7 +97,15 @@ class AccessForm(forms.ModelForm):
             data['expires_at'] = None
         elif data.get('expires_at') and data['expires_at'] <= timezone.now():
             self.add_error('expires_at', 'Choose a future expiry time, or leave it empty.')
+        if self.can_manage_tools and data.get('tool_access') == 'GROUPS' and data.get('tools'):
+            self.add_error('tools', 'Clear the tool selection or choose tools for this user.')
         return data
+
+
+def tool_policy_state(user_id):
+    policy = UserToolAccess.objects.filter(user_id=user_id).first()
+    return {'mode': 'SELECTED', 'tools': list(policy.tools.order_by('name').values_list('name', flat=True)),
+            'expires_at': policy.expires_at.isoformat() if policy.expires_at else None} if policy else {'mode': 'GROUPS'}
 
 
 def policy_state(policy):
@@ -108,15 +145,29 @@ def access_manager(request):
                     get_user_model().objects.select_for_update().get(pk=subject.pk)
                     current = LoanAccessPolicy.objects.select_for_update().filter(user=subject).first()
                     version = current.updated_at.isoformat() if current else 'new'
-                    if version != form.cleaned_data['version']:
+                    tool_policy = UserToolAccess.objects.select_for_update().filter(user=subject).first()
+                    tool_version = tool_policy.updated_at.isoformat() if tool_policy else 'new'
+                    if (version != form.cleaned_data['version'] or
+                            form.can_manage_tools and form.cleaned_data.get('tool_access') and tool_version != form.cleaned_data['tool_version']):
                         form.add_error(None, 'This policy changed in another session. Reload before saving.')
                     else:
                         before = policy_state(current)
+                        before['tool_access'] = tool_policy_state(subject.pk)
                         policy = form.save(commit=False)
                         policy.updated_by = request.user
                         policy.save()
                         form.save_m2m()
-                        record_event(request.user, subject, 'policy_saved', form.cleaned_data['reason'], before, policy_state(policy))
+                        if form.can_manage_tools:
+                            if form.cleaned_data['tool_access'] == 'SELECTED':
+                                tool_policy = tool_policy or UserToolAccess(user=subject)
+                                tool_policy.expires_at = policy.expires_at
+                                tool_policy.save()
+                                tool_policy.tools.set(form.cleaned_data['tools'])
+                            elif form.cleaned_data['tool_access'] == 'GROUPS' and tool_policy:
+                                tool_policy.delete()
+                        after = policy_state(policy)
+                        after['tool_access'] = tool_policy_state(subject.pk)
+                        record_event(request.user, subject, 'policy_saved', form.cleaned_data['reason'], before, after)
                         return redirect(f'{request.path}?user={subject.pk}&saved=1')
             except IntegrityError:
                 form.add_error(None, 'The policy changed concurrently. Reload and try again.')
@@ -136,7 +187,7 @@ def access_manager(request):
             'zone_count': LoanZone.objects.filter(is_active=True).count(),
             'now': timezone.now(),
             'branch_count': LoanBranch.objects.filter(is_active=True, zone__is_active=True).count(),
-            'signing_ready': len(os.environ.get('LOAN_ACCESS_SIGNING_KEY', '').encode()) >= 32,
+            'signed_tools_need_setup': AgentTool.objects.filter(is_active=True, loan_access_mode='SIGNED').exists() and len(os.environ.get('LOAN_ACCESS_SIGNING_KEY', '').encode()) < 32,
         })
     response['Cache-Control'] = 'no-store'
     return response
