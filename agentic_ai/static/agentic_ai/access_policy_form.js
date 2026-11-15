@@ -46,6 +46,15 @@
         if (mode.value === 'NONE' && expiry) expiry.value = '';
         filters.forEach(filter => filter());
     }
+    const toolMode = form.elements.tool_access;
+    function updateTools() {
+        const selected = toolMode && toolMode.value === 'SELECTED';
+        const group = form.querySelector('[data-access-field="tools"]');
+        if (group) group.hidden = !selected;
+        if (!selected) form.querySelectorAll('[name="tools"]').forEach(input => { input.checked = false; });
+    }
+    if (toolMode) toolMode.addEventListener('change', updateTools);
+    updateTools();
     mode.addEventListener('change', update);
     update();
 })();

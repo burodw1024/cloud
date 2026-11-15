@@ -128,7 +128,7 @@ def _decision(user, name, arguments, tool=None, backend_arguments=None):
                 "answer": "Permission denied for this MCP tool."}
     from .loan_access import protected_tools, authorize, LoanAccessDenied, LoanAccessUnavailable
     loan_grant = None
-    if record.requires_loan_scope or record.loan_access_mode in {'FIXED', 'APP'} or name in protected_tools():
+    if record.requires_loan_scope or record.loan_access_mode in {'FIXED', 'APP', 'UI'} or name in protected_tools():
         try:
             loan_grant = authorize(user, name, arguments, tool, backend_arguments)
         except LoanAccessUnavailable as exc:
