@@ -256,7 +256,9 @@ def setup_page(request):
                     raise ValueError
                 if (item.get('enabled') and item.get('loan_access_mode') in {'UI', 'APP'}
                         and not known[name].get('application_scope_supported')):
-                    return _reply({'ok': False, 'error': f'{name} needs the native branch_code/report_date query schema for User Access permissions. Its current schema is incompatible; no settings were saved.'}, 400)
+                    hint = (' For a standard tool such as WhatsApp, turn off loan branch/zone enforcement and use standard user/group tool permissions.'
+                            if not known[name].get('loan_scope_mandatory') else '')
+                    return _reply({'ok': False, 'error': f'{name} needs the native branch_code/report_date query schema for application-managed loan access.{hint} No settings were saved.'}, 400)
                 if 'fixed_branch_codes' in item:
                     candidate = AgentTool(name=name, loan_access_mode=item.get('loan_access_mode', 'SIGNED'),
                                           fixed_branch_codes=item['fixed_branch_codes'])

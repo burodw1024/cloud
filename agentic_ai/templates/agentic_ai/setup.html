@@ -109,16 +109,34 @@ function renderTools(tools,roles){
   roles.forEach(role=>{const choice=checkbox(role,tool.roles.includes(role));roleList.append(choice.label);choices.push({role,input:choice.input});});
   fieldset.append(roleList);card.append(fieldset);
   const approval=checkbox('Ask for approval before running',tool.requires_approval);card.append(approval.label);list.append(card);
-  const loanScope=checkbox('Enforce user branch/zone access (loan tools)',tool.requires_loan_scope);loanScope.input.disabled=!!tool.loan_scope_mandatory;card.append(loanScope.label);
-  const scopeStatus=document.createElement('small');scopeStatus.textContent=(tool.loan_scope_mandatory?'Mandatory for this loan tool. ':'')+(tool.loan_scope_contract?'Backend declares the signed-access input.':'Signed-access input is not declared; scoped loan execution needs a backend update.');scopeStatus.hidden=!loanScope.input.checked;loanScope.input.addEventListener('change',()=>{scopeStatus.hidden=!loanScope.input.checked;});card.append(scopeStatus);
-  const modeLabel=document.createElement('label');modeLabel.textContent='Loan access mode';
+  const scopedModes=['UI','APP','FIXED'];
+  const loanScope=checkbox('Enforce user branch/zone access (loan tools only)',tool.requires_loan_scope||scopedModes.includes(tool.loan_access_mode));
+  loanScope.input.disabled=!!tool.loan_scope_mandatory;card.append(loanScope.label);
+  const scopeStatus=document.createElement('small');card.append(scopeStatus);
+  const modeLabel=document.createElement('label');modeLabel.textContent='Loan data authorization';
   const mode=document.createElement('select');
-  [['UI','User Access permissions (application-managed)'],['APP','Application-managed branch scope'],['SIGNED','Legacy signed access'],['FIXED','Legacy fixed NiFi branch scope']].forEach(([value,text])=>{const option=document.createElement('option');option.value=value;option.textContent=text;mode.append(option);});
+  [['UI','User Access permissions (application-managed loan scope)'],['APP','Application-managed branch scope'],['SIGNED','Signed loan access'],['FIXED','Fixed NiFi branch scope']].forEach(([value,text])=>{
+    const option=document.createElement('option');option.value=value;option.textContent=text;
+    if(['UI','APP'].includes(value)&&!tool.application_scope_supported){option.disabled=true;option.title='This tool does not declare the native branch_code/report_date contract.';}
+    mode.append(option);
+  });
   mode.value=tool.loan_access_mode||'SIGNED';modeLabel.append(mode);card.append(modeLabel);
   const branchLabel=document.createElement('label');branchLabel.textContent='Full NiFi branch allowlist (comma-separated, preserve zeros)';
   const branches=document.createElement('input');branches.type='text';branches.value=(tool.fixed_branch_codes||[]).join(',');branchLabel.append(branches);card.append(branchLabel);
-  const note=document.createElement('small');note.textContent='Configure this exact fixed allowlist in NiFi. Users need an allowed group and Django branch/zone access covering every listed branch. No signing key is needed in fixed mode.';card.append(note);
-  const updateMode=()=>{const fixed=mode.value==='FIXED';branchLabel.hidden=!fixed;note.hidden=!fixed;const app=['UI','APP'].includes(mode.value);scopeStatus.textContent=app?'Assign users and their permitted branches in User access. No signing token is required. The native backend must apply the supplied branch filter.':(tool.loan_scope_contract?'Backend declares signed access.':'Signed access requires the backend token contract. Choose User Access permissions for an existing compatible native branch-filtered endpoint.');scopeStatus.hidden=fixed||(!app&&!loanScope.input.checked);loanScope.input.disabled=fixed||app||!!tool.loan_scope_mandatory;if(fixed||app)loanScope.input.checked=true;};mode.onchange=updateMode;updateMode();
+  const note=document.createElement('small');note.textContent='Configure this exact fixed allowlist in NiFi. Users need an allowed group or explicit tool selection and branch/zone access covering every listed branch.';card.append(note);
+  const updateMode=()=>{
+    const scoped=loanScope.input.checked||!!tool.loan_scope_mandatory;
+    const fixed=scoped&&mode.value==='FIXED',app=scoped&&['UI','APP'].includes(mode.value);
+    modeLabel.hidden=!scoped;branchLabel.hidden=!fixed;note.hidden=!fixed;
+    mode.options[2].textContent=scoped?'Signed loan access':'Standard user/group tool permissions';
+    scopeStatus.textContent=!scoped?'Standard tool permissions: assign this tool in User access or through allowed groups. No loan branch scope or loan signing token is required.':
+      app?(tool.application_scope_supported?'Loan data scope comes from User access. The backend must apply its native branch filter.':'This tool cannot use application-managed loan scope. For an ordinary tool such as WhatsApp, turn off loan branch/zone enforcement.'):
+      fixed?'Users must be entitled to the full configured NiFi branch scope.':
+      (tool.loan_scope_contract?'Backend declares signed loan access.':'Signed loan access requires the backend token contract.');
+  };
+  loanScope.input.addEventListener('change',()=>{if(!loanScope.input.checked&&!tool.loan_scope_mandatory){mode.value='SIGNED';branches.value='';}updateMode();});
+  mode.addEventListener('change',()=>{if(scopedModes.includes(mode.value))loanScope.input.checked=true;updateMode();});
+  updateMode();
   catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,loanScope:loanScope.input,mode,branches,choices,metadata});
  });
 }
