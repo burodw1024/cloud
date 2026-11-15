@@ -1,4 +1,5 @@
 {% load static %}
+<link rel="stylesheet" href="{% static 'agentic_ai/wait_learning.css' %}">
 <section class="card query-card" aria-labelledby="query-title">
     <div class="query-heading"><span class="spark" aria-hidden="true">✧</span><h2 id="query-title">What would you like to know?</h2></div>
     <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
@@ -13,6 +14,7 @@
     <section class="result-panel" aria-labelledby="result-title" aria-busy="false">
         <div class="result-heading"><h3 id="result-title">Your results</h3><div><button class="copy-button" id="copy-result" type="button" hidden>Copy full answer</button> <span class="status-badge" id="agent-status" data-state="idle">Ready when you are</span></div></div>
         <div class="result-empty" id="result-empty"><span class="empty-symbol" aria-hidden="true">⌁</span>A little context goes a long way.<br>Ask a question above to get started.</div>
+        {% include 'agentic_ai/wait_learning.html' %}
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         <section id="loan-question-suggestions" aria-label="ব্যবসায়িক প্রশ্নের উদাহরণ" hidden></section>
 
@@ -71,6 +73,7 @@
     </section>
 </section>
 
+<script src="{% static 'agentic_ai/wait_learning.js' %}"></script>
 <script src="{% static 'agentic_ai/report_chart.js' %}"></script>
 <script src="{% static 'agentic_ai/loan_question_help.js' %}"></script>
 <script>
@@ -296,6 +299,7 @@
         expandButton.setAttribute('aria-expanded', 'false'); expandButton.textContent = 'Expand table';
         details.textContent = ''; copyButton.hidden = true; usagePanel.hidden=true;
         result.textContent = 'Your request is running. Larger reports may take a few minutes.';
+        window.BuroWaitLearning?.start(question);
         const started = Date.now();
         const clock = setInterval(() => { details.textContent = 'Waiting for a response · ' + Math.floor((Date.now()-started)/1000) + 's elapsed'; }, 1000);
         try {
@@ -382,6 +386,7 @@
             result.textContent=error.message || 'The request could not be completed. Check the run log before retrying.';
             details.textContent='No automatic retry was sent. Check the run log before submitting again.';
         } finally {
+            window.BuroWaitLearning?.stop();
             clearInterval(clock); button.disabled=false; form.elements.message.disabled=false;
             button.textContent='Ask assistant →'; panel.setAttribute('aria-busy','false');
         }
