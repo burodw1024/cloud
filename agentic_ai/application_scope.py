@@ -1,4 +1,4 @@
-"""App-owned authorization for trusted native loan query endpoints.
+"""App-owned authorization for trusted native loan and savings endpoints.
 
 The application derives the scope from its database, never model/user input.
 NiFi receives either the application branch list or a checked native branch_code.
@@ -15,6 +15,28 @@ class ApplicationLoanGrant:
     branches: list
     query: dict
     native_branch_filter: bool = False
+    report_kind: str = 'loan'
+
+
+def savings_schema_supported(tool):
+    from .business_question_help import is_savings_report_tool
+    schema = tool.inputSchema
+    props = schema.get('properties', {})
+    operations = props.get('operation', {}).get('enum', [])
+    supported = {'period-summary', 'branch-summary', 'zone-summary', 'zone-branches',
+                 'branch-product-summary', 'zone-product-summary'}
+    return (is_savings_report_tool(tool) and bool(operations)
+            and all(isinstance(operation, str) and operation in supported for operation in operations)
+            and all(props.get(key, {}).get('type') == 'string' for key in ('branch_code', 'zone_code'))
+            and {'operation', 'from_date', 'to_date_exclusive'} <= set(schema.get('required', []))
+            and SCOPE_FIELD not in props and SCOPE_FIELD not in schema.get('required', [])
+            and 'loan_access_token' not in schema.get('required', []))
+
+
+def tool_supported(tool):
+    from .native_loan_query import supports_native_query
+    return (savings_schema_supported(tool)
+            or schema_supported(tool.inputSchema) and supports_native_query(tool, {tool.name}))
 
 
 def schema_supported(schema):
@@ -33,14 +55,26 @@ def schema_supported(schema):
 def grant(access, name, arguments, tool, backend_arguments=None):
     from .loan_access import LoanAccessDenied, LoanAccessUnavailable
     from .loan_scope_backend import canonical
-    from .native_loan_query import supports_native_query
-    if not schema_supported(tool.inputSchema) or not supports_native_query(tool, {name}):
-        raise LoanAccessUnavailable('Application-managed reporting requires the native loan query contract with branch_code and report_date, without a required loan_access_token.')
+    savings = savings_schema_supported(tool)
+    if not tool_supported(tool):
+        raise LoanAccessUnavailable('Application-managed reporting requires a supported native loan or savings contract with an exact branch_code filter, without a required loan_access_token.')
     query = dict(arguments if backend_arguments is None else backend_arguments)
     if canonical(query) != canonical(arguments):
         raise LoanAccessDenied('Application-managed query parameters changed before authorization.')
     if any(k in query for k in ('branchCode', 'zoneCode', 'zoneName')):
         raise LoanAccessDenied('Use the native branch_code and zone_code fields.')
+    if savings:
+        from datetime import date
+        from jsonschema import ValidationError
+        from .mcp_gateway import _validator
+        try:
+            _validator(tool.inputSchema).validate(query)
+            start, end = (date.fromisoformat(query[key]) for key in ('from_date', 'to_date_exclusive'))
+            if (start.isoformat() != query['from_date'] or end.isoformat() != query['to_date_exclusive']
+                    or not 0 < (end - start).days <= 366):
+                raise ValueError
+        except (ValueError, TypeError, KeyError, ValidationError) as exc:
+            raise LoanAccessDenied('Use a supported savings operation and an ISO date range of 1 to 366 days.') from exc
     rows = access['directory']
     if query.get('zone_code'):
         rows = [row for row in rows if row['zone__code'] == query['zone_code']]
@@ -57,7 +91,8 @@ def grant(access, name, arguments, tool, backend_arguments=None):
             raise LoanAccessDenied('Choose one permitted branch for this report. This processor accepts branch_code, not a multi-branch access list.')
         query['branch_code'] = branches[0]
     return ApplicationLoanGrant({'subject': access['subject'], 'version': access['version'],
-        'mode': 'APP', 'tool': name, 'branches': branches}, branches, query, native_branch_filter)
+        'mode': 'APP', 'tool': name, 'branches': branches}, branches, query, native_branch_filter,
+        'savings' if savings else 'loan')
 
 
 def validate_response(raw, grant):
@@ -85,7 +120,10 @@ def validate_response(raw, grant):
             for item in value:
                 check(item)
     check(data)
-    if grant.query.get('level', 'LOAN') == 'LOAN':
+    if grant.report_kind == 'savings':
+        if any(scope.get(key) != grant.query[key] for key in ('from_date', 'to_date_exclusive')):
+            raise LoanAccessDenied('The savings backend did not confirm the requested date range.')
+    elif grant.query.get('level', 'LOAN') == 'LOAN':
         for row in data['data']:
             if not isinstance(row, dict) or row.get('BRANCHCODE') not in allowed:
                 raise LoanAccessDenied('Loan rows must confirm their assigned branch.')
