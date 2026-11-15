@@ -1,5 +1,6 @@
 """Bounded, role-filtered MCP discovery and project-model tool selection."""
 import asyncio
+from contextlib import AsyncExitStack
 import json
 import logging
 import math
@@ -20,6 +21,7 @@ from django.utils import timezone
 from chat.dynamic_config import get_setting, get_llm_model
 from .models import AgentApprovalRequest, AgentRunLog, AgentTool
 from .permissions import get_user_role_names
+from .performance import stage, summary as performance_summary
 
 logger = logging.getLogger(__name__)
 NO_TOOLS = (
@@ -460,142 +462,153 @@ async def _run(config, user, query, allowed_names):
 
     state = config.setdefault("state", {})
     headers = {"Authorization": "Bearer " + config["token"]} if config["token"] else {}
-    async with streamablehttp_client(
-        config["url"], headers=headers, timeout=config["timeout"],
-        sse_read_timeout=config["timeout"], httpx_client_factory=mcp_http_client,
-    ) as (read, write, _):
-        async with ClientSession(read, write) as session:
+    async with AsyncExitStack() as stack:
+        with stage(state, 'connection'):
+            read, write, _ = await stack.enter_async_context(streamablehttp_client(
+                config["url"], headers=headers, timeout=config["timeout"],
+                sse_read_timeout=config["timeout"], httpx_client_factory=mcp_http_client,
+            ))
+            session = await stack.enter_async_context(ClientSession(read, write))
             await session.initialize()
+        with stage(state, 'discovery'):
             tools = await discover_tools(session, allowed_names)
-            if not tools:
-                return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
-            from .application_scope import ApplicationLoanGrant, SCOPE_FIELD
-            from .loan_access import strip_server_authorization, LoanGrant, FixedLoanGrant, validate_response, current_access
-            original_tools = {tool.name: tool for tool in tools}
-            tools = strip_server_authorization(tools)
-            from .member_scope import scoped_tools, member_call
-            projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
-            from .loan_question_help import is_loan_question_help, loan_question_help
-            from .business_question_help import question_domain, business_question_help, is_business_question_help
-            if is_loan_question_help(query) or is_business_question_help(query):
-                if question_domain(query) != 'loans':
-                    return await sync_to_async(business_question_help)(user, query, tools, projection_tools)
-                from .loan_access import own_access_summary
-                examples = await sync_to_async(own_access_summary)(user)
-                return loan_question_help(tools, projection_tools, examples)
-            from .zone_ranking import (is_zone_due_ranking, is_ranking_request, unavailable_ranking)
-            from .loan_report_contract import (prepare_tools, ranking_candidates,
-                                                is_ranking_call, validate_ranking_call)
-            candidates = prepare_tools(tools, projection_tools)
-            if is_zone_due_ranking(query):
-                candidates = ranking_candidates(candidates, projection_tools)
-                if not candidates:
-                    return unavailable_ranking()
-            message, selection = await _select_tool(config, query, scoped_tools(candidates, projection_tools))
-            if selection is None:
-                content = message.get("content")
-                return {"ok": True, "tool_executed": False, "kind": "clarification",
-                        "answer": content if isinstance(content, str) and content else "Please provide more details."}
-            name, arguments = selection
-            from .native_loan_query import supports_native_query, validate_native_call, present_native_query
-            selected_tool = next(tool for tool in tools if tool.name == name)
-            native_query = supports_native_query(selected_tool, projection_tools)
-            if native_query:
-                try:
-                    validate_native_call(selected_tool, arguments, query)
-                except (ValueError, ValidationError) as exc:
-                    raise GatewayError("invalid_native_query", "Provide explicit report and disbursement dates, identifiers, ranking level and result count matching the question. No tool was executed.", 422) from exc
-            ranking_call = is_ranking_call(name, arguments, tools, projection_tools)
-            if not native_query and (is_zone_due_ranking(query) and not ranking_call
-                    or name in projection_tools and is_ranking_request(query) and not ranking_call):
+        if not tools:
+            return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
+        from .application_scope import ApplicationLoanGrant, SCOPE_FIELD
+        from .loan_access import strip_server_authorization, LoanGrant, FixedLoanGrant, validate_response, current_access
+        original_tools = {tool.name: tool for tool in tools}
+        tools = strip_server_authorization(tools)
+        from .member_scope import scoped_tools, member_call
+        projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
+        from .loan_question_help import is_loan_question_help, loan_question_help
+        from .business_question_help import question_domain, business_question_help, is_business_question_help
+        if is_loan_question_help(query) or is_business_question_help(query):
+            if question_domain(query) != 'loans':
+                return await sync_to_async(business_question_help)(user, query, tools, projection_tools)
+            from .loan_access import own_access_summary
+            examples = await sync_to_async(own_access_summary)(user)
+            return loan_question_help(tools, projection_tools, examples)
+        from .zone_ranking import (is_zone_due_ranking, is_ranking_request, unavailable_ranking)
+        from .loan_report_contract import (prepare_tools, ranking_candidates,
+                                            is_ranking_call, validate_ranking_call)
+        candidates = prepare_tools(tools, projection_tools)
+        if is_zone_due_ranking(query):
+            candidates = ranking_candidates(candidates, projection_tools)
+            if not candidates:
                 return unavailable_ranking()
-            ranking_arguments = None
-            if native_query:
-                backend_arguments, member_scope = dict(arguments), None
-            elif ranking_call:
-                try:
-                    ranking_arguments = validate_ranking_call(name, arguments, tools, projection_tools, query)
-                except (ValueError, ValidationError) as exc:
-                    raise GatewayError("invalid_zone_scope", "Provide a zone code or exact zone name, ISO date, and top count 1–100. This operation ranks members by highest overdue amount across the zone; other metrics or branch filters need a supported operation. No tool was executed.", 422) from exc
-                backend_arguments, member_scope = dict(arguments), None
-            else:
-                try:
-                    backend_arguments, member_scope = member_call(name, arguments, tools, projection_tools, query)
-                except (ValueError, ValidationError) as exc:
-                    raise GatewayError("invalid_member_scope", "Provide the exact member ID, branch code and report date in your question. No tool was executed.", 422) from exc
-            report_config = {**config, "member_scope": member_scope}
-            plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
-            state.update(tool=name, plan=plan)
+        with stage(state, 'selection'):
+            message, selection = await _select_tool(config, query, scoped_tools(candidates, projection_tools))
+        if selection is None:
+            content = message.get("content")
+            return {"ok": True, "tool_executed": False, "kind": "clarification",
+                    "answer": content if isinstance(content, str) and content else "Please provide more details."}
+        name, arguments = selection
+        from .native_loan_query import supports_native_query, validate_native_call, present_native_query
+        selected_tool = next(tool for tool in tools if tool.name == name)
+        native_query = supports_native_query(selected_tool, projection_tools)
+        if native_query:
+            try:
+                validate_native_call(selected_tool, arguments, query)
+            except (ValueError, ValidationError) as exc:
+                raise GatewayError("invalid_native_query", "Provide explicit report and disbursement dates, identifiers, ranking level and result count matching the question. No tool was executed.", 422) from exc
+        ranking_call = is_ranking_call(name, arguments, tools, projection_tools)
+        if not native_query and (is_zone_due_ranking(query) and not ranking_call
+                or name in projection_tools and is_ranking_request(query) and not ranking_call):
+            return unavailable_ranking()
+        ranking_arguments = None
+        if native_query:
+            backend_arguments, member_scope = dict(arguments), None
+        elif ranking_call:
+            try:
+                ranking_arguments = validate_ranking_call(name, arguments, tools, projection_tools, query)
+            except (ValueError, ValidationError) as exc:
+                raise GatewayError("invalid_zone_scope", "Provide a zone code or exact zone name, ISO date, and top count 1–100. This operation ranks members by highest overdue amount across the zone; other metrics or branch filters need a supported operation. No tool was executed.", 422) from exc
+            backend_arguments, member_scope = dict(arguments), None
+        else:
+            try:
+                backend_arguments, member_scope = member_call(name, arguments, tools, projection_tools, query)
+            except (ValueError, ValidationError) as exc:
+                raise GatewayError("invalid_member_scope", "Provide the exact member ID, branch code and report date in your question. No tool was executed.", 422) from exc
+        report_config = {**config, "member_scope": member_scope}
+        plan = {"intent": "mcp_tool_call", "tool": name, "params": arguments, "selection_mode": message.get("selection_mode", "native")}
+        state.update(tool=name, plan=plan)
+        with stage(state, 'authorization'):
             decision = await sync_to_async(_decision)(user, name, arguments, original_tools[name], backend_arguments)
-            loan_grant = decision if isinstance(decision, (LoanGrant, FixedLoanGrant, ApplicationLoanGrant)) else None
-            if decision and not loan_grant:
-                return dict(decision, plan=plan)
-            if loan_grant:
-                from .loan_scope_backend import TOKEN_FIELD
-                if isinstance(loan_grant, LoanGrant):
-                    backend_arguments[TOKEN_FIELD] = loan_grant.token
-                elif isinstance(loan_grant, ApplicationLoanGrant):
-                    backend_arguments = dict(loan_grant.query)
-                    plan['params'] = dict(loan_grant.query)
-                    if not loan_grant.native_branch_filter:
-                        backend_arguments[SCOPE_FIELD] = list(loan_grant.branches)
-                _validator(original_tools[name].inputSchema).validate(backend_arguments)
-                state['loan_access'] = loan_grant.access
-            # Persist intent before dispatch; if audit storage is unavailable, do not call.
-            audit_id = config.get("audit_id")
-            if audit_id:
+        loan_grant = decision if isinstance(decision, (LoanGrant, FixedLoanGrant, ApplicationLoanGrant)) else None
+        if decision and not loan_grant:
+            return dict(decision, plan=plan)
+        if loan_grant:
+            from .loan_scope_backend import TOKEN_FIELD
+            if isinstance(loan_grant, LoanGrant):
+                backend_arguments[TOKEN_FIELD] = loan_grant.token
+            elif isinstance(loan_grant, ApplicationLoanGrant):
+                backend_arguments = dict(loan_grant.query)
+                plan['params'] = dict(loan_grant.query)
+                if not loan_grant.native_branch_filter:
+                    backend_arguments[SCOPE_FIELD] = list(loan_grant.branches)
+            _validator(original_tools[name].inputSchema).validate(backend_arguments)
+            state['loan_access'] = loan_grant.access
+        # Persist intent before dispatch; if audit storage is unavailable, do not call.
+        audit_id = config.get("audit_id")
+        if audit_id:
+            with stage(state, 'dispatch_audit'):
                 updated = await sync_to_async(AgentRunLog.objects.filter(pk=audit_id).update)(
                     selected_tool=name, tool_input=plan["params"], tool_output_summary="Tool dispatch started; result pending.")
-                if updated != 1:
-                    raise GatewayError("audit_unavailable", "Audit storage is unavailable; the tool was not executed.", 503)
-            state["dispatched"] = True
+            if updated != 1:
+                raise GatewayError("audit_unavailable", "Audit storage is unavailable; the tool was not executed.", 503)
+        state["dispatched"] = True
+        with stage(state, 'backend'):
             result = await session.call_tool(name, arguments=backend_arguments)
-            state["completed"] = True
-            raw = result.model_dump(mode="json", by_alias=True, exclude_none=True)
-            if len(json.dumps(raw).encode()) > MAX_RESULT_BYTES:
-                raise GatewayError("response_too_large", "The tool result exceeded the response limit. Request a narrower report.")
-            if loan_grant:
-                try:
+        state["completed"] = True
+        raw = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if len(json.dumps(raw).encode()) > MAX_RESULT_BYTES:
+            raise GatewayError("response_too_large", "The tool result exceeded the response limit. Request a narrower report.")
+        if loan_grant:
+            try:
+                with stage(state, 'scope_validation'):
                     validate_response(raw, loan_grant)
                     if not await sync_to_async(current_access)(user, loan_grant.access):
                         raise ValueError('Access changed while the report was running.')
-                except (ValueError, TypeError, KeyError) as exc:
-                    state['scope_failure'] = str(exc)[:300]
-                    raise GatewayError('loan_scope_unverified', 'Loan authorization changed or the backend scope could not be verified. No report was displayed.', 403) from exc
-            if native_query:
-                if result.isError:
-                    raise GatewayError("native_query_backend_error", "The loan query endpoint returned an error. No financial data was displayed.")
-                try:
+            except (ValueError, TypeError, KeyError) as exc:
+                state['scope_failure'] = str(exc)[:300]
+                raise GatewayError('loan_scope_unverified', 'Loan authorization changed or the backend scope could not be verified. No report was displayed.', 403) from exc
+        if native_query:
+            if result.isError:
+                raise GatewayError("native_query_backend_error", "The loan query endpoint returned an error. No financial data was displayed.")
+            try:
+                with stage(state, 'presentation'):
                     presentation = present_native_query(raw, loan_grant.query if isinstance(loan_grant, ApplicationLoanGrant) else arguments)
-                except (ValueError, TypeError, KeyError) as exc:
-                    raise GatewayError("invalid_native_query_result", "The loan query result could not be verified. No financial data was displayed.") from exc
-                return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
-            if ranking_call:
-                if result.isError:
-                    raise GatewayError("ranking_backend_error", "The loan report endpoint could not complete the ranking operation. No partial financial report was displayed. Check the audit log before retrying.")
-                from .zone_ranking import present_ranking
-                from .report_presentation import summarize_report
-                try:
+            except (ValueError, TypeError, KeyError) as exc:
+                raise GatewayError("invalid_native_query_result", "The loan query result could not be verified. No financial data was displayed.") from exc
+            return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
+        if ranking_call:
+            if result.isError:
+                raise GatewayError("ranking_backend_error", "The loan report endpoint could not complete the ranking operation. No partial financial report was displayed. Check the audit log before retrying.")
+            from .zone_ranking import present_ranking
+            from .report_presentation import summarize_report
+            try:
+                with stage(state, 'presentation'):
                     presentation = present_ranking(raw, ranking_arguments)
                     presentation = await summarize_report(report_config, presentation, _model_response)
-                except (ValueError, TypeError, KeyError) as exc:
-                    raise GatewayError("invalid_zone_ranking", "The zone report could not be verified. No financial data was displayed. Check the backend ranking contract.") from exc
-                return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
-            # BEGIN_AGENTIC_REPORT_PROJECTION
-            projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
-            if name in projection_tools and not result.isError:
-                from .report_presentation import present_report
-                try:
+            except (ValueError, TypeError, KeyError) as exc:
+                raise GatewayError("invalid_zone_ranking", "The zone report could not be verified. No financial data was displayed. Check the backend ranking contract.") from exc
+            return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
+        # BEGIN_AGENTIC_REPORT_PROJECTION
+        projection_tools = {x.strip() for x in get_setting("MCP_REPORT_PROJECTION_TOOLS", "loan-due-report").split(",") if x.strip()}
+        if name in projection_tools and not result.isError:
+            from .report_presentation import present_report
+            try:
+                with stage(state, 'presentation'):
                     presentation = await present_report(report_config, query, raw, _model_response)
-                except Exception as exc:
-                    raise GatewayError("report_presentation_failed", "The tool completed, but its report could not be safely formatted. No unfiltered data was returned. Check the audit log before retrying.") from exc
-                return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
-            # END_AGENTIC_REPORT_PROJECTION
-            texts = [item.text for item in result.content if item.type == "text"]
-            answer = "\n".join(texts) or json.dumps(raw.get("structuredContent", raw), ensure_ascii=False)
-            return {"ok": not result.isError, "tool": name, "plan": plan,
-                    "tool_executed": True, "answer": answer, "raw": raw,
-                    **({"code": "tool_error", "http_status": 502} if result.isError else {})}
+            except Exception as exc:
+                raise GatewayError("report_presentation_failed", "The tool completed, but its report could not be safely formatted. No unfiltered data was returned. Check the audit log before retrying.") from exc
+            return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
+        # END_AGENTIC_REPORT_PROJECTION
+        texts = [item.text for item in result.content if item.type == "text"]
+        answer = "\n".join(texts) or json.dumps(raw.get("structuredContent", raw), ensure_ascii=False)
+        return {"ok": not result.isError, "tool": name, "plan": plan,
+                "tool_executed": True, "answer": answer, "raw": raw,
+                **({"code": "tool_error", "http_status": 502} if result.isError else {})}
 
 
 async def _bounded_run(config, user, query, allowed):
@@ -630,27 +643,30 @@ def run_mcp_query(user=None, query="", session_id=None):
                 "answer": f"Provide a nonempty query of at most {MAX_QUERY_CHARS} characters."}
     try:
         # Create a durable attempt before any external operation; fail closed if it fails.
-        audit = AgentRunLog.objects.create(
-            user=user if getattr(user, "is_authenticated", False) else None,
-            user_query=query, detected_intent="mcp_tool_call", status="failed", risk_level="medium",
-            session_id=session_id, error_message=f"request_id={request_id}; request pending",
-        )
+        with stage(state, 'audit'):
+            audit = AgentRunLog.objects.create(
+                user=user if getattr(user, "is_authenticated", False) else None,
+                user_query=query, detected_intent="mcp_tool_call", status="failed", risk_level="medium",
+                session_id=session_id, error_message=f"request_id={request_id}; request pending",
+            )
     except Exception:
         logger.error("MCP audit unavailable request_id=%s", request_id)
         return {"ok": False, "code": "audit_unavailable", "http_status": 503, "request_id": request_id,
                 "answer": "Audit storage is unavailable; the tool was not executed."}
     try:
-        allowed = _authorized_names(user)
+        with stage(state, 'permissions'):
+            allowed = _authorized_names(user)
         if not allowed:
             result = {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
         else:
-            config = load_config()
+            with stage(state, 'configuration'):
+                config = load_config()
             config.update(state=state, audit_id=audit.pk, usage_meter=meter)
             result = async_to_sync(_bounded_run)(config, user, query, allowed)
     except Exception as exc:
         code, answer, status = _failure(exc, state)
         logger.warning("MCP request failed request_id=%s code=%s exception_type=%s", request_id, code, type(exc).__name__)
-        result = {"ok": False, "status": "failed", "code": code, "http_status": status, "answer": answer, **state}
+        result = {"ok": False, "status": "failed", "code": code, "http_status": status, "answer": answer, **{key: value for key, value in state.items() if not key.startswith("_")}}
         result.pop("dispatched", None)
         result.pop("completed", None)
         if state.get("dispatched") and not state.get("completed"):
@@ -661,17 +677,19 @@ def run_mcp_query(user=None, query="", session_id=None):
     except Exception:
         prices = {}
     result["usage"] = summarize_usage(meter, prices)
-    if result.get('ok') and state.get('loan_access'):
-        from .loan_access import current_access
-        if current_access(user, state['loan_access']) and result.get('tool') in _authorized_names(user):
-            result['loan_access'] = state['loan_access']
-        else:
-            result = {'ok': False, 'status': 'blocked', 'http_status': 403, 'code': 'loan_access_denied',
-                      'answer': 'Loan access changed before the response was returned.', 'usage': result['usage']}
+    with stage(state, 'final_access'):
+        if result.get('ok') and state.get('loan_access'):
+            from .loan_access import current_access
+            if current_access(user, state['loan_access']) and result.get('tool') in _authorized_names(user):
+                result['loan_access'] = state['loan_access']
+            else:
+                result = {'ok': False, 'status': 'blocked', 'http_status': 403, 'code': 'loan_access_denied',
+                          'answer': 'Loan access changed before the response was returned.', 'usage': result['usage']}
     result["request_id"] = request_id
     result["duration_ms"] = round((time.monotonic() - started) * 1000)
     try:
         AgentRunLog.objects.filter(pk=audit.pk).update(
+            performance_summary=performance_summary(state, result["duration_ms"], request_id, result),
             usage_summary=result["usage"],
             selected_tool=result.get("tool"), tool_input=result.get("plan", {}).get("params", {}),
             final_answer=str(result["answer"])[:5000],

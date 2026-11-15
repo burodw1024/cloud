@@ -158,6 +158,7 @@ class AgentRunLog(models.Model):
     tool_input = models.JSONField(default=dict, blank=True)
     tool_output_summary = models.TextField(blank=True, null=True)
     usage_summary = models.JSONField(default=dict, blank=True)
+    performance_summary = models.JSONField(default=dict, blank=True)
     final_answer = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="success")
     risk_level = models.CharField(max_length=50, choices=RISK_CHOICES, default="low")
