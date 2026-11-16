@@ -5,6 +5,21 @@ import subprocess
 
 import psycopg2
 
+MONITORING_VIEWS = {
+    ('metric_helpers', 'index_bloat', 'v', None),
+    ('metric_helpers', 'nearly_exhausted_sequences', 'v', None),
+    ('metric_helpers', 'pg_stat_statements', 'v', None),
+    ('metric_helpers', 'table_bloat', 'v', None),
+    ('public', 'pg_stat_kcache', 'v', 'pg_stat_kcache'),
+    ('public', 'pg_stat_kcache_detail', 'v', 'pg_stat_kcache'),
+    ('public', 'pg_stat_statements', 'v', 'pg_stat_statements'),
+    ('public', 'pg_stat_statements_info', 'v', 'pg_stat_statements'),
+}
+
+
+def blocking_objects(rows):
+    return [row for row in rows if tuple(row) not in MONITORING_VIEWS]
+
 
 def require(ok, message):
     if not ok:
@@ -26,12 +41,18 @@ def main():
         with connection.cursor() as cursor:
             cursor.execute('SELECT pg_try_advisory_lock(17632086)')
             require(cursor.fetchone()[0], 'Another metadata initialization is running')
-            cursor.execute("""SELECT n.nspname, c.relname FROM pg_class c
+            cursor.execute("""SELECT n.nspname, c.relname, c.relkind, e.extname FROM pg_class c
                 JOIN pg_namespace n ON n.oid=c.relnamespace
+                LEFT JOIN pg_depend d ON d.classid='pg_class'::regclass AND d.objid=c.oid
+                    AND d.deptype='e' AND d.refclassid='pg_extension'::regclass
+                LEFT JOIN pg_extension e ON e.oid=d.refobjid
                 WHERE c.relkind IN ('r','p','m','f','v')
                 AND n.nspname NOT IN ('pg_catalog','information_schema')
                 AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%'""")
-            require(not cursor.fetchall(), 'Database is not empty. No migrations or account resets were run.')
+            objects = cursor.fetchall()
+            blocked = blocking_objects(objects)
+            require(not blocked, 'Database has unrecognized objects; no migrations or account resets were run: '+repr(blocked[:10]))
+            print('Verified monitoring views retained:', len(objects), flush=True)
         print('Verified empty metadata database; initializing Superset 4.1.2.', flush=True)
         subprocess.run(['superset', 'db', 'upgrade'], check=True)
         from superset.app import create_app
