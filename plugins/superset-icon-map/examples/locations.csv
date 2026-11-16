@@ -1,0 +1,5 @@
+location,latitude,longitude,category,value,icon
+Demo Dhaka,23.8103,90.4125,Central,120,branch
+Demo Chattogram,22.3569,91.7832,Coastal,80,pin
+Demo Sylhet,24.8949,91.8687,Central,40,person
+Demo Khulna,22.8456,89.5403,Coastal,-20,warning

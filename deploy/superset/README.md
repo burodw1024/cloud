@@ -185,3 +185,7 @@ kubectl --context mamun -n superset-onprem logs -f deployment/superset -c supers
 
 YAML, Python and shell syntax were checked locally. No connection to the
 on-prem database, cluster apply or live resource measurement was performed.
+
+## BURO Icon Map chart
+
+Follow [ICON_MAP.md](ICON_MAP.md) to add the optional map chart to Superset 4.1.2. Build on a connected machine, copy/import the finished image onto 192.168.1.176, and keep `imagePullPolicy: Never`.
