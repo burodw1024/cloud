@@ -2,8 +2,10 @@ import json
 from pathlib import Path
 import runpy
 import sys
+import tempfile
 import tomllib
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -66,3 +68,31 @@ config_path="/custom/hosts:/etc/containerd/certs.d"
         self.assertEqual(hosts['server'], 'http://192.168.1.224:80')
         self.assertEqual(list(hosts['host']), ['http://192.168.1.224:80'])
         self.assertEqual(hosts['host'][hosts['server']]['capabilities'], ['pull', 'resolve'])
+
+    def test_existing_disk_path_still_restarts_daemon_before_cri_pull(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            hosts = root/'certs'
+            config = root/'config.toml'
+            original = 'version=3\n[plugins."io.containerd.cri.v1.images".registry]\nconfig_path='+json.dumps(str(hosts))+'\n'
+            config.write_text(original)
+            def output(command, **kwargs):
+                if command[0] == 'ip':
+                    return json.dumps([{'addr_info': [{'local': '192.168.1.176'}]}])
+                return original
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                return SimpleNamespace(returncode=0)
+            main = self.helper['main']
+            with patch.object(sys, 'argv', ['configure_registry.py']), patch('os.geteuid', return_value=0), \
+                 patch('shutil.which', return_value='/usr/bin/tool'), \
+                 patch.dict(main.__globals__, {'active_config': lambda: config}), \
+                 patch('subprocess.check_output', side_effect=output), patch('subprocess.run', side_effect=run):
+                main()
+            restart = calls.index(['systemctl', 'restart', 'containerd'])
+            pull = next(i for i, command in enumerate(calls) if 'pull' in command)
+            self.assertLess(restart, pull)
+            self.assertEqual(config.read_text(), original)
+            self.assertTrue(list(root.glob('config.toml.backup-*')))
+            self.assertTrue((hosts/'192.168.1.224:80/hosts.toml').is_file())

@@ -129,28 +129,30 @@ def main():
             shutil.copy2(hosts, str(hosts)+'.backup-'+stamp)
         hosts.write_text(HOSTS)
         os.chmod(hosts, 0o644)
+        # config dump reads disk, not the running daemon. Reload even when the
+        # path is already present, since the service may predate that setting.
+        backup = Path(str(config)+'.backup-'+stamp)
+        shutil.copy2(config, backup)
         if candidate:
-            backup = Path(str(config)+'.backup-'+stamp)
-            shutil.copy2(config, backup)
             os.chmod(candidate, config.stat().st_mode & 0o777)
             os.chown(candidate, config.stat().st_uid, config.stat().st_gid)
             os.replace(candidate, config)
             candidate = None
-            try:
-                subprocess.run(['systemctl', 'restart', 'containerd'], check=True)
-                subprocess.run(['systemctl', 'is-active', '--quiet', 'containerd'], check=True)
-                for _ in range(30):
-                    probe = subprocess.run(cri+['info'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if probe.returncode == 0:
-                        break
-                    time.sleep(1)
-                else:
-                    raise RuntimeError('Kubernetes CRI plugin did not become ready')
-            except (subprocess.CalledProcessError, RuntimeError):
-                shutil.copy2(backup, config)
-                subprocess.run(['systemctl', 'restart', 'containerd'], check=True)
-                raise RuntimeError('Containerd restart failed; original configuration restored. Inspect service logs.')
-            print('Containerd registry path enabled. Original configuration:', backup)
+        try:
+            subprocess.run(['systemctl', 'restart', 'containerd'], check=True)
+            subprocess.run(['systemctl', 'is-active', '--quiet', 'containerd'], check=True)
+            for _ in range(30):
+                probe = subprocess.run(cri+['info'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if probe.returncode == 0:
+                    break
+                time.sleep(1)
+            else:
+                raise RuntimeError('Kubernetes CRI plugin did not become ready')
+        except (subprocess.CalledProcessError, RuntimeError):
+            shutil.copy2(backup, config)
+            subprocess.run(['systemctl', 'restart', 'containerd'], check=True)
+            raise RuntimeError('Containerd restart failed; original configuration restored. Inspect service logs.')
+        print('Containerd reloaded. Original configuration:', backup)
         print('HTTP registry host configuration:', hosts)
         subprocess.run(cri+['pull', args.image], check=True)
         subprocess.run(cri+['inspecti', args.image], check=True, stdout=subprocess.DEVNULL)

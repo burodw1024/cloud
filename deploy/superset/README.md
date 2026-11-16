@@ -96,8 +96,8 @@ active containerd configuration, backs up changed files, and configures HTTP
 only for 192.168.1.224:80. Existing config_path is reused. If config_path is
 unset, it edits containerd 1.x/version-2 or 2.x/version-3 syntax without replacing
 other runtime settings; imported/unsupported layouts stop for inspection.
-The script validates the candidate, restarts containerd only if config_path must
-change, checks service/CRI readiness and restores the original config if that
+The script validates the candidate, restarts containerd so the running CRI service reloads the on-disk registry
+path, checks service/CRI readiness and restores the original config if that
 restart fails. A direct CRI image pull and inspection verify the result. Run it
 on the actual Superset node, not on the Kubernetes management machine.
 
