@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 set +x
+umask 077
 export KUBE_CONTEXT="${KUBE_CONTEXT:-mamun}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }
-
 for tool in kubectl python3; do
   command -v "$tool" >/dev/null || { echo "Missing command: $tool" >&2; exit 1; }
 done
@@ -21,29 +21,68 @@ for service in json.load(sys.stdin)["items"]:
     if any(p.get("nodePort")==32086 for p in service["spec"].get("ports", [])):
         assert (service["metadata"]["namespace"],service["metadata"]["name"]) == ("superset-onprem","superset"), "NodePort 32086 is already used by another Service"
 '
+# An existing database must use its matching Superset version, not a new default.
+if [[ -z "${EXISTING_SUPERSET_IMAGE:-}" ]]; then
+  EXISTING_SUPERSET_IMAGE="$(k -n superset get deployment superset -o json | python3 -c '
+import json,sys
+containers=json.load(sys.stdin)["spec"]["template"]["spec"]["containers"]
+candidates=[c for c in containers if c["name"]=="superset"]
+if not candidates and len(containers)==1: candidates=containers
+assert len(candidates)==1, "Set EXISTING_SUPERSET_IMAGE to the version matching the existing database"
+print(candidates[0]["image"])
+')"
+fi
+export EXISTING_SUPERSET_IMAGE
+python3 -c '
+import os,re
+image=os.environ["EXISTING_SUPERSET_IMAGE"]
+assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/@-]+",image), "Invalid image reference"
+assert "@sha256:" in image or (":" in image.rsplit("/",1)[-1] and not image.endswith(":latest")), "Use the exact existing Superset version or digest, not latest"
+'
 k create namespace superset-onprem --dry-run=client -o yaml | k apply -f -
+local_database="$(k -n superset-onprem get deployment superset-db --ignore-not-found -o name)"
+[[ -z "$local_database" ]] || { echo 'The earlier local-database installation exists. Stop here and plan metadata migration before changing databases; nothing was deleted.' >&2; exit 1; }
 existing="$(k -n superset-onprem get secret superset-secrets --ignore-not-found -o name)"
 if [[ -z "$existing" ]]; then
-  database="$(k -n superset-onprem get deployment superset-db --ignore-not-found -o name)"
-  [[ -z "$database" ]] || { echo 'Database already exists but its Secret is missing. Restore the original Secret; do not generate replacement credentials.' >&2; exit 1; }
+  read -r -s -p 'Existing PostgreSQL password: ' POSTGRES_PASSWORD
+  printf '\n'
+  read -r -s -p 'Original existing Superset SUPERSET_SECRET_KEY (not the database password): ' SUPERSET_SECRET_KEY
+  printf '\n'
+  [[ -n "$POSTGRES_PASSWORD" && -n "$SUPERSET_SECRET_KEY" ]] || { echo 'Both existing secrets are required. No replacement key is generated.' >&2; exit 1; }
+  export POSTGRES_PASSWORD SUPERSET_SECRET_KEY
   python3 - <<'PY' | k create -f -
-import json,secrets
+import json,os
 print(json.dumps({
     'apiVersion':'v1','kind':'Secret',
     'metadata':{'name':'superset-secrets','namespace':'superset-onprem'},
     'type':'Opaque','stringData':{
-        'POSTGRES_USER':'superset','POSTGRES_DB':'superset',
-        'POSTGRES_PASSWORD':secrets.token_urlsafe(36),
-        'SUPERSET_SECRET_KEY':secrets.token_urlsafe(64),
-        'ADMIN_USERNAME':'admin','ADMIN_EMAIL':'admin@buro.local',
-        'ADMIN_PASSWORD':secrets.token_urlsafe(24)}}))
+        'POSTGRES_HOST':'192.168.1.223','POSTGRES_PORT':'5432',
+        'POSTGRES_USER':'supersetadmin','POSTGRES_DB':'superset',
+        'POSTGRES_SSLMODE':os.environ.get('POSTGRES_SSLMODE','require'),
+        'POSTGRES_PASSWORD':os.environ['POSTGRES_PASSWORD'],
+        'SUPERSET_SECRET_KEY':os.environ['SUPERSET_SECRET_KEY']}}))
 PY
+  unset POSTGRES_PASSWORD SUPERSET_SECRET_KEY
 fi
-k apply --dry-run=server -f "$SOURCE_DIR/deploy.yaml" >/dev/null
-k apply -f "$SOURCE_DIR/deploy.yaml"
-k -n superset-onprem rollout status deployment/superset-db --timeout=900s
+# Check destination metadata without printing any credential.
+k -n superset-onprem get secret superset-secrets -o json | python3 -c '
+import base64,json,sys
+values=json.load(sys.stdin)["data"]
+for key,expected in {"POSTGRES_HOST":"192.168.1.223","POSTGRES_PORT":"5432","POSTGRES_USER":"supersetadmin","POSTGRES_DB":"superset"}.items():
+    assert base64.b64decode(values.get(key,"")).decode()==expected, "Existing Secret targets a different database; it was not changed"
+assert all(values.get(key) for key in ("POSTGRES_PASSWORD","SUPERSET_SECRET_KEY","POSTGRES_SSLMODE")), "Existing database credentials, Superset key and TLS mode are required"
+'
+manifest="$(mktemp)"
+trap 'rm -f "$manifest"' EXIT
+python3 - "$SOURCE_DIR/deploy.yaml" > "$manifest" <<'PY'
+import os,sys
+from pathlib import Path
+text=Path(sys.argv[1]).read_text()
+assert text.count('REPLACE_WITH_EXISTING_SUPERSET_IMAGE')==2
+print(text.replace('REPLACE_WITH_EXISTING_SUPERSET_IMAGE',os.environ['EXISTING_SUPERSET_IMAGE']))
+PY
+k apply --dry-run=server -f "$manifest" >/dev/null
+k apply -f "$manifest"
 k -n superset-onprem rollout status deployment/superset --timeout=1200s
 k -n superset-onprem get pods -o wide
-printf '\nSuperset: http://192.168.1.176:32086\nUsername: admin\n'
-echo 'Retrieve your generated password locally:'
-printf 'kubectl --context %q -n superset-onprem get secret superset-secrets -o jsonpath=\x27{.data.ADMIN_PASSWORD}\x27 | base64 -d; echo\n' "$KUBE_CONTEXT"
+printf '\nSuperset: http://192.168.1.176:32086\nUse your existing Superset web login. Database credentials are not web credentials.\n'

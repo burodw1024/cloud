@@ -1,41 +1,77 @@
-# Small on-prem Superset deployment
+# Small Superset frontend with the existing PostgreSQL database
 
-`deploy.yaml` deploys Superset 5.0.0 and PostgreSQL 16 to the node named
-`superset` (192.168.1.176). Namespace `superset-onprem` and NodePort 32086 are
-separate from the existing `superset` namespace and port 32088. Do not apply this
-manifest over the older installation or assume it migrates that installation's
-dashboards. The installer verifies the node's IP, Ready condition and port use.
+This manifest runs only Superset, pinned to node `superset` (192.168.1.176).
+It connects to the existing metadata database:
 
-Run `bash source/deploy/superset/install.sh` from your release folder after
-pulling GitHub main. Kubernetes access defaults to context mamun; KUBE_CONTEXT
-can select another context explicitly. It generates an initial Secret only
-when absent and retains it on subsequent runs. Keep that Secret and the
-PostgreSQL data directory together across reinstallation; recreating passwords
-does not change an existing PostgreSQL database or existing Superset user.
+- Host: 192.168.1.223
+- Port: 5432
+- Database: superset
+- Database user: supersetadmin
 
-Both Deployments use one replica and Recreate. Node selection is required for
-the local PostgreSQL hostPath `/opt/buro-ai/superset-onprem/postgres`. Back up
-the metadata database and Secret; a node/disk failure does not move local data
-elsewhere. Superset is served over internal HTTP at
-`http://192.168.1.176:32086`; use a TLS ingress for access outside the LAN.
+Passwords and the original SUPERSET_SECRET_KEY are not stored in Git. On first
+installation `install.sh` prompts for both, without echo, and creates a Kubernetes
+Secret. It preserves that Secret on subsequent runs. The Superset key must be
+from the existing installation; generating a replacement would make encrypted
+saved connection credentials unreadable. The database password is not this key
+and database credentials are not the Superset web login.
 
-Resource requests total 200m CPU and 1152Mi RAM; limits total 1 CPU and 1920Mi
-RAM. The application uses one Gunicorn worker, two threads and a bounded local
-cache. Redis, Celery, scheduled reports and asynchronous queries are omitted.
-This is a small interactive installation, not high availability; large SQL
-results/concurrent dashboards may require more memory and CPU.
+## Deploy
 
-The official lean Superset image lacks its PostgreSQL driver. An init container
-using the identical image installs psycopg2-binary 2.9.10 into a shared emptyDir;
-both the main app and init container use Python 3.11. The node must be able to
-pull Docker Hub images and the init container must reach the Python package
-index at each new pod creation. For disconnected environments, bake the driver
-into a reviewed image and push it to the local registry instead. Do not remove
-the driver init step without including the dependency in your app image.
+From your on-prem release directory after pulling main:
 
-The app waits for PostgreSQL, applies metadata migrations, creates the initial
-administrator if absent, initializes Superset, then starts Gunicorn. A startup
-probe allows 15 minutes and rollout allows 20 minutes. View progress with:
+```bash
+bash source/deploy/superset/install.sh
+```
+
+Context defaults to mamun. Unless EXISTING_SUPERSET_IMAGE is set explicitly to
+the version/digest matching the existing metadata, the installer reads the
+current image from namespace superset, deployment superset. It rejects latest
+or untagged images. It renders both image placeholders in deploy.yaml using
+that same image before server validation/application. Do not apply the template
+directly or choose a new Superset version as part of this database correction.
+
+The installer checks node identity/Ready status and NodePort availability.
+It refuses to switch databases if the earlier superset-onprem/superset-db
+Deployment is present, and refuses to replace a Secret targeting another
+backend. No existing Deployment, database, local data directory or Secret is
+deleted. If the earlier local-database manifest was already installed, export
+and plan a metadata migration before switching it to this database.
+
+Startup verifies PostgreSQL connectivity and an existing Alembic metadata
+version, then starts Gunicorn. It does not run migrations, initialize the
+metadata database or create/reset administrator accounts. Use the existing
+Superset web login. Plan version upgrades and metadata backups separately.
+The original deployment/Service in namespace superset is left as-is; this
+frontend runs in superset-onprem on port 32086 instead of existing port 32088.
+
+The PostgreSQL connection defaults to sslmode=require, suitable for encrypted
+connections when no private CA bundle was supplied. Set POSTGRES_SSLMODE before
+first installation only when matching your known database TLS configuration.
+Passwords are assembled with SQLAlchemy URL.create, so special characters are
+encoded correctly. Credentials do not appear in shell arguments or manifests
+saved on disk. Protect/back up the Kubernetes Secret along with the external
+metadata database; do not regenerate its key during reinstalls.
+
+## Resources and connectivity
+
+Requests: 100m CPU / 1Gi RAM. Limits: 500m CPU / 1536Mi RAM. One Gunicorn
+worker with two threads, a small local cache, no Redis/Celery/scheduled reports.
+This is a small interactive frontend; large queries/concurrency may need more
+resources. The external PostgreSQL cluster is provisioned separately.
+
+An init container installs psycopg2-binary 2.9.10 into an emptyDir using the same
+image as the frontend. It uses uv when available and otherwise Python pip.
+The node needs access to the image registry and Python package index; bake the
+driver into a matching reviewed image for disconnected environments.
+
+URL: http://192.168.1.176:32086 (internal HTTP). Agentic API origin:
+http://superset.superset-onprem.svc.cluster.local:8088. Use TLS ingress for
+outside-LAN access. In agentic Reporting setup, explicitly allow internal HTTP,
+configure the publishing account and existing analytics datasource ID, configure
+the snapshot writer/schema and user mappings, verify private access, then test.
+The metadata database is not automatically registered as an analytics datasource.
+
+Check progress:
 
 ```bash
 kubectl --context mamun -n superset-onprem get pods -o wide
@@ -43,14 +79,5 @@ kubectl --context mamun -n superset-onprem logs deployment/superset -c postgres-
 kubectl --context mamun -n superset-onprem logs -f deployment/superset -c superset
 ```
 
-For the agentic integration, use API origin
-`http://superset.superset-onprem.svc.cluster.local:8088` and browser origin
-`http://192.168.1.176:32086`. In Reporting setup explicitly allow trusted
-internal HTTP. Register the intended analytics PostgreSQL database in Superset,
-configure its dedicated snapshot writer/schema and employee user mappings,
-grant publishing permission, verify private access, then test the connection.
-Superset's own metadata database is not automatically an analytics datasource.
-This deployment does not populate agentic credentials or user mappings.
-
-Manifest/Python/shell syntax was checked locally. No on-prem installation was
-executed or measured, and these version pins are not a claim of latest release.
+YAML, Python and shell syntax were checked locally. No connection to the
+on-prem database, cluster apply or live resource measurement was performed.
