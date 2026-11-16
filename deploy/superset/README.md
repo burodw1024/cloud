@@ -89,6 +89,32 @@ and PostgreSQL; it has no init container or PyPI/Docker Hub download at startup.
 Configure the node container runtime for your internal HTTP registry if not
 already configured; image-pull failures are separate from application startup.
 
+For the reported HTTP-registry/HTTPS-client mismatch, copy
+`configure_registry.py` onto 192.168.1.176 and execute it with sudo/Python 3.11+.
+It refuses any other node IP, checks the current CRI endpoint, identifies the
+active containerd configuration, backs up changed files, and configures HTTP
+only for 192.168.1.224:80. Existing config_path is reused. If config_path is
+unset, it edits containerd 1.x/version-2 or 2.x/version-3 syntax without replacing
+other runtime settings; imported/unsupported layouts stop for inspection.
+The script validates the candidate, restarts containerd only if config_path must
+change, checks service/CRI readiness and restores the original config if that
+restart fails. A direct CRI image pull and inspection verify the result. Run it
+on the actual Superset node, not on the Kubernetes management machine.
+
+From your release directory, use your own SSH account for that node:
+
+```bash
+read -r -p 'SSH username for 192.168.1.176: ' NODE_USER
+scp source/deploy/superset/configure_registry.py "${NODE_USER}@192.168.1.176:/tmp/superset-configure-registry.py"
+ssh -t "${NODE_USER}@192.168.1.176" 'sudo python3 /tmp/superset-configure-registry.py'
+kubectl --context mamun -n superset-onprem rollout restart deployment/superset
+kubectl --context mamun -n superset-onprem rollout status deployment/superset --timeout=1200s
+```
+
+The default image is the reported 4.1.2-pg-20261116065624. Pass `--image` when
+verifying a later registry tag. No database, Kubernetes Secret or other registry
+configuration is changed by this node helper.
+
 URL: http://192.168.1.176:32086 (internal HTTP). Agentic API origin:
 http://superset.superset-onprem.svc.cluster.local:8088. Use TLS ingress for
 outside-LAN access. In agentic Reporting setup, explicitly allow internal HTTP,
