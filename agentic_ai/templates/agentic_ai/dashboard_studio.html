@@ -7,7 +7,7 @@
 <p class="studio-readiness">{{ readiness }}</p>{% if user.is_superuser %}<p><a href="{% url 'agentic_ai:reporting_settings' %}">Configure or test Superset →</a></p>{% endif %}
 <div class="studio-grid"><section class="studio-card"><span class="studio-step">01 / DESIGN</span><h2>Build your dashboard</h2>
 <p>Run a report in the workspace first. We select charts from its numeric fields and preserve each displayed row.</p>
-<form id="dashboard-design" data-endpoint="{% url 'agentic_ai:dashboard_publish_api' %}">{% csrf_token %}
+<form id="dashboard-design" data-endpoint="{% url 'agentic_ai:dashboard_publish_api' %}" data-report-token="{{ report_token|default:'' }}">{% csrf_token %}
 <label for="studio-template">Report template</label><select id="studio-template">{% for value,label in reporting.templates %}<option value="{{ value }}"{% if reporting.default_template == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select><label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="My report dashboard">
 <div id="studio-options" hidden><label for="studio-dimension">Row label</label><select id="studio-dimension"></select><fieldset><legend>Measures · choose up to four</legend><div id="studio-metrics"></div></fieldset></div>
 <button type="submit" class="studio-primary">Generate preview →</button></form>

@@ -66,6 +66,46 @@ def availability(user):
     return {'tool': status['tool'], 'recipients': status['recipients']} if status['ready'] else {'tool': '', 'recipients': []}
 
 
+def text_arguments(schema, recipient, text):
+    if not {'messaging_product', 'to', 'type', 'text'} <= set(schema.get('properties', {})):
+        raise ValueError('The WhatsApp service must declare messaging_product, to, type and text. Ask an administrator to register a text-message tool; a template-only tool cannot send report text.')
+    arguments = {'messaging_product': 'whatsapp', 'to': recipient, 'type': 'text', 'text': {'body': text}}
+    try:
+        _validator(schema).validate(arguments)
+    except Exception:
+        raise ValueError('This WhatsApp tool does not accept report text. Configure a Cloud API text-message tool; a hello_world-only template cannot send the report.') from None
+    return arguments
+
+
+def accepted_message_id(data):
+    """Read common MCP/HTTP wrappers without treating tool success as delivery."""
+    for _ in range(8):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except ValueError:
+                return None
+        elif isinstance(data, dict):
+            if data.get('isError') or data.get('error') or data.get('success') is False:
+                return None
+            messages = data.get('messages')
+            if isinstance(messages, list):
+                for message in messages:
+                    identifier = message.get('id') if isinstance(message, dict) else None
+                    if isinstance(identifier, str) and identifier.strip() and len(identifier) <= 500:
+                        return identifier
+                return None
+            if 'structuredContent' in data:
+                data = data['structuredContent']
+            elif isinstance(data.get('content'), list) and len(data['content']) == 1:
+                data = data['content'][0].get('text')
+            else:
+                data = next((data[key] for key in ('result', 'data', 'body') if key in data), None)
+        else:
+            return None
+    return None
+
+
 def export_text(result, mode):
     answer = str(result.get('answer') or '').strip()
     report = (result.get('raw') or {}).get('structuredContent')
@@ -91,7 +131,7 @@ def export_text(result, mode):
 
 
 def remember_result(user, result):
-    if (not result.get('ok') or result.get('kind') in {'clarification', 'loan_question_help'}
+    if (not result.get('ok') or result.get('kind') in {'clarification', 'loan_question_help', 'business_question_help'}
             or not availability(user)['recipients']):
         return
     token = uuid.uuid4().hex
@@ -111,12 +151,7 @@ async def dispatch(config, name, recipient, text, user, source_result=None):
             tool = next((t for t in tools if t.name == name), None)
             if tool is None:
                 raise ValueError('Configured WhatsApp tool is not available on this gateway.')
-            arguments = {'messaging_product': 'whatsapp', 'to': recipient,
-                         'type': 'text', 'text': {'body': text}}
-            try:
-                _validator(tool.inputSchema).validate(arguments)
-            except Exception:
-                raise ValueError('WhatsApp tool must accept the Cloud API text-message body. A hello_world-only template tool cannot send report text.') from None
+            arguments = text_arguments(tool.inputSchema, recipient, text)
             decision = await sync_to_async(_decision)(user, name, arguments)
             if decision:
                 return decision
@@ -127,16 +162,10 @@ async def dispatch(config, name, recipient, text, user, source_result=None):
             data = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             if data.get('isError'):
                 return {'ok': False, 'error': 'WhatsApp tool reported an error. Check ContextForge logs before retrying.'}
-            payload = data.get('structuredContent')
-            if payload is None:
-                content = data.get('content', [])
-                if len(content) == 1 and content[0].get('type') == 'text':
-                    try:
-                        payload = json.loads(content[0].get('text', ''))
-                    except ValueError:
-                        pass
-            if isinstance(payload, dict) and payload.get('messages') and not payload.get('error'):
-                return {'ok': True, 'message': 'Meta accepted the message. Delivery is not yet confirmed.'}
+            identifier = accepted_message_id(data)
+            if identifier:
+                return {'ok': True, 'message_id': identifier,
+                        'message': 'Meta accepted the message. Delivery is not yet confirmed.'}
             return {'ok': False, 'error': 'Acceptance could not be verified. Check gateway logs before retrying; do not assume the message failed.'}
 
 
@@ -188,7 +217,9 @@ def whatsapp_api(request):
         output = async_to_sync(asyncio.wait_for)(dispatch(gateway, config['tool'], recipient, text, request.user, result), gateway['request_timeout'])
         audit.status = 'success' if output.get('ok') else ('approval_required' if output.get('approval_required') else 'failed')
         audit.error_message = '' if output.get('ok') else output.get('error', output.get('answer', ''))
-        audit.save(update_fields=['status', 'error_message'])
+        if output.get('ok'):
+            audit.tool_output_summary = 'Meta accepted message: ' + str(output.get('message_id', 'not supplied'))
+        audit.save(update_fields=['status', 'error_message', 'tool_output_summary'])
         if output.get('answer') and not output.get('message'):
             output['message'] = output['answer']
         return reply(output, output.get('http_status', 200 if output.get('ok') else 502))

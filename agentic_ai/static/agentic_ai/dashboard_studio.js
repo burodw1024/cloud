@@ -47,6 +47,7 @@
     perform('Designing your dashboard…', async () => {
       invalidate();
       const payload = {action: 'preview', title: document.getElementById('dashboard-title').value, template:document.getElementById('studio-template').value};
+      if (form.dataset.reportToken) payload.report_token = form.dataset.reportToken;
       if (!options.hidden && document.getElementById('studio-template').value === lastTemplate) {
         payload.dimension = dimension.value;
         payload.metrics = [...metrics.querySelectorAll('input:checked')].map(input => input.value);

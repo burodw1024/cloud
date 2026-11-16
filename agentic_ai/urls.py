@@ -8,10 +8,13 @@ from .access_admin import access_manager, directory_manager
 from .performance_dashboard import performance_dashboard
 from .dashboard_studio import studio, dashboard_api
 from .reporting_admin import reporting_settings
+from .services import services_page, check_whatsapp
 
 app_name = "agentic_ai"
 
 urlpatterns = [
+    path('services/', services_page, name='services'),
+    path('api/services/whatsapp/check/', check_whatsapp, name='whatsapp_service_check'),
     path("api/summary/", summary_api, name="summary_api"),
     path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),

@@ -83,13 +83,14 @@ class WhatsAppTests(TestCase):
 
     def test_controls_visible_only_with_authorized_configuration(self):
         response = self.client.get('/agentic/')
-        self.assertContains(response, 'Send summary')
-        self.assertContains(response, 'Send full result')
+        self.assertContains(response, 'Preview summary')
+        self.assertContains(response, 'Preview full result')
         self.tool.is_active = False; self.tool.save()
         response = self.client.get('/agentic/')
         self.assertNotContains(response, 'id="whatsapp-recipient"')
         self.assertNotContains(response, 'WhatsApp tool is disabled')
-        self.assertNotContains(response, 'id="whatsapp-actions"')
+        self.assertContains(response, 'id="whatsapp-actions"')
+        self.assertContains(response, 'Open Services for setup and access details')
 
     def test_defaults_and_explicit_empty_configuration(self):
         self.settings.clear()
@@ -187,7 +188,10 @@ class GatewayDispatchTests(TestCase):
         @asynccontextmanager
         async def client(*args, **kwargs):
             yield self.session
-        self.tool = SimpleNamespace(name='send-whatsapp-text', inputSchema={'type': 'object'})
+        self.tool = SimpleNamespace(name='send-whatsapp-text', inputSchema={'type': 'object', 'properties': {
+            'messaging_product': {'const': 'whatsapp'}, 'to': {'type': 'string'},
+            'type': {'const': 'text'}, 'text': {'type': 'object', 'properties': {'body': {'type': 'string'}},
+                'required': ['body']}}, 'required': ['messaging_product', 'to', 'type', 'text']})
         patches = [patch('mcp.client.streamable_http.streamablehttp_client', transport),
                    patch('mcp.ClientSession', client),
                    patch.object(wa, 'discover_tools', new=AsyncMock(return_value=[self.tool])),
@@ -210,6 +214,28 @@ class GatewayDispatchTests(TestCase):
         self.session.call_tool.return_value = self.SimpleNamespace(model_dump=lambda **kwargs: {
             'structuredContent': {'error': {'message': 'Not in service window'}}})
         self.assertFalse(self.run_dispatch()['ok'])
+
+    def test_wrapped_acceptance_returns_message_id_but_does_not_claim_delivery(self):
+        self.session.call_tool.return_value = self.SimpleNamespace(model_dump=lambda **kwargs: {
+            'structuredContent': {'result': {'body': json.dumps({'messages': [{'id': 'wamid.accepted'}]})}}})
+        result = self.run_dispatch()
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['message_id'], 'wamid.accepted')
+        self.assertIn('Delivery is not yet confirmed', result['message'])
+
+    def test_unverified_acceptance_and_wrapped_errors_are_not_success(self):
+        for payload in ({'messages': [True]}, {'messages': [{'status': 'ok'}]},
+                        {'error': {'message': 'Rejected'}, 'messages': [{'id': 'wamid.bad'}]},
+                        {'result': {'success': False, 'messages': [{'id': 'wamid.bad'}]}}):
+            with self.subTest(payload=payload):
+                self.session.call_tool.return_value = self.SimpleNamespace(model_dump=lambda **kwargs: {'structuredContent': payload})
+                self.assertFalse(self.run_dispatch()['ok'])
+
+    def test_template_only_tool_is_rejected_before_send(self):
+        self.tool.inputSchema['properties']['type'] = {'const': 'template'}
+        with self.assertRaisesRegex(ValueError, 'hello_world'):
+            self.run_dispatch()
+        self.session.call_tool.assert_not_awaited()
 
     def test_schema_mismatch_prevents_send(self):
         self.tool.inputSchema = {'type': 'object', 'properties': {}, 'additionalProperties': False}

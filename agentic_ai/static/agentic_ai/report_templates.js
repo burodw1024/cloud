@@ -34,10 +34,18 @@
     $('template-measure').addEventListener('change',chart);
     $('print-current-report').addEventListener('click',()=>window.print());
     window.BuroReportTemplates={
-        reset(){report=null;body=null;root.hidden=true;$('template-bars').replaceChildren();},
+        reset(){report=null;body=null;root.hidden=true;$('template-bars').replaceChildren();const link=$('generate-superset-report');if(link){link.hidden=true;link.removeAttribute('href');$('superset-result-status').textContent='';}},
         show(value,response){
             if(!value||!Array.isArray(value.columns)||!Array.isArray(value.rows))return;
             report=value;body=response;root.hidden=false;
+            const link=$('generate-superset-report');
+            if(link){
+                const token=typeof body.summary_token==='string'?body.summary_token:'';
+                link.hidden=!token;
+                if(token)link.href=link.dataset.studioUrl+'?report='+encodeURIComponent(token);
+                else link.removeAttribute('href');
+                $('superset-result-status').textContent=token?'Preview this report, choose a template, then explicitly create a private Superset snapshot.':'This result has no supported export snapshot. Run a structured report with supported numeric fields.';
+            }
             $('report-template-facts').replaceChildren();
             [report.rows.length+' displayed rows',report.columns.length+' fields',report.report_date||body.plan?.params?.report_date||body.plan?.params?.reportDate||'Date not provided'].forEach(text=>{const item=document.createElement('span');item.textContent=text;$('report-template-facts').append(item);});
             $('report-template-scope').textContent=(typeof report.scope==='string'?report.scope:'Displayed authorized rows only.')+(report.truncated?' The source result is limited.':'');
