@@ -1,0 +1,24 @@
+{
+  "name": "@buro/superset-icon-map",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Original on-prem icon-marker chart for Apache Superset 4.1.2",
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "node test/run.cjs",
+    "typecheck:ui": "tsc --noEmit -p tsconfig.ui.json"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  },
+  "devDependencies": {
+    "@types/leaflet": "1.9.12",
+    "@types/react": "16.14.62",
+    "@types/react-dom": "16.9.25",
+    "esbuild": "0.24.2",
+    "jsdom": "22.1.0",
+    "react": "16.14.0",
+    "react-dom": "16.14.0",
+    "typescript": "4.9.5"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "datasource": "123__table",
+  "viz_type": "buro_icon_map",
+  "latitude_column": "latitude",
+  "longitude_column": "longitude",
+  "label_column": "location",
+  "category_column": "category",
+  "size_column": "value",
+  "icon_column": "icon",
+  "tooltip_columns": ["location", "category", "value"],
+  "row_limit": 1000,
+  "icon_type": "pin",
+  "marker_size": 20,
+  "max_marker_size": 44,
+  "show_legend": true,
+  "show_labels": false,
+  "tile_url": "",
+  "adhoc_filters": []
+}

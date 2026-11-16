@@ -1,0 +1,19 @@
+# Build only on a connected build machine; the Superset node runs the finished image.
+FROM node:18.20.8-bookworm AS frontend
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    CYPRESS_INSTALL_BINARY=0 \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+WORKDIR /app/superset-frontend
+COPY upstream/superset-frontend/ ./
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
+RUN npm run build
+RUN test -f /app/superset/static/assets/manifest.json \
+    && grep -R -l 'buro_icon_map' /app/superset/static/assets --include='*.js' >/dev/null
+
+FROM apache/superset:4.1.2
+USER root
+RUN python -m pip install --no-cache-dir psycopg2-binary==2.9.10 \
+    && python -c "import psycopg2; from importlib.metadata import version; assert version('apache-superset') == '4.1.2'"
+COPY --from=frontend --chown=superset:superset /app/superset/static/assets/ /app/superset/static/assets/
+COPY ICON_MAP_NOTICE.txt /app/ICON_MAP_NOTICE.txt
+USER superset
