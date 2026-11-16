@@ -4,6 +4,8 @@ Default mode resumes post-migration checks only. --retry-backup handles the
 confirmed read-only backup failure before migrations, retains the failed backup,
 and creates a new verified backup before running migrations. Neither mode restores
 a database or removes the release lock before readiness passes.
+--start-missing-job starts the saved migration with exclusive backup creation
+when there is no original Job, status snapshot, backup or recovery attempt.
 """
 import argparse
 import copy
@@ -94,10 +96,28 @@ exec(compile(script_text, '/app/deploy/migrate_release.py:backup-retry', 'exec')
 """.replace('EXPECTED_SHA', repr(expected_sha))
 
 
-def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_gateway=False):
+def missing_job_code(expected_sha):
+    return """import hashlib, os, sys
+from pathlib import Path
+os.chdir('/app')
+sys.path.insert(0, '/app')
+root = Path('/data')
+release = os.environ['AGENT_RELEASE_ID']
+assert not (root/'deployment-backups'/release).exists(), 'A backup already exists; do not repeat migration. Inspect the saved release instead.'
+script_text = Path('/app/deploy/migrate_release.py').read_text()
+assert hashlib.sha256(script_text.encode()).hexdigest() == EXPECTED_SHA, 'Imported image differs from saved source'
+assert "backups.mkdir(parents=True,exist_ok=False,mode=0o700)" in script_text, 'Missing exclusive backup creation guard'
+__file__ = '/app/deploy/migrate_release.py'
+print('Starting missing migration Job with the saved image; no backup or database is restored.', flush=True)
+exec(compile(script_text, __file__, 'exec'), globals())
+""".replace('EXPECTED_SHA', repr(expected_sha))
+
+
+def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_gateway=False, start_missing_job=False):
     job = copy.deepcopy(saved)
     original = job['metadata']['name']
-    job['metadata'] = {'name': original+('-backup-retry' if retry_backup else '-resume'), 'namespace': saved['metadata']['namespace']}
+    suffix = '-start' if start_missing_job else '-backup-retry' if retry_backup else '-resume'
+    job['metadata'] = {'name': original+suffix, 'namespace': saved['metadata']['namespace']}
     job.pop('status', None)
     spec = job['spec']
     spec.update(backoffLimit=0, activeDeadlineSeconds=2100)
@@ -106,7 +126,9 @@ def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_ga
     container = pod['containers'][0]
     require(container.get('imagePullPolicy') == 'Never', 'Recovery must use the imported image')
     require(container['command'] == ['python', '/app/deploy/migrate_release.py'], 'Unrecognized migration script entrypoint')
-    container['command'] = ['python', '-c', backup_retry_code(expected_sha) if retry_backup else recovery_code(expected_sha, preserve_disabled_gateway)]
+    code = (missing_job_code(expected_sha) if start_missing_job else backup_retry_code(expected_sha)
+            if retry_backup else recovery_code(expected_sha, preserve_disabled_gateway))
+    container['command'] = ['python', '-c', code]
     container.pop('args', None)
     container['workingDir'] = '/app'
     spec['template']['metadata'] = {'labels': {'agentic-release-job': job['metadata']['name']}}
@@ -118,11 +140,12 @@ def main():
     parser.add_argument('stage', type=Path)
     parser.add_argument('--retry-backup', action='store_true', help='Recover the reported read-only backup failure before migrations; retain the original failed backup.')
     parser.add_argument('--preserve-disabled-gateway', action='store_true', help='Recover the confirmed gateway-enabled assertion failure without enabling a paused integration.')
+    parser.add_argument('--start-missing-job', action='store_true', help='Start the saved migration only when the original Job, its status snapshot and its backup are absent.')
     parser.add_argument('--context', required=True)
     parser.add_argument('--url', required=True)
     parser.add_argument('--cert', type=Path, default=Path.home()/'.config/agentic/tls/tls.crt')
     args = parser.parse_args()
-    require(not (args.retry_backup and args.preserve_disabled_gateway), 'Choose either backup retry or gateway recovery')
+    require(sum((args.retry_backup, args.preserve_disabled_gateway, args.start_missing_job)) <= 1, 'Choose only one recovery mode')
     stage = args.stage.resolve()
     def read(name): return json.loads((stage/name).read_text())
     saved = read('migration.json')
@@ -143,17 +166,27 @@ def main():
     current = get('deployment', name)
     require(current['metadata']['uid'] == before['metadata']['uid'], 'Deployment identity changed')
     require(current['spec'].get('replicas') == 0, 'Application must still be stopped; this helper will not stop an active deployment')
-    original = get('job', original_job)
-    require(original.get('status', {}).get('failed', 0) > 0 and not original.get('status', {}).get('active', 0),
-            'Original migration Job is not in the expected failed/inactive state')
     status_path = stage/'migration.status.json'
-    if status_path.exists():
-        require(original['metadata']['uid'] == read('migration.status.json')['metadata']['uid'], 'Original Job identity changed')
+    if args.start_missing_job:
+        original = subprocess.check_output(command+['get','job',original_job,'--ignore-not-found','-o','json'], text=True).strip()
+        require(not original, 'Original Job exists; inspect it instead of starting another migration')
+        require(not status_path.exists(), 'A migration status snapshot exists; this release may already have run')
+    else:
+        original = get('job', original_job)
+        require(original.get('status', {}).get('failed', 0) > 0 and not original.get('status', {}).get('active', 0),
+                'Original migration Job is not in the expected failed/inactive state')
+        if status_path.exists():
+            require(original['metadata']['uid'] == read('migration.status.json')['metadata']['uid'], 'Original Job identity changed')
     lock = get('configmap', lock_name)
     require(lock.get('data', {}).get('release') == release, 'Release lock belongs to another release')
     require(lock['data'].get('job') == original_job, 'Lock does not match the failed Job')
+    if args.start_missing_job:
+        require(not lock['data'].get('recovery_job'), 'A recovery attempt was already dispatched; inspect that Job')
     all_pods = get('pods')
     for pod in all_pods['items']:
+        if args.start_missing_job:
+            require(pod['metadata'].get('labels', {}).get('job-name') != original_job,
+                    'An original migration pod exists; inspect it rather than rerunning migrations')
         if pod.get('status', {}).get('phase') in ('Succeeded', 'Failed'):
             continue
         volumes = pod['spec'].get('volumes', [])
@@ -173,7 +206,7 @@ def main():
         require('SQLite database and existing shared cache backed up:' in logs
                 and 'AssertionError: Expected the existing MCP gateway to be enabled; configuration was preserved.' in logs,
                 'Gateway recovery requires the confirmed post-migration gateway-enabled assertion failure')
-    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup, args.preserve_disabled_gateway)
+    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup, args.preserve_disabled_gateway, args.start_missing_job)
     recovery_name = recovery['metadata']['name']
     require(len(recovery_name) <= 63, 'Recovery Job name is too long')
     prior = subprocess.check_output(command+['get','job',recovery_name,'--ignore-not-found','-o','json'], text=True).strip()
@@ -228,7 +261,7 @@ def main():
     run('delete', 'configmap', lock_name)
     run('get', 'pod', pod_name, '-o', 'wide')
     print('\nRecovery deployment verified:', args.url)
-    print('Original backup, failed Job and recovery Job were retained.')
+    print('Release backups and Jobs were retained; no database restore was performed.')
 
 
 if __name__ == '__main__':

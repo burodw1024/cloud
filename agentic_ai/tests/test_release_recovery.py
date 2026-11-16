@@ -127,7 +127,7 @@ class MigrationExecutor:
         self.assertEqual(container['command'][:2], ['python', '-c'])
         self.assertEqual(recovery['spec']['backoffLimit'], 0)
 
-    def test_cluster_recovery_orders_checks_before_rollout_and_lock_removal(self):
+    def test_cluster_recovery_orders_checks_before_rollout_and_lock_removal(self, missing=False, blocked=None):
         import json
         from types import SimpleNamespace
         from unittest.mock import patch
@@ -144,6 +144,8 @@ class MigrationExecutor:
             image = 'registry/app:existing'
             deployment = {'metadata': {'name':'test-app','uid':'deployment-uid'},'spec':{'replicas':0}}
             lock = {'data':{'release':release,'job':job_name}}
+            if blocked == 'recovery':
+                lock['data']['recovery_job'] = 'already-dispatched'
             saved = {'metadata':{'name':job_name,'namespace':'test'},'spec':{'template':{'spec':{'containers':[{
                 'name':'migrate','image':image,'imagePullPolicy':'Never',
                 'command':['python','/app/deploy/migrate_release.py'],
@@ -153,6 +155,8 @@ class MigrationExecutor:
             for name,data in {'migration.json':saved,'deployment.before.json':deployment,'deployment.after.json':after,
                               'migration.status.json':{'metadata':{'uid':'original-job-uid'}},'nginx.after.json':{}}.items():
                 (stage/name).write_text(json.dumps(data))
+            if missing and blocked != 'snapshot':
+                (stage/'migration.status.json').unlink()
             calls=[]
             state={'rolled_out':False,'checks_complete':False}
             def output(command, **kwargs):
@@ -162,6 +166,8 @@ class MigrationExecutor:
                 if kind=='deployment': return json.dumps(deployment)
                 if kind=='configmap': return json.dumps(lock)
                 if kind=='job':
+                    if blocked == 'job' and '--ignore-not-found' in command:
+                        return json.dumps({'metadata': {'name': job_name}})
                     if '--ignore-not-found' in command: return ''
                     if job_name in command:
                         return json.dumps({'metadata':{'uid':'original-job-uid'},'status':{'failed':1}})
@@ -172,6 +178,9 @@ class MigrationExecutor:
                         {'kind':'Deployment','uid':'deployment-uid','controller':True}]}}]})
                 if kind=='pods':
                     pods=[]
+                    if blocked == 'pod':
+                        pods=[{'metadata': {'name': 'original-pod', 'labels': {'job-name': job_name}},
+                               'status': {'phase': 'Failed'}}]
                     if state['rolled_out']:
                         pods=[{'metadata':{'name':'new-pod','ownerReferences':[{'kind':'ReplicaSet','uid':'replica-uid','controller':True}]},
                                'spec':{'containers':[{'name':'django','image':image}]},
@@ -191,12 +200,63 @@ class MigrationExecutor:
                 return SimpleNamespace(returncode=0)
             root=Path(__file__).resolve().parents[2]
             argv=['resume_release.py',str(stage),'--context','test-context','--url','https://app.example','--cert',str(cert)]
+            if missing:
+                argv.append('--start-missing-job')
             with patch.object(sys,'argv',argv), patch.object(sys,'path',[str(root/'deploy'),*sys.path]), \
                  patch('subprocess.check_output',side_effect=output), patch('subprocess.run',side_effect=run):
+                if blocked:
+                    with self.assertRaises(RuntimeError):
+                        self.helper['main']()
+                    self.assertEqual(calls, [])
+                    return
                 self.helper['main']()
             self.assertTrue(state['rolled_out'])
             self.assertEqual(sum('create' in c for c in calls),1)
             self.assertFalse(any('migrate' in c for c in calls if 'logs' not in c))
+
+    def test_missing_job_recovery_keeps_lock_until_rollout_and_checks_pass(self):
+        self.test_cluster_recovery_orders_checks_before_rollout_and_lock_removal(missing=True)
+
+    def test_missing_job_recovery_rejects_evidence_of_previous_dispatch(self):
+        for blocked in ('job', 'snapshot', 'recovery', 'pod'):
+            with self.subTest(blocked=blocked):
+                self.test_cluster_recovery_orders_checks_before_rollout_and_lock_removal(missing=True, blocked=blocked)
+
+    def test_missing_job_executes_saved_script_once_and_preserves_existing_backup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = base/'app'
+            (project/'deploy').mkdir(parents=True)
+            data = base/'data'
+            data.mkdir()
+            checkpoint = base/'migration-ran'
+            script = """import os
+from pathlib import Path
+root = Path('/data')
+release = os.environ['AGENT_RELEASE_ID']
+backups=root/'deployment-backups'/release
+backups.mkdir(parents=True,exist_ok=False,mode=0o700)
+""" + f"Path({str(checkpoint)!r}).write_text('ran after exclusive backup directory creation')\n"
+            path = project/'deploy/migrate_release.py'
+            path.write_text(script)
+            code = self.helper['missing_job_code'](hashlib.sha256(script.encode()).hexdigest())
+            code = code.replace("'/app/deploy/migrate_release.py'", repr(str(path)))
+            code = code.replace("'/app'", repr(str(project))).replace("'/data'", repr(str(data)))
+            code = code.replace("exec(compile(script_text,", "script_text = script_text.replace(\"'/data'\", " + repr(repr(str(data))) + ")\nexec(compile(script_text,")
+            # A mismatched image must not reach the migration.
+            path.write_text(script+'# unexpected image\n')
+            mismatch = self.execute(code, base)
+            self.assertNotEqual(mismatch.returncode, 0)
+            self.assertFalse(checkpoint.exists())
+            path.write_text(script)
+            result = self.execute(code, base)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(checkpoint.exists())
+            checkpoint.unlink()
+            result = self.execute(code, base)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('A backup already exists', result.stderr)
+            self.assertFalse(checkpoint.exists())
 
     def test_backup_retry_recovers_hot_journal_and_keeps_failed_backup(self):
         with tempfile.TemporaryDirectory() as temporary:
