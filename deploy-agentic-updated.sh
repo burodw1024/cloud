@@ -43,7 +43,8 @@ python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ require
 [[ -r "$TLS_CERT" ]] || fail "Public TLS certificate missing: $TLS_CERT"
 # This updater clones the existing Deployment and retains env/envFrom/Secrets.
 # It never builds a replacement production Secret from a local env file.
-k exec deployment/buro-django -c django -- python manage.py shell -c \
+PREFLIGHT_POD="$(python3 "$SOURCE_DIR/deploy/pod_ownership.py" live "$KUBE_CONTEXT")"
+k exec "$PREFLIGHT_POD" -c django -- python manage.py shell -c \
   'from django.conf import settings; assert settings.SECRET_KEY and settings.ALLOWED_HOSTS, "Existing Django runtime configuration is incomplete"; print("Existing Kubernetes-backed Django configuration verified; secret values were not exported.")'
 docker info >/dev/null
 docker buildx version >/dev/null
