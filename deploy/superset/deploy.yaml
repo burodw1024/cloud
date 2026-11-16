@@ -80,6 +80,7 @@ spec:
       containers:
         - name: superset
           image: REPLACE_WITH_EXISTING_SUPERSET_IMAGE
+          imagePullPolicy: Never
           command: ['python', '/etc/superset/start.py']
           envFrom:
             - secretRef:
