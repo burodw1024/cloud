@@ -24,17 +24,8 @@ for service in json.load(sys.stdin)["items"]:
     if any(p.get("nodePort")==32086 for p in service["spec"].get("ports", [])):
         assert (service["metadata"]["namespace"],service["metadata"]["name"]) == ("superset-onprem","superset"), "NodePort 32086 is already used by another Service"
 '
-# An existing database must use its matching Superset version, not a new default.
-if [[ -z "${EXISTING_SUPERSET_IMAGE:-}" ]]; then
-  EXISTING_SUPERSET_IMAGE="$(k -n superset get deployment superset -o json | python3 -c '
-import json,sys
-containers=json.load(sys.stdin)["spec"]["template"]["spec"]["containers"]
-candidates=[c for c in containers if c["name"]=="superset"]
-if not candidates and len(containers)==1: candidates=containers
-assert len(candidates)==1, "Set EXISTING_SUPERSET_IMAGE to the version matching the existing database"
-print(candidates[0]["image"])
-')"
-fi
+# Build the existing Superset version with its driver before deploying.
+[[ -n "${EXISTING_SUPERSET_IMAGE:-}" ]] || { echo 'Set EXISTING_SUPERSET_IMAGE to the prepared Superset 4.1.2 image with psycopg2 included. See deploy/superset/README.md for build/push commands.' >&2; exit 1; }
 export EXISTING_SUPERSET_IMAGE
 python3 -c '
 import os,re
@@ -82,7 +73,7 @@ python3 - "$SOURCE_DIR/deploy.yaml" > "$manifest" <<'PY'
 import os,sys
 from pathlib import Path
 text=Path(sys.argv[1]).read_text()
-assert text.count('REPLACE_WITH_EXISTING_SUPERSET_IMAGE')==2
+assert text.count('REPLACE_WITH_EXISTING_SUPERSET_IMAGE')==1
 print(text.replace('REPLACE_WITH_EXISTING_SUPERSET_IMAGE',os.environ['EXISTING_SUPERSET_IMAGE']))
 PY
 k apply --dry-run=server -f "$manifest" >/dev/null
