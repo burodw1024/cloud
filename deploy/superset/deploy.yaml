@@ -15,8 +15,9 @@ data:
     SECRET_KEY = os.environ['SUPERSET_SECRET_KEY']
     SQLALCHEMY_DATABASE_URI = URL.create(
         'postgresql+psycopg2', username=os.environ['POSTGRES_USER'],
-        password=os.environ['POSTGRES_PASSWORD'], host='superset-db',
-        port=5432, database=os.environ['POSTGRES_DB']
+        password=os.environ['POSTGRES_PASSWORD'], host=os.environ['POSTGRES_HOST'],
+        port=int(os.environ['POSTGRES_PORT']), database=os.environ['POSTGRES_DB'],
+        query={'sslmode': os.environ['POSTGRES_SSLMODE']}
     ).render_as_string(hide_password=False)
     SQLALCHEMY_ENGINE_OPTIONS = {'pool_size': 3, 'max_overflow': 2, 'pool_pre_ping': True}
     CACHE_CONFIG = {'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300, 'CACHE_THRESHOLD': 100}
@@ -28,101 +29,29 @@ data:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
   start.py: |
-    import os, subprocess, time
+    import os, time
     import psycopg2
     for attempt in range(180):
         try:
             connection = psycopg2.connect(
-                host='superset-db', dbname=os.environ['POSTGRES_DB'],
-                user=os.environ['POSTGRES_USER'], password=os.environ['POSTGRES_PASSWORD'],
-                connect_timeout=3)
+                host=os.environ['POSTGRES_HOST'], dbname=os.environ['POSTGRES_DB'],
+                user=os.environ['POSTGRES_USER'], password=os.environ['POSTGRES_PASSWORD'], port=int(os.environ['POSTGRES_PORT']),
+                sslmode=os.environ['POSTGRES_SSLMODE'], connect_timeout=3)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT version_num FROM alembic_version')
+                if not cursor.fetchone():
+                    raise SystemExit('Existing Superset metadata version is missing.')
             connection.close()
             break
         except psycopg2.OperationalError:
             time.sleep(2)
     else:
         raise SystemExit('PostgreSQL is not ready; inspect superset-db logs.')
-    subprocess.run(['superset', 'db', 'upgrade'], check=True)
-    from superset.app import create_app
-    from superset.extensions import appbuilder
-    app = create_app()
-    with app.app_context():
-        manager = appbuilder.sm
-        if not manager.find_user(username=os.environ['ADMIN_USERNAME']):
-            user = manager.add_user(
-                username=os.environ['ADMIN_USERNAME'], first_name='Superset', last_name='Admin',
-                email=os.environ['ADMIN_EMAIL'], role=manager.find_role('Admin'),
-                password=os.environ['ADMIN_PASSWORD'])
-            if not user:
-                raise SystemExit('Could not create the initial administrator.')
-    subprocess.run(['superset', 'init'], check=True)
+    # Existing metadata: no migrations, initialization, or administrator creation.
     os.execvp('gunicorn', ['gunicorn', '--bind', '0.0.0.0:8088',
         '--workers', '1', '--worker-class', 'gthread', '--threads', '2',
         '--timeout', '180', '--access-logfile', '-', '--error-logfile', '-',
         'superset.app:create_app()'])
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: superset-db
-  namespace: superset-onprem
-spec:
-  selector:
-    app: superset-db
-  ports:
-    - port: 5432
-      targetPort: 5432
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: superset-db
-  namespace: superset-onprem
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app: superset-db
-  template:
-    metadata:
-      labels:
-        app: superset-db
-    spec:
-      nodeSelector:
-        kubernetes.io/hostname: superset
-      containers:
-        - name: postgres
-          image: postgres:16
-          args: ['-c', 'shared_buffers=32MB', '-c', 'max_connections=20', '-c', 'work_mem=2MB']
-          envFrom:
-            - secretRef:
-                name: superset-secrets
-          env:
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
-          ports:
-            - containerPort: 5432
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 384Mi
-          readinessProbe:
-            exec:
-              command: ['sh', '-c', 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
-            periodSeconds: 10
-          volumeMounts:
-            - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-      volumes:
-        - name: postgres-data
-          hostPath:
-            path: /opt/buro-ai/superset-onprem/postgres
-            type: DirectoryOrCreate
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -150,8 +79,8 @@ spec:
         fsGroup: 1000
       initContainers:
         - name: postgres-driver
-          image: apache/superset:5.0.0
-          command: ['sh', '-ec', 'uv pip install --no-cache --target /drivers psycopg2-binary==2.9.10']
+          image: REPLACE_WITH_EXISTING_SUPERSET_IMAGE
+          command: ['sh', '-ec', 'if command -v uv >/dev/null; then uv pip install --no-cache --target /drivers psycopg2-binary==2.9.10; else python -m pip install --no-cache-dir --target /drivers psycopg2-binary==2.9.10; fi']
           resources:
             requests:
               cpu: 50m
@@ -164,7 +93,7 @@ spec:
               mountPath: /drivers
       containers:
         - name: superset
-          image: apache/superset:5.0.0
+          image: REPLACE_WITH_EXISTING_SUPERSET_IMAGE
           command: ['python', '/etc/superset/start.py']
           envFrom:
             - secretRef:
