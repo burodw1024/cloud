@@ -72,6 +72,32 @@ encoded correctly. Credentials do not appear in shell arguments or manifests
 saved on disk. Protect/back up the Kubernetes Secret along with the external
 metadata database; do not regenerate its key during reinstalls.
 
+## Confirmed empty database: initialize once
+
+If a read-only check confirms zero tables in every user schema and startup
+reports a missing alembic_version table, the database was provisioned but has
+not been initialized for Superset. Use the already imported image:
+
+```bash
+python3 source/deploy/superset/initialize_empty_db.py --context mamun
+```
+
+Choose a new Superset web-admin username/password at the prompts. They are
+different from the PostgreSQL role/password. The helper creates an initialization
+lock and temporary admin Secret, stops/drains the CrashLooping frontend, and
+runs a one-shot Job on the fixed node with imagePullPolicy Never. The Job checks
+the image version and exact database destination, takes a PostgreSQL advisory
+lock, and refuses any non-system tables/views before migration. It runs Superset
+4.1.2 metadata migrations, creates the initial web admin without resetting an
+existing account, and initializes permissions. No package/image download or
+database deletion occurs. The encryption key and DB password remain unchanged.
+
+After Job success, the helper starts the frontend and waits for readiness. Only
+then are its temporary Secret and lock removed. The completed Job is retained.
+Any failure retains the lock and Job; inspect logs before further action.
+An interrupted/partial initialization is not automatically retried or reset.
+Do not run this helper on a populated database or a healthy frontend.
+
 ## Resources and connectivity
 
 Requests: 100m CPU / 512Mi RAM. Limits: 500m CPU / 1536Mi RAM. One Gunicorn
@@ -84,10 +110,12 @@ resources. The external PostgreSQL cluster is provisioned separately.
 The Docker build installs psycopg2-binary 2.9.10 using the build host's network.
 The build host needs access to Docker Hub and the Python package index. If that
 host also lacks internet/DNS, prepare the image on a connected build machine and
-transfer it to your registry. The Kubernetes pod only needs the local registry
-and PostgreSQL; it has no init container or PyPI/Docker Hub download at startup.
-Configure the node container runtime for your internal HTTP registry if not
-already configured; image-pull failures are separate from application startup.
+transfer it to the node. The Kubernetes pod uses imagePullPolicy Never and
+requires the exact prepared image to be imported into 192.168.1.176 first.
+Save the image on the build machine, copy its archive/checksum to the node,
+verify/import it using `sudo ctr -n k8s.io images import ARCHIVE`, and label
+its image reference `io.cri-containerd.image=managed`. Docker push alone does
+not populate the node cache. The pod has no init container or package downloads.
 
 For the reported HTTP-registry/HTTPS-client mismatch, copy
 `configure_registry.py` onto 192.168.1.176 and execute it with sudo/Python 3.11+.
