@@ -3,6 +3,9 @@ set -Eeuo pipefail
 set +x
 umask 077
 export KUBE_CONTEXT="${KUBE_CONTEXT:-mamun}"
+SWITCH_EMPTY_LOCAL=0
+if [[ "${1:-}" == --switch-empty-local ]]; then SWITCH_EMPTY_LOCAL=1; shift; fi
+[[ "$#" == 0 ]] || { echo "Usage: bash install.sh [--switch-empty-local]" >&2; exit 1; }
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }
 for tool in kubectl python3; do
@@ -40,9 +43,7 @@ assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/@-]+",image), "Invalid image refe
 assert "@sha256:" in image or (":" in image.rsplit("/",1)[-1] and not image.endswith(":latest")), "Use the exact existing Superset version or digest, not latest"
 '
 k create namespace superset-onprem --dry-run=client -o yaml | k apply -f -
-local_database="$(k -n superset-onprem get deployment superset-db --ignore-not-found -o name)"
-[[ -z "$local_database" ]] || { echo 'The earlier local-database installation exists. Stop here and plan metadata migration before changing databases; nothing was deleted.' >&2; exit 1; }
-existing="$(k -n superset-onprem get secret superset-secrets --ignore-not-found -o name)"
+existing="$(k -n superset-onprem get secret superset-external-db-secrets --ignore-not-found -o name)"
 if [[ -z "$existing" ]]; then
   read -r -s -p 'Existing PostgreSQL password: ' POSTGRES_PASSWORD
   printf '\n'
@@ -54,7 +55,7 @@ if [[ -z "$existing" ]]; then
 import json,os
 print(json.dumps({
     'apiVersion':'v1','kind':'Secret',
-    'metadata':{'name':'superset-secrets','namespace':'superset-onprem'},
+    'metadata':{'name':'superset-external-db-secrets','namespace':'superset-onprem'},
     'type':'Opaque','stringData':{
         'POSTGRES_HOST':'192.168.1.223','POSTGRES_PORT':'5432',
         'POSTGRES_USER':'supersetadmin','POSTGRES_DB':'superset',
@@ -65,13 +66,16 @@ PY
   unset POSTGRES_PASSWORD SUPERSET_SECRET_KEY
 fi
 # Check destination metadata without printing any credential.
-k -n superset-onprem get secret superset-secrets -o json | python3 -c '
+k -n superset-onprem get secret superset-external-db-secrets -o json | python3 -c '
 import base64,json,sys
 values=json.load(sys.stdin)["data"]
 for key,expected in {"POSTGRES_HOST":"192.168.1.223","POSTGRES_PORT":"5432","POSTGRES_USER":"supersetadmin","POSTGRES_DB":"superset"}.items():
     assert base64.b64decode(values.get(key,"")).decode()==expected, "Existing Secret targets a different database; it was not changed"
 assert all(values.get(key) for key in ("POSTGRES_PASSWORD","SUPERSET_SECRET_KEY","POSTGRES_SSLMODE")), "Existing database credentials, Superset key and TLS mode are required"
 '
+switch_args=()
+if [[ "$SWITCH_EMPTY_LOCAL" == 1 ]]; then switch_args+=(--switch-empty-local); fi
+python3 "$SOURCE_DIR/switch_empty_local.py" --context "$KUBE_CONTEXT" "${switch_args[@]}"
 manifest="$(mktemp)"
 trap 'rm -f "$manifest"' EXIT
 python3 - "$SOURCE_DIR/deploy.yaml" > "$manifest" <<'PY'
