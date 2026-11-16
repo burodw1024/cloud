@@ -77,20 +77,6 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      initContainers:
-        - name: postgres-driver
-          image: REPLACE_WITH_EXISTING_SUPERSET_IMAGE
-          command: ['sh', '-ec', 'if command -v uv >/dev/null; then uv pip install --no-cache --target /drivers psycopg2-binary==2.9.10; else python -m pip install --no-cache-dir --target /drivers psycopg2-binary==2.9.10; fi']
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 384Mi
-          volumeMounts:
-            - name: drivers
-              mountPath: /drivers
       containers:
         - name: superset
           image: REPLACE_WITH_EXISTING_SUPERSET_IMAGE
@@ -102,7 +88,7 @@ spec:
             - name: SUPERSET_CONFIG_PATH
               value: /etc/superset/superset_config.py
             - name: PYTHONPATH
-              value: /drivers:/app/pythonpath
+              value: /app/pythonpath
           ports:
             - containerPort: 8088
           resources:
@@ -131,15 +117,10 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 5
           volumeMounts:
-            - name: drivers
-              mountPath: /drivers
-              readOnly: true
             - name: config
               mountPath: /etc/superset
               readOnly: true
       volumes:
-        - name: drivers
-          emptyDir: {}
         - name: config
           configMap:
             name: superset-config

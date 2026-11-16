@@ -17,18 +17,26 @@ and database credentials are not the Superset web login.
 
 ## Deploy
 
-From your on-prem release directory after pulling main:
+The observed existing version is Apache Superset 4.1.2. Build that same version
+with its PostgreSQL driver on the build host, then push it to your registry.
+This removes all pod-startup package downloads. From your on-prem release
+directory after pulling main:
 
 ```bash
+export EXISTING_SUPERSET_IMAGE="192.168.1.224:80/superset:4.1.2-pg-$(date -u +%Y%m%d%H%M%S)"
+docker build --network=host --platform=linux/amd64 \
+  --tag "$EXISTING_SUPERSET_IMAGE" source/deploy/superset
+docker run --rm --network=none --entrypoint python \
+  "$EXISTING_SUPERSET_IMAGE" -c 'import psycopg2; from importlib.metadata import version; assert version("apache-superset") == "4.1.2"'
+docker push "$EXISTING_SUPERSET_IMAGE"
 bash source/deploy/superset/install.sh
 ```
 
-Context defaults to mamun. Unless EXISTING_SUPERSET_IMAGE is set explicitly to
-the version/digest matching the existing metadata, the installer reads the
-current image from namespace superset, deployment superset. It rejects latest
-or untagged images. It renders both image placeholders in deploy.yaml using
-that same image before server validation/application. Do not apply the template
-directly or choose a new Superset version as part of this database correction.
+Context defaults to mamun. EXISTING_SUPERSET_IMAGE must identify your prepared
+4.1.2 image; the installer rejects a missing image, latest or an untagged image.
+It renders the image placeholder before server validation/application. Do not
+apply the template directly or choose a new Superset version as part of this
+database correction. The Dockerfile verifies the app version and driver import.
 
 The installer checks node identity/Ready status and NodePort availability.
 By default it refuses to switch if the earlier superset-onprem/superset-db
@@ -73,10 +81,13 @@ usage. The node still needs that much unreserved memory. This is a small
 interactive frontend; large queries/concurrency may need more
 resources. The external PostgreSQL cluster is provisioned separately.
 
-An init container installs psycopg2-binary 2.9.10 into an emptyDir using the same
-image as the frontend. It uses uv when available and otherwise Python pip.
-The node needs access to the image registry and Python package index; bake the
-driver into a matching reviewed image for disconnected environments.
+The Docker build installs psycopg2-binary 2.9.10 using the build host's network.
+The build host needs access to Docker Hub and the Python package index. If that
+host also lacks internet/DNS, prepare the image on a connected build machine and
+transfer it to your registry. The Kubernetes pod only needs the local registry
+and PostgreSQL; it has no init container or PyPI/Docker Hub download at startup.
+Configure the node container runtime for your internal HTTP registry if not
+already configured; image-pull failures are separate from application startup.
 
 URL: http://192.168.1.176:32086 (internal HTTP). Agentic API origin:
 http://superset.superset-onprem.svc.cluster.local:8088. Use TLS ingress for
@@ -89,7 +100,6 @@ Check progress:
 
 ```bash
 kubectl --context mamun -n superset-onprem get pods -o wide
-kubectl --context mamun -n superset-onprem logs deployment/superset -c postgres-driver
 kubectl --context mamun -n superset-onprem logs -f deployment/superset -c superset
 ```
 
