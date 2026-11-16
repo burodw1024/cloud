@@ -31,11 +31,23 @@ that same image before server validation/application. Do not apply the template
 directly or choose a new Superset version as part of this database correction.
 
 The installer checks node identity/Ready status and NodePort availability.
-It refuses to switch databases if the earlier superset-onprem/superset-db
-Deployment is present, and refuses to replace a Secret targeting another
-backend. No existing Deployment, database, local data directory or Secret is
-deleted. If the earlier local-database manifest was already installed, export
-and plan a metadata migration before switching it to this database.
+By default it refuses to switch if the earlier superset-onprem/superset-db
+Deployment is present. For the reported Pending frontend with an empty local
+database, run:
+
+```bash
+bash source/deploy/superset/install.sh --switch-empty-local
+```
+
+This creates a separate superset-external-db-secrets Secret, leaving the original
+superset-secrets untouched. It checks all non-system schemas for user tables,
+stops/drains the local frontend, checks emptiness again, copies local credentials
+to superset-local-credentials-retained, then stops/drains the local database.
+Its Deployment, Service and hostPath data are retained. A ConfigMap records the
+verified database UID so subsequent installs can recognize this completed switch.
+A nonempty database blocks switching; export/migrate its metadata separately.
+No existing database, local data directory or Secret is deleted. Partial failures
+retain state; inspect the error rather than deleting the guard or force-switching.
 
 Startup verifies PostgreSQL connectivity and an existing Alembic metadata
 version, then starts Gunicorn. It does not run migrations, initialize the
@@ -54,9 +66,11 @@ metadata database; do not regenerate its key during reinstalls.
 
 ## Resources and connectivity
 
-Requests: 100m CPU / 1Gi RAM. Limits: 500m CPU / 1536Mi RAM. One Gunicorn
+Requests: 100m CPU / 512Mi RAM. Limits: 500m CPU / 1536Mi RAM. One Gunicorn
 worker with two threads, a small local cache, no Redis/Celery/scheduled reports.
-This is a small interactive frontend; large queries/concurrency may need more
+The 512Mi request reduces the scheduler reservation; it is not a cap on actual
+usage. The node still needs that much unreserved memory. This is a small
+interactive frontend; large queries/concurrency may need more
 resources. The external PostgreSQL cluster is provisioned separately.
 
 An init container installs psycopg2-binary 2.9.10 into an emptyDir using the same

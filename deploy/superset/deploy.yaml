@@ -97,7 +97,7 @@ spec:
           command: ['python', '/etc/superset/start.py']
           envFrom:
             - secretRef:
-                name: superset-secrets
+                name: superset-external-db-secrets
           env:
             - name: SUPERSET_CONFIG_PATH
               value: /etc/superset/superset_config.py
@@ -108,7 +108,7 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 1Gi
+              memory: 512Mi
             limits:
               cpu: 500m
               memory: 1536Mi
