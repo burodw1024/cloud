@@ -1,0 +1,231 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: superset-onprem
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: superset-config
+  namespace: superset-onprem
+data:
+  superset_config.py: |
+    import os
+    from sqlalchemy.engine import URL
+    SECRET_KEY = os.environ['SUPERSET_SECRET_KEY']
+    SQLALCHEMY_DATABASE_URI = URL.create(
+        'postgresql+psycopg2', username=os.environ['POSTGRES_USER'],
+        password=os.environ['POSTGRES_PASSWORD'], host='superset-db',
+        port=5432, database=os.environ['POSTGRES_DB']
+    ).render_as_string(hide_password=False)
+    SQLALCHEMY_ENGINE_OPTIONS = {'pool_size': 3, 'max_overflow': 2, 'pool_pre_ping': True}
+    CACHE_CONFIG = {'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300, 'CACHE_THRESHOLD': 100}
+    DATA_CACHE_CONFIG = {'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300, 'CACHE_THRESHOLD': 100}
+    FEATURE_FLAGS = {'GLOBAL_ASYNC_QUERIES': False, 'ALERT_REPORTS': False}
+    WTF_CSRF_ENABLED = True
+    # Internal HTTP NodePort. Put TLS in front before exposing outside your LAN.
+    TALISMAN_ENABLED = False
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+  start.py: |
+    import os, subprocess, time
+    import psycopg2
+    for attempt in range(180):
+        try:
+            connection = psycopg2.connect(
+                host='superset-db', dbname=os.environ['POSTGRES_DB'],
+                user=os.environ['POSTGRES_USER'], password=os.environ['POSTGRES_PASSWORD'],
+                connect_timeout=3)
+            connection.close()
+            break
+        except psycopg2.OperationalError:
+            time.sleep(2)
+    else:
+        raise SystemExit('PostgreSQL is not ready; inspect superset-db logs.')
+    subprocess.run(['superset', 'db', 'upgrade'], check=True)
+    from superset.app import create_app
+    from superset.extensions import appbuilder
+    app = create_app()
+    with app.app_context():
+        manager = appbuilder.sm
+        if not manager.find_user(username=os.environ['ADMIN_USERNAME']):
+            user = manager.add_user(
+                username=os.environ['ADMIN_USERNAME'], first_name='Superset', last_name='Admin',
+                email=os.environ['ADMIN_EMAIL'], role=manager.find_role('Admin'),
+                password=os.environ['ADMIN_PASSWORD'])
+            if not user:
+                raise SystemExit('Could not create the initial administrator.')
+    subprocess.run(['superset', 'init'], check=True)
+    os.execvp('gunicorn', ['gunicorn', '--bind', '0.0.0.0:8088',
+        '--workers', '1', '--worker-class', 'gthread', '--threads', '2',
+        '--timeout', '180', '--access-logfile', '-', '--error-logfile', '-',
+        'superset.app:create_app()'])
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset-db
+  namespace: superset-onprem
+spec:
+  selector:
+    app: superset-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset-db
+  namespace: superset-onprem
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: superset-db
+  template:
+    metadata:
+      labels:
+        app: superset-db
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: superset
+      containers:
+        - name: postgres
+          image: postgres:16
+          args: ['-c', 'shared_buffers=32MB', '-c', 'max_connections=20', '-c', 'work_mem=2MB']
+          envFrom:
+            - secretRef:
+                name: superset-secrets
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          readinessProbe:
+            exec:
+              command: ['sh', '-c', 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 10
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-data
+          hostPath:
+            path: /opt/buro-ai/superset-onprem/postgres
+            type: DirectoryOrCreate
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset
+  namespace: superset-onprem
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 1200
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: superset
+  template:
+    metadata:
+      labels:
+        app: superset
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: superset
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: postgres-driver
+          image: apache/superset:5.0.0
+          command: ['sh', '-ec', 'uv pip install --no-cache --target /drivers psycopg2-binary==2.9.10']
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          volumeMounts:
+            - name: drivers
+              mountPath: /drivers
+      containers:
+        - name: superset
+          image: apache/superset:5.0.0
+          command: ['python', '/etc/superset/start.py']
+          envFrom:
+            - secretRef:
+                name: superset-secrets
+          env:
+            - name: SUPERSET_CONFIG_PATH
+              value: /etc/superset/superset_config.py
+            - name: PYTHONPATH
+              value: /drivers:/app/pythonpath
+          ports:
+            - containerPort: 8088
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 500m
+              memory: 1536Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          volumeMounts:
+            - name: drivers
+              mountPath: /drivers
+              readOnly: true
+            - name: config
+              mountPath: /etc/superset
+              readOnly: true
+      volumes:
+        - name: drivers
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: superset-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset
+  namespace: superset-onprem
+spec:
+  type: NodePort
+  selector:
+    app: superset
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088
+      nodePort: 32086
