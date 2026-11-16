@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import subprocess
 
 
 def deployment_pods(deployment, replicasets, pods, include_terminating=False):
@@ -32,9 +33,41 @@ def describe(pods):
                      for p in pods) or 'none'
 
 
+def live_pod(deployment, replicasets, pods):
+    owned = deployment_pods(deployment, replicasets, pods)
+    if deployment['spec'].get('replicas', 1) != 1 or len(owned) != 1:
+        raise ValueError('Expected one active application pod. An earlier release may need recovery. Pods: ' + describe(owned))
+    pod = owned[0]
+    statuses = pod.get('status', {}).get('containerStatuses', [])
+    containers = pod['spec'].get('containers', [])
+    if (pod.get('status', {}).get('phase') != 'Running'
+            or 'django' not in {c['name'] for c in containers}
+            or {c['name'] for c in statuses} != {c['name'] for c in containers}
+            or not all(c.get('ready') for c in statuses)
+            or not any(c.get('type') == 'Ready' and c.get('status') == 'True'
+                       for c in pod.get('status', {}).get('conditions', []))):
+        raise ValueError('Application pod is not Running and Ready; inspect its logs/events before deploying: ' + describe(owned))
+    return pod['metadata']['name']
+
+
+def preflight_pod(context):
+    command = ['kubectl', '--context', context, '-n', 'rag', 'get']
+    lock = subprocess.check_output(command+['configmap', 'buro-django-release-lock', '--ignore-not-found', '-o', 'json'], text=True)
+    if lock.strip():
+        raise ValueError('An existing release lock is present. Finish the saved release recovery before starting another deployment.')
+    def read(kind, name=None):
+        return json.loads(subprocess.check_output(command+[kind]+([name] if name else [])+['-o', 'json'], text=True))
+    return live_pod(read('deployment', 'buro-django'), read('replicasets'), read('pods'))
+
+
 if __name__ == '__main__':
     action, stage = sys.argv[1:3]
-    if action == 'drain-count':
+    if action == 'live':
+        try:
+            print(preflight_pod(stage))
+        except (ValueError, subprocess.CalledProcessError) as exc:
+            raise SystemExit(str(exc))
+    elif action == 'drain-count':
         print(len(staged_pods(stage, 'draining-pods.json', include_terminating=True)))
     elif action == 'new-ready':
         pods = staged_pods(stage, 'pods.after.json', 'replicasets.after.json')
