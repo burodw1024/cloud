@@ -6,7 +6,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 WORKDIR /app/superset-frontend
 COPY upstream/superset-frontend/ ./
 RUN npm ci --legacy-peer-deps --no-audit --no-fund
-RUN npm run build
+RUN npm run build -- --config webpack.icon-map.cjs
 RUN test -f /app/superset/static/assets/manifest.json \
     && grep -R -l 'buro_icon_map' /app/superset/static/assets --include='*.js' >/dev/null
 

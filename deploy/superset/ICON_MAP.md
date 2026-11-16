@@ -2,7 +2,7 @@
 
 Adds a chart type to Superset **4.1.2** using the existing PostgreSQL connection, web accounts and Superset secret key. No database migrations are run. See [chart instructions](../../plugins/superset-icon-map/README.md).
 
-Build on a connected **Linux amd64 management machine**, with Docker, Git and Python 3. Allow 16 GiB RAM and 15 GiB free disk for the full frontend build, which can take several minutes. The Kubernetes node runs the finished image without installing packages or pulling images. Upstream source is pinned to `72538bda06c0deef2140e0df65bf0a13bcddb16c`.
+Build on a connected **Linux amd64 management machine**, with Docker, Git and Python 3. Allow 16 GiB RAM and 15 GiB free disk for the full frontend build, which can take several minutes. Minifier concurrency is bounded; the full upstream lint and type checks remain enabled. The Kubernetes node runs the finished image without installing packages or pulling images. Upstream source is pinned to `72538bda06c0deef2140e0df65bf0a13bcddb16c`.
 
 Run on the management machine with the source checkout and `mamun` context:
 

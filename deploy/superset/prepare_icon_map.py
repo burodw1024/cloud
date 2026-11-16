@@ -49,6 +49,7 @@ def main():
     frontend = upstream/'superset-frontend'
     plugin = root/'plugins/superset-icon-map'
     shutil.copytree(plugin/'src', frontend/'src/visualizations/BuroIconMap')
+    shutil.copy2(root/'deploy/superset/webpack.icon-map.cjs', frontend/'webpack.icon-map.cjs')
     preset = frontend/'src/visualizations/presets/MainPreset.js'
     preset.write_text(register(preset.read_text()))
     shutil.copy2(root/'deploy/superset/Dockerfile.icon-map', output/'Dockerfile')
