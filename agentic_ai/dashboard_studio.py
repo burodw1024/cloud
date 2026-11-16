@@ -1,5 +1,6 @@
 """Authenticated dashboard preview, publication journal and cleanup endpoints."""
 import json
+import re
 import uuid
 
 from django.contrib.auth import get_user_model
@@ -25,14 +26,15 @@ def response(body, status=200):
     return reply
 
 
-def source_report(request):
-    token = request.session.get('dashboard_report_token')
-    saved = cache.get('agentic:summary:' + token) if isinstance(token, str) else None
+def source_report(request, token=None):
+    token = request.session.get('dashboard_report_token') if token is None else token
+    valid = isinstance(token, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', token)
+    saved = cache.get('agentic:summary:' + token) if valid else None
     if not saved or saved['user_id'] != request.user.pk:
         raise PublishError('Run a report first. The displayed report snapshot expires after 30 minutes.')
     if not _can_replay_result(request.user, saved):
         raise PermissionError('Report access is no longer permitted.')
-    return saved
+    return {**saved, 'report_token': token}
 
 
 def current_authorization(user_id, source):
@@ -53,6 +55,14 @@ def studio(request):
         return response({'ok': False, 'error': 'Dashboard publishing permission required.'}, 403)
     if request.method != 'GET':
         return response({'ok': False, 'error': 'GET required.'}, 405)
+    token = request.GET.get('report')
+    if token is not None:
+        try:
+            source_report(request, token)
+        except PublishError as exc:
+            return response({'ok': False, 'error': str(exc)}, 400)
+        except PermissionError as exc:
+            return response({'ok': False, 'error': str(exc)}, 403)
     from .reporting_config import workspace_settings
     readiness = 'Ready to create private dashboards.'
     ready = True
@@ -62,7 +72,8 @@ def studio(request):
         readiness = str(exc)
         ready = False
     result = render(request, 'agentic_ai/dashboard_studio.html', {
-        'readiness': readiness, 'publishing_ready':ready, 'reporting':workspace_settings(request.user), 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
+        'readiness': readiness, 'publishing_ready':ready, 'report_token': token if token is not None else request.session.get('dashboard_report_token', ''),
+        'reporting':workspace_settings(request.user), 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
     result['Cache-Control'] = 'no-store'
     return result
 
@@ -82,7 +93,7 @@ def dashboard_api(request):
         action = body.get('action')
         if action not in {'preview', 'publish', 'delete', 'open'}:
             raise PublishError('Choose preview, publish, open or delete.')
-        allowed = {'action', 'title', 'dimension', 'metrics', 'template'} if action == 'preview' else {'action', 'export_id'}
+        allowed = {'action', 'title', 'dimension', 'metrics', 'template', 'report_token'} if action == 'preview' else {'action', 'export_id'}
         if set(body) - allowed:
             raise PublishError('Unexpected dashboard parameters. Report data and SQL cannot be submitted.')
         if action == 'preview':
@@ -93,11 +104,13 @@ def dashboard_api(request):
                 count = cache.incr(rate_key)
             if count > 10:
                 return response({'ok': False, 'error': 'Please wait a minute before creating another preview.'}, 429)
-            saved = source_report(request)
+            if 'report_token' in body and not isinstance(body['report_token'], str):
+                raise PublishError('Choose a valid report snapshot.')
+            saved = source_report(request, body.get('report_token'))
             spec = specification(saved['report'], body.get('title', 'Report dashboard'),
                                  body.get('dimension'), body.get('metrics'), body.get('template','comparison'))
             source = {k: v for k, v in saved.items() if k in {'tool', 'plan', 'loan_access'}}
-            source['report_token'] = request.session['dashboard_report_token']
+            source['report_token'] = saved['report_token']
             export = DashboardExport.objects.create(user=request.user, title=spec['title'],
                                                      specification=spec, source=source)
             return response({'ok': True, 'export_id': str(export.pk), 'specification': spec,

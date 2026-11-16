@@ -18,24 +18,26 @@
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         <section id="loan-question-suggestions" aria-label="ব্যবসায়িক প্রশ্নের উদাহরণ" hidden></section>
 
-        {% if whatsapp.ready %}<section id="whatsapp-actions" aria-label="Share result on WhatsApp">
+        <section id="whatsapp-actions" aria-label="Share result on WhatsApp">
             <h3>Share result on WhatsApp</h3>
+            <p>Run a question, preview the message, then confirm sending. <a href="{% url 'agentic_ai:services' %}">Service status & instructions →</a></p>
+            {% if whatsapp.ready %}
             {% if whatsapp.recipients %}
             <label for="whatsapp-recipient">WhatsApp recipient</label>
             <select id="whatsapp-recipient">{% for number in whatsapp.recipients %}<option value="{{ number }}">+{{ number }}</option>{% endfor %}</select>
-            <button type="button" class="copy-button" data-whatsapp-mode="summary" disabled>Send summary</button>
-            <button type="button" class="copy-button" data-whatsapp-mode="full" disabled>Send full result</button>
+            <button type="button" class="copy-button" data-whatsapp-mode="summary" disabled>Preview summary</button>
+            <button type="button" class="copy-button" data-whatsapp-mode="full" disabled>Preview full result</button>
             {% else %}
-            <button type="button" class="copy-button" disabled>Send summary</button>
-            <button type="button" class="copy-button" disabled>Send full result</button>
+            <button type="button" class="copy-button" disabled>Preview summary</button>
+            <button type="button" class="copy-button" disabled>Preview full result</button>
             {% endif %}
             <p class="result-details">Summary is a shortened extract. Full result includes returned table rows. Messages go to the selected person.</p>
             <div id="whatsapp-preview" hidden><pre class="result-text" id="whatsapp-preview-text"></pre>
             <button type="button" class="copy-button" id="whatsapp-confirm">Confirm and send</button>
             <button type="button" class="copy-button" id="whatsapp-cancel">Cancel</button></div>
             <p id="whatsapp-status" role="status" aria-live="polite"></p>
+            {% else %}<p class="result-details">WhatsApp is not ready for this account. Open Services for setup and access details.</p>{% endif %}
         </section>
-        {% endif %}
         {% include 'agentic_ai/report_templates.html' %}
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>
@@ -287,7 +289,7 @@
         if (!question) return;
         window.BuroReportTemplates?.reset();
         loanSuggestions.hidden = true; loanSuggestions.replaceChildren();
-        waResultId=null;waPending=null;if(waPanel){waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=true);document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
+        waResultId=null;waPending=null;if(waPanel&&document.getElementById('whatsapp-recipient')){waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=true);document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
         chartReport = null; chartButton.hidden = true; chartPanel.hidden = true; chartBars.replaceChildren();
         chartButton.setAttribute('aria-expanded', 'false'); chartButton.textContent = 'চার্টে দেখুন';
         reportGeneration++; summaryToken = null; summaryButton.hidden = true; summaryButton.disabled = false;

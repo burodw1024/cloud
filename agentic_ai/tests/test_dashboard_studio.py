@@ -93,6 +93,28 @@ class StudioTests(TestCase):
         self.assertEqual(export.source['report_token'], 'report-token')
         self.assertEqual(self.post({'action': 'preview', 'rows': REPORT['rows']}).status_code, 400)
 
+    def test_explicit_report_stays_bound_when_another_tab_changes_latest_report(self):
+        other = {**self.saved, 'report': {**REPORT, 'rows': [{'BRANCHCODE': '9999', 'GS_BALANCE': '999'}]}}
+        cache.set('agentic:summary:another-tab', other, 1800)
+        session = self.client.session
+        session['dashboard_report_token'] = 'another-tab'
+        session.save()
+        result = self.post({'action': 'preview', 'report_token': 'report-token', 'title': 'Chosen report'})
+        self.assertEqual(result.status_code, 200, result.content)
+        self.assertEqual(result.json()['sample'], REPORT['rows'])
+        export = DashboardExport.objects.get(pk=result.json()['export_id'])
+        self.assertEqual(export.source['report_token'], 'report-token')
+        page = self.client.get('/agentic/analytics/?report=report-token')
+        self.assertContains(page, 'data-report-token="report-token"')
+
+    def test_explicit_report_token_cannot_fall_back_to_another_report_or_user(self):
+        cache.set('agentic:summary:foreign', {**self.saved, 'user_id': self.user.pk + 999}, 1800)
+        for token in ('expired', 'foreign', '', '../report-token', None):
+            with self.subTest(token=token):
+                self.assertEqual(self.post({'action': 'preview', 'report_token': token}).status_code, 400)
+        self.assertEqual(self.client.get('/agentic/analytics/?report=expired').status_code, 400)
+        self.assertFalse(DashboardExport.objects.exists())
+
     def test_permission_and_csrf_enforced(self):
         self.assertEqual(self.post({'action': 'preview'}, Client()).status_code, 403)
         csrf_client = Client(enforce_csrf_checks=True)

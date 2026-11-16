@@ -159,7 +159,7 @@ tbody tr:hover { background:var(--soft) }
 <aside class="sidebar"><a class="brand" href="/agentic/"><span class="brand-mark">b</span><span class="brand-wordmark">BURO<span>Insight AI</span><small>AGENTIC WORKSPACE</small></span></a>
 <div><div class="nav-label">WORKSPACE</div><nav class="side-nav" aria-label="Workspace navigation">
 <a href="{% url 'agentic_ai:query_page' %}"{% if not selected_module %} class="active" aria-current="page"{% endif %}>✧ &nbsp; My workspace</a>
-<a href="#capabilities">Capabilities</a><a href="#my-activity">My activity</a><a href="#my-approvals">My approvals{% if pending_approval_count %} · {{ pending_approval_count }}{% endif %}</a>
+<a href="#capabilities">Capabilities</a><a href="{% url 'agentic_ai:services' %}">Services</a><a href="#my-activity">My activity</a><a href="#my-approvals">My approvals{% if pending_approval_count %} · {{ pending_approval_count }}{% endif %}</a>
 {% for module in business_modules %}<a href="{% url 'agentic_ai:query_page' %}?module={{ module.slug|urlencode }}"{% if selected_module.slug == module.slug %} class="active" aria-current="page"{% endif %}>{{ module.name }}</a>{% endfor %}
 <a href="/">Main chat</a></nav></div>
 {% if user.is_staff %}<div><div class="nav-label">ADMINISTRATION</div><nav class="side-nav" aria-label="Administration">
@@ -243,8 +243,10 @@ function render(){
   const description=document.createElement('p');description.textContent=tool.description||'Ask a question using this registered capability.';
   const footer=document.createElement('div');footer.className='capability-footer';
   const note=document.createElement('span');note.textContent=tool.requires_approval?'Approval required':'Registered capability';
-  const button=document.createElement('button');button.type='button';button.className='capability-start';button.textContent='Start a question →';button.setAttribute('aria-label','Start a question about '+tool.title);
-  button.addEventListener('click',()=>{const field=document.getElementById('agent-message');if(field.disabled)return;field.value=tool.example||'Help me with '+tool.title+'.';field.focus();field.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});});
+  const button=document.createElement(tool.service_url?'a':'button');button.className='capability-start';
+  if(tool.service_url){button.href=tool.service_url;button.textContent='Use service →';button.setAttribute('aria-label','Use '+tool.title+' service');}
+  else{button.type='button';button.textContent='Start a question →';button.setAttribute('aria-label','Start a question about '+tool.title);
+  button.addEventListener('click',()=>{const field=document.getElementById('agent-message');if(field.disabled)return;field.value=tool.example||'Help me with '+tool.title+'.';field.focus();field.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});});}
   footer.append(note,button);card.append(header,title,description,footer);grid.append(card);
  });
  empty.hidden=filtered.length>0;

@@ -166,7 +166,7 @@ class ExistingRuntimeConfigurationTests(SimpleTestCase):
         root = Path(__file__).resolve().parents[2]
         script = (root / 'deploy-agentic-updated.sh').read_text()
         self.assertNotIn('ENV_FILE', script)
-        self.assertIn('k exec deployment/buro-django -c django -- python manage.py shell', script)
+        self.assertIn('k exec "$PREFLIGHT_POD" -c django -- python manage.py shell', script)
         self.assertIn('settings.SECRET_KEY and settings.ALLOWED_HOSTS', script)
         from deploy.package_portable import render
         self.assertNotIn('ENV_FILE', render('a' * 40))

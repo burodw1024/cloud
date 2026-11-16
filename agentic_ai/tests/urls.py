@@ -8,9 +8,12 @@ from agentic_ai.review import dashboard, logs_api
 from agentic_ai.performance_dashboard import performance_dashboard
 from agentic_ai.dashboard_studio import studio, dashboard_api
 from agentic_ai.reporting_admin import reporting_settings
+from agentic_ai.services import services_page, check_whatsapp
 from agentic_ai.module_admin import module_manager
 from agentic_ai.access_admin import access_manager, directory_manager
 patterns = [
+    path('services/', services_page, name='services'),
+    path('api/services/whatsapp/check/', check_whatsapp, name='whatsapp_service_check'),
     path("api/summary/", summary_api, name="summary_api"),
     path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
     path("api/query/", agentic_query_api, name="agentic_query_api"),

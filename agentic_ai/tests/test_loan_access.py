@@ -164,7 +164,8 @@ class LoanAccessTests(TestCase):
         async def revoke():
             await sync_to_async(LoanAccessPolicy.objects.filter(pk=self.policy.pk).update)(mode='NONE')
         session.initialize.side_effect = revoke
-        session.list_tools.return_value = SimpleNamespace(tools=[Tool(name=name, inputSchema={'type': 'object'})], nextCursor=None)
+        session.list_tools.return_value = SimpleNamespace(tools=[Tool(name=name, inputSchema={
+            'type': 'object', 'properties': {key: {} for key in ('messaging_product', 'to', 'type', 'text')}})], nextCursor=None)
         with patch('mcp.client.streamable_http.streamablehttp_client', transport), patch('mcp.ClientSession', return_value=session):
             result = async_to_sync(whatsapp.dispatch)({'url': 'https://gateway.example/mcp', 'token': '', 'timeout': 2},
                          name, '8801700000000', 'A report', self.user, source)

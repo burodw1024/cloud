@@ -6,6 +6,8 @@
 <button type="button" data-report-template="comparison"><strong>Table + comparisons</strong><small>Compare one numeric field across displayed rows.</small></button>
 <button type="button" data-report-template="management"><strong>Management report pack</strong><small>A report header, scope notes and comparison.</small></button></div>
 <p id="report-template-notice" class="result-details" role="status"></p>
+<div class="report-service-actions"><a href="{% url 'agentic_ai:services' %}">Report services & setup</a>
+{% if reporting.can_publish %}<a id="generate-superset-report" data-studio-url="{% url 'agentic_ai:analytics' %}" hidden>Generate Superset report →</a><p id="superset-result-status" class="result-details"></p>{% else %}<p class="result-details">Superset publishing requires a publishing permission. Open Report services to see available options.</p>{% endif %}</div>
 <div id="report-template-heading" hidden><h4>Authorized report snapshot</h4><div id="report-template-facts" class="report-template-facts"></div><p id="report-template-scope"></p></div>
 <div id="template-comparison" hidden><label for="template-measure">Compare field</label><select id="template-measure"></select><div id="template-bars"></div><p class="result-details">First 20 displayed rows, in their returned order. Values are not summed or inferred.</p></div>
 </section>

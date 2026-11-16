@@ -55,8 +55,13 @@ def query_page(request):
     from .whatsapp import settings_status
     from .loan_access import own_access_summary
     from .reporting_config import workspace_settings
+    from django.urls import reverse
     workspace = workspace_context(request.user, request.GET.get('module', ''))
-    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": settings_status(request.user),
+    whatsapp_status = settings_status(request.user)
+    for capability in workspace['capabilities']:
+        if capability['name'] == whatsapp_status['tool']:
+            capability['service_url'] = reverse('agentic_ai:services') + '#whatsapp-service-title'
+    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": whatsapp_status,
                       'reporting':workspace_settings(request.user), 'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})
     response["Cache-Control"] = "no-store"
     return response
@@ -120,7 +125,7 @@ def setup_page(request):
                 return _reply({'ok': False, 'error': str(exc)}, 400)
             return _reply({'ok': True, 'message': f"Directory connection verified: {len(rows)} branches across {len({row['ZONECODE'] for row in rows})} zones. No directory entries or user permissions were changed."})
         if action == "check_whatsapp":
-            from .whatsapp import configuration, settings_status, _validator
+            from .whatsapp import configuration, settings_status, text_arguments
             status = settings_status(request.user)
             if not status['ready']:
                 return _reply({"ok": False, "error": status['status']}, 400)
@@ -129,14 +134,10 @@ def setup_page(request):
             tool = next((t for t in tools if t.name == config['tool']), None)
             if tool is None:
                 return _reply({"ok": False, "error": "Configured tool is absent from the connected gateway. Discover tools and check the exact name."}, 400)
-            schema = tool.inputSchema
-            if not {'messaging_product', 'to', 'type', 'text'}.issubset(schema.get('properties', {})):
-                return _reply({"ok": False, "error": "Tool schema must declare messaging_product, to, type, and text. An empty schema cannot verify request mapping."}, 400)
             try:
-                _validator(schema).validate({'messaging_product': 'whatsapp', 'to': config['recipients'][0],
-                                             'type': 'text', 'text': {'body': 'Configuration check'}})
-            except Exception:
-                return _reply({"ok": False, "error": "The configured tool schema does not accept report text. Check its messaging_product, to, type and text fields."}, 400)
+                text_arguments(tool.inputSchema, config['recipients'][0], 'Configuration check')
+            except ValueError as exc:
+                return _reply({'ok': False, 'error': str(exc)}, 400)
             return _reply({"ok": True, "message": "Gateway tool and text input schema checked. No message sent. Meta token, request-body mapping, and delivery remain unverified."})
         if action == "save_summary":
             from urllib.parse import urlsplit
