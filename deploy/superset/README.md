@@ -98,6 +98,32 @@ Any failure retains the lock and Job; inspect logs before further action.
 An interrupted/partial initialization is not automatically retried or reset.
 Do not run this helper on a populated database or a healthy frontend.
 
+### Recover the monitoring-view guard failure
+
+The reported cluster precreates eight monitoring views, so a physically empty
+schema is not required. The initializer exempts only these verified tuples:
+metric_helpers.index_bloat, nearly_exhausted_sequences, pg_stat_statements and
+table_bloat (ordinary views); public.pg_stat_kcache and pg_stat_kcache_detail
+(owned by pg_stat_kcache); public.pg_stat_statements and pg_stat_statements_info
+(owned by pg_stat_statements). Any other object, different type or unexpected
+extension ownership remains blocking. No monitoring view is dropped or changed.
+
+For the original Job that failed at the old emptiness guard before migrations:
+
+```bash
+python3 source/deploy/superset/initialize_empty_db.py \
+  --context mamun --resume-monitoring-views
+```
+
+Recovery verifies the matching lock/deployment, failed/inactive original Job,
+exact guard-failure log with no migration-start marker, unchanged image, stopped
+frontend and existing bootstrap Secret. It reuses the original web-admin
+credentials in a new single-attempt Job, keeps the original failed Job, and
+records the recovery in the lock. No fresh password prompt, image build, copy,
+database reset or manual lock deletion is needed. The database guard runs again
+inside the Job immediately before migration. Failure after migration dispatch
+requires inspection and does not qualify for another automatic recovery.
+
 ## Resources and connectivity
 
 Requests: 100m CPU / 512Mi RAM. Limits: 500m CPU / 1536Mi RAM. One Gunicorn
