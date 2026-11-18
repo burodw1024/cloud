@@ -8,6 +8,7 @@ import time
 import uuid
 
 import jwt
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
@@ -33,29 +34,58 @@ def protected_tools():
     return {name.strip() for name in get_setting('MCP_REPORT_PROJECTION_TOOLS', 'loan-due-report').split(',') if name.strip()} | {TOOL_NAME, 'loan-due-report'} | LOCAL_FINANCIAL_TOOLS
 
 
+def employee_location(user):
+    if not apps.is_installed('chat'):
+        return '', ''
+    entry = apps.get_model('chat', 'EmployeeDirectoryEntry').objects.filter(user_id=user.pk)
+    location = entry.values_list('workspace', 'site_code').first()
+    if location is None:
+        return '', ''
+    workspace, site_code = location
+    return workspace.strip().casefold(), site_code.strip()
+
+
 def snapshot(user):
     if not getattr(user, 'is_authenticated', False):
         raise LoanAccessDenied('Sign in to access loan data.')
-    if not get_user_model().objects.filter(pk=user.pk, is_active=True).exists():
+    account = get_user_model().objects.filter(pk=user.pk, is_active=True).only('is_superuser').first()
+    if account is None:
         raise LoanAccessDenied('This account is inactive.')
     policy = LoanAccessPolicy.objects.filter(user_id=user.pk).first()
-    if not policy or policy.mode == 'NONE':
-        raise LoanAccessDenied('No loan data access is assigned. Contact your access administrator.')
-    if policy.expires_at and policy.expires_at <= timezone.now():
+    superuser_default = policy is None and account.is_superuser
+    branches = LoanBranch.objects.active_hierarchy(require_complete=policy is None and not superuser_default)
+    expires_at = policy.expires_at if policy else None
+    if expires_at and expires_at <= timezone.now():
         raise LoanAccessDenied('Your loan data access has expired.')
-    branches = LoanBranch.objects.filter(is_active=True, zone__is_active=True)
-    if policy.mode == 'SELECTED':
-        branches = branches.filter(Q(pk__in=policy.branches.values('pk')) | Q(zone__in=policy.zones.values('pk')))
-    elif policy.mode != 'ALL':
-        raise LoanAccessDenied('Invalid loan access policy.')
-    directory = list(branches.order_by('code').values('code', 'zone__code', 'zone__name'))
+    if superuser_default:
+        mode = 'ALL'
+        source = {'superuser_default': True}
+    elif policy is None:
+        workspace, site_code = employee_location(user)
+        field = {'branch': 'code', 'area': 'area_code', 'zone': 'zone__code',
+                 'division': 'zone__division_code'}.get(workspace)
+        if not field or not site_code:
+            raise LoanAccessDenied('No loan data access is assigned. Contact your access administrator.')
+        branches = branches.filter(**{field: site_code})
+        mode = 'DIRECTORY'
+        source = {'workspace': workspace, 'site_code': site_code}
+    else:
+        mode = policy.mode
+        if mode == 'NONE':
+            raise LoanAccessDenied('No loan data access is assigned. Contact your access administrator.')
+        if mode == 'SELECTED':
+            branches = branches.filter(Q(pk__in=policy.branches.values('pk')) | Q(zone__in=policy.zones.values('pk')))
+        elif mode != 'ALL':
+            raise LoanAccessDenied('Invalid loan access policy.')
+        source = {'updated': policy.updated_at.isoformat()}
+    directory = list(branches.order_by('code').values('code', 'zone__code', 'zone__name')[:5001])
     if not directory or len(directory) > 5000:
         raise LoanAccessDenied('No active branches are available, or the authorization scope exceeds 5000 branches.')
-    state = {'user': str(user.pk), 'mode': policy.mode, 'updated': policy.updated_at.isoformat(),
-             'expires': policy.expires_at.isoformat() if policy.expires_at else None, 'directory': directory}
+    state = {'user': str(user.pk), 'mode': mode, **source,
+             'expires': expires_at.isoformat() if expires_at else None, 'directory': directory}
     version = hashlib.sha256(canonical(state).encode()).hexdigest()
-    return {'subject': str(user.pk), 'mode': policy.mode, 'version': version,
-            'directory': directory, 'expires_at': policy.expires_at}
+    return {'subject': str(user.pk), 'mode': mode, 'version': version,
+            'directory': directory, 'expires_at': expires_at}
 
 
 def current_access(user, metadata):
@@ -82,7 +112,9 @@ def own_access_summary(user):
     try:
         access = snapshot(user)
         codes = [row['code'] for row in access['directory']]
-        return {'label': 'All active branches and zones' if access['mode'] == 'ALL' else 'Selected branches and zones',
+        labels = {'ALL': 'All active branches and zones', 'SELECTED': 'Selected branches and zones',
+                  'DIRECTORY': 'Inherited from your synced employee location'}
+        return {'label': labels[access['mode']],
                 'count': len(codes), 'codes': ', '.join(codes[:20]), 'more': len(codes) > 20,
                 'example_branch': codes[0], 'example_zone': access['directory'][0]['zone__code']}
     except LoanAccessDenied as exc:

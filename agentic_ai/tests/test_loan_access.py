@@ -21,7 +21,7 @@ from agentic_ai.api import _can_replay_result
 from agentic_ai.access_admin import import_branches
 from agentic_ai.loan_access import snapshot, authorize, current_access, validate_response, LoanAccessDenied
 from agentic_ai.loan_scope_backend import TOKEN_FIELD, verify_loan_access_token, authorization_receipt
-from agentic_ai.models import LoanZone, LoanBranch, LoanAccessPolicy, LoanAccessEvent, AgentTool, AgentRunLog
+from agentic_ai.models import LoanZone, LoanBranch, LoanDivision, LoanArea, LoanAccessPolicy, LoanAccessEvent, AgentTool, AgentRunLog
 from .test_native_loan_query import SCHEMA, ARGS, QUERY, envelope
 
 KEY = 'test-only-dedicated-signing-key-with-256-bit-length'
@@ -55,12 +55,20 @@ class LoanAccessTests(TestCase):
     def grant(self, args=None, tool=None):
         return authorize(self.user, NAME, args if args is not None else ARGS, tool or scoped_tool())
 
-    def test_missing_policy_none_and_superuser_without_explicit_grant_are_denied(self):
+    def test_superuser_defaults_to_all_branches_and_saved_denial_overrides(self):
         self.policy.delete()
-        self.user.is_superuser = True
-        self.user.save()
         with self.assertRaises(LoanAccessDenied):
             snapshot(self.user)
+
+        self.user.is_superuser = True
+        self.user.save()
+        self.assertEqual(self.grant({'report_date': '2026-09-30'}).receipt['branch_codes'],
+                         ['0253', '0254', '0301'])
+        self.other_zone.is_active = False
+        self.other_zone.save(update_fields=['is_active'])
+        self.assertEqual(self.grant({'report_date': '2026-09-30'}).receipt['branch_codes'],
+                         ['0253', '0254'])
+
         LoanAccessPolicy.objects.create(user=self.user, mode='NONE')
         with self.assertRaises(LoanAccessDenied):
             self.grant()
@@ -70,6 +78,80 @@ class LoanAccessTests(TestCase):
         self.assertEqual([r['code'] for r in snapshot(self.user)['directory']], ['0253', '0301'])
         LoanBranch.objects.create(code='0302', name='New branch', zone=self.other_zone)
         self.assertEqual(self.grant({'report_date': '2026-09-30'}) .receipt['branch_codes'], ['0253', '0301', '0302'])
+
+    def add_hierarchy(self, zone):
+        division = LoanDivision.objects.create(code='D' + zone.code, name='Division ' + zone.code)
+        area = LoanArea.objects.create(code='A' + zone.code, name='Area ' + zone.code, zone=zone)
+        zone.division_code = division.code
+        zone.save(update_fields=['division_code'])
+        zone.branches.update(area_code=area.code)
+        return division, area
+
+    @patch('agentic_ai.loan_access.employee_location')
+    def test_synced_scope_inherits_only_active_descendant_branches(self, location):
+        self.policy.delete()
+        division, area = self.add_hierarchy(self.zone)
+        other_area = LoanArea.objects.create(code='A99', name='Other area', zone=self.zone)
+        LoanBranch.objects.filter(pk=self.second.pk).update(area_code=other_area.code)
+        LoanBranch.objects.create(code='0255', name='Another area branch', zone=self.zone, area_code=area.code)
+        LoanBranch.objects.create(code='0256', name='Paused branch', zone=self.zone, area_code=area.code, is_active=False)
+        for workspace, site_code, expected in (
+            ('branch', '0253', ['0253']),
+            ('area', area.code, ['0253', '0255']),
+            ('zone', '07', ['0253', '0254', '0255']),
+            ('division', division.code, ['0253', '0254', '0255']),
+        ):
+            with self.subTest(workspace=workspace):
+                location.return_value = workspace, site_code
+                self.assertEqual(self.grant({'report_date': '2026-09-30'}).receipt['branch_codes'], expected)
+                with self.assertRaises(LoanAccessDenied):
+                    self.grant({**ARGS, 'branch_code': '0301'})
+
+    @patch('agentic_ai.loan_access.employee_location')
+    def test_explicit_policy_overrides_sync_and_location_changes_invalidate_prior_scope(self, location):
+        location.return_value = 'zone', '07'
+        self.assertEqual(self.grant({'report_date': '2026-09-30'}).receipt['branch_codes'], ['0253'])
+        self.add_hierarchy(self.zone)
+        self.add_hierarchy(self.other_zone)
+        self.policy.delete()
+        previous = snapshot(self.user)
+        location.return_value = 'zone', '08'
+        self.assertFalse(current_access(self.user, previous))
+        self.assertEqual(self.grant({'report_date': '2026-09-30'}).receipt['branch_codes'], ['0301'])
+        for assignment in (('head office', '08'), ('zone', '8'), ('zone', '')):
+            location.return_value = assignment
+            with self.assertRaises(LoanAccessDenied):
+                snapshot(self.user)
+        location.return_value = 'zone', '08'
+        LoanAccessPolicy.objects.create(user=self.user, mode='NONE')
+        with self.assertRaises(LoanAccessDenied):
+            snapshot(self.user)
+
+    @patch('agentic_ai.loan_access.employee_location', return_value=('branch', '0253'))
+    def test_inactive_ancestors_block_inherited_and_explicit_access(self, location):
+        division, area = self.add_hierarchy(self.zone)
+        self.policy.delete()
+        previous = snapshot(self.user)
+        for entry in (division, self.zone, area, self.branch):
+            with self.subTest(level=entry.__class__.__name__):
+                entry.is_active = False
+                entry.save(update_fields=['is_active'])
+                self.assertFalse(current_access(self.user, previous))
+                with self.assertRaises(LoanAccessDenied):
+                    self.grant()
+                explicit = LoanAccessPolicy.objects.create(user=self.user, mode='SELECTED')
+                explicit.branches.add(self.branch)
+                with self.assertRaises(LoanAccessDenied):
+                    self.grant()
+                explicit.delete()
+                entry.is_active = True
+                entry.save(update_fields=['is_active'])
+
+    @patch('agentic_ai.loan_access.employee_location', return_value=('branch', '0253'))
+    def test_inherited_permission_requires_complete_hierarchy(self, location):
+        self.policy.delete()
+        with self.assertRaises(LoanAccessDenied):
+            self.grant()
 
     def test_all_access_is_explicit_and_excludes_paused_directory(self):
         self.policy.mode = 'ALL'

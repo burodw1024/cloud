@@ -1,6 +1,11 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tool setup | BURO Insight AI</title><style>
 body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:0}main{max-width:900px;margin:32px auto;padding:24px}a{color:#146b65}.card{background:white;border:1px solid #dae5eb;padding:24px;margin:20px 0;border-radius:12px}h1,h2{line-height:1.25}label{display:block;margin:10px 0}input[type=url],input[type=password]{width:100%;box-sizing:border-box;border:1px solid #9eb5c2;padding:10px;font:inherit;border-radius:6px}button{font:inherit;background:#146b65;color:white;border:0;border-radius:6px;padding:10px 16px;margin:8px 10px 0 0;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.muted{color:#546b7b}.status{background:#e7f3ef;padding:14px;border-radius:8px;min-height:24px}.tool{border-top:1px solid #dae5eb;padding:18px 0}.roles{display:flex;gap:8px 20px;flex-wrap:wrap}.roles label{margin:4px 0}fieldset{border:0;padding:0}legend{font-weight:600}small{display:block;color:#546b7b}code{overflow-wrap:anywhere}
+.health-list{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));padding:0;list-style:none}
+.health-list li{border:1px solid #dae5eb;border-radius:8px;padding:10px 14px}
+.health-state{font-weight:650;color:#546b7b}
+.health-state[data-state="Up"],.health-state[data-state="Ready"],.health-state[data-state="Active"]{color:#146b45}
+.health-state[data-state="Down"]{color:#9b2424}
 </style>
 {% include "agentic_ai/ui_head.html" %}
 </head><body class="settings-page">
@@ -8,9 +13,24 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <main>
 <a href="{% url 'agentic_ai:query_page' %}">← Ask your assistant</a>
 <p class="muted">BURO Insight AI · Administration</p><h1>Integration settings</h1>
-<p>Connect your gateway, choose who can use each tool, then test a question.</p><section class="card"><h2>Superset reporting</h2><p>Connect the production service, test report storage and choose a default template in one setup screen.</p><a href="{% url 'agentic_ai:reporting_settings' %}">Open reporting setup →</a></section>
+<p>Setup discovers tools and checks saved connections automatically. Review tool access before enabling capabilities.</p><section class="card"><h2>Superset reporting</h2><p>Connect the production service, test report storage and choose a default template in one setup screen.</p><a href="{% url 'agentic_ai:reporting_settings' %}">Open reporting setup →</a></section>
 <p id="setup-status" class="status" role="status" aria-live="polite">{% if enabled %}Gateway tools are enabled.{% else %}Complete these steps to enable gateway tools.{% endif %}</p>
 {% csrf_token %}
+<section class="card" aria-labelledby="integration-health-heading">
+<h2 id="integration-health-heading">Integration status</h2>
+<p>Signed in as <strong>{{ request.user.get_username }}</strong>{% if request.user.is_superuser %} · Superuser{% endif %}</p>
+<ul class="health-list">
+<li>Gateway <strong id="health-gateway" class="health-state">Checking…</strong><small id="detail-gateway"></small></li>
+<li>Project model <strong id="health-model" class="health-state">Checking…</strong><small id="detail-model"></small></li>
+<li>Branch directory <strong id="health-directory" class="health-state">Checking…</strong><small id="detail-directory"></small></li>
+<li>Superset publishing <strong id="health-superset" class="health-state">Checking…</strong><small id="detail-superset"></small></li>
+<li>WhatsApp <strong id="health-whatsapp" class="health-state">Checking…</strong><small id="detail-whatsapp"></small></li>
+<li>Bangla analysis <strong id="health-summary" class="health-state">Checking…</strong><small id="detail-summary"></small></li>
+</ul>
+<p id="health-updated" class="muted"></p>
+<p id="missing-tools" class="muted" hidden></p>
+<button id="refresh-health" type="button">Refresh status</button>
+</section>
 <section class="card" aria-labelledby="directory-heading"><h2 id="directory-heading">Branch &amp; zone directory API</h2>
 <p>Connect directly to the NiFi OracleBranchDirectory API. This connection is separate from MCP and does not change user access grants.</p>
 <label for="directory-url">Directory API URL</label><input id="directory-url" type="url" maxlength="2048" value="{{ directory.url|default:directory_default_url }}">
@@ -52,7 +72,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <section class="card"><h2>3. Choose tools and roles</h2>
 <p>Select a tool, organize how it appears in the workspace, then choose the roles that may use it.</p>
 <p>Roles come from Django Groups. Create a dedicated group such as <code>loan_users</code> in Admin → Authentication and Authorization → Groups, assign users to it under Users, then discover tools again to see the group here. Ordinary loan users do not need Staff status. Users without groups use the existing <code>staff</code> fallback role, so choose a dedicated group for restricted access.</p>
-<div id="tool-list"><p class="muted">Click “Find tools” to load available tools.</p></div>
+<div id="tool-list"><p class="muted">Looking for tools on the configured gateway…</p></div>
 <small>Roles come from Django groups. <a href="/admin/auth/group/">Manage groups</a>. Keep approval enabled for tools that change data.</small>
 <button type="button" id="save-tools" disabled>Save and enable tools</button>
 <p><a href="{% url 'agentic_ai:query_page' %}">Test a question →</a></p>
@@ -77,17 +97,99 @@ document.getElementById('save-directory').addEventListener('click',async()=>{
 document.getElementById('check-directory').addEventListener('click',()=>action({action:'check_directory'}));
 
 document.getElementById('save-summary').addEventListener('click',()=>action({action:'save_summary',base:document.getElementById('summary-base').value,model:document.getElementById('summary-model').value}));
-let catalog=[], modelReady=false, busy=false;
-function refreshButtons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);document.getElementById('save-tools').disabled=busy||!modelReady||catalog.length===0;}
-async function action(payload){
- if(busy)return null;busy=true;refreshButtons();statusBox.textContent='Working…';
+let catalog=[], catalogLoaded=false, busy=false, refreshing=false, modelChecked=0, settingsVersion=0;
+function refreshButtons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);document.getElementById('save-tools').disabled=busy||catalog.length===0;}
+async function requestSetup(payload){
+ const response=await fetch(location.pathname,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify(payload)});
+ if(!(response.headers.get('content-type')||'').includes('application/json'))throw new Error('Refresh the page and sign in with an administrator account.');
+ const body=await response.json();
+ if(!response.ok||!body.ok){
+  const error=new Error(body.error||'The check did not pass.');
+  error.code=body.code;
+  throw error;
+ }
+ return body;
+}
+async function action(payload, beforeSave){
+ if(busy)return null;
+ busy=true;
+ refreshButtons();
+ statusBox.textContent='Working…';
  try{
-  const r=await fetch(location.pathname,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify(payload)});
-  if(!(r.headers.get('content-type')||'').includes('application/json'))throw new Error('Refresh the page and sign in with an administrator account.');
-  const body=await r.json();if(!body.ok)throw new Error(body.error||'The check did not pass.');
-  statusBox.textContent=body.message;return body;
- }catch(e){statusBox.textContent=e.message||'Connection failed. Check the gateway address and network access.';return null;}
- finally{busy=false;refreshButtons();}
+  if(beforeSave)await beforeSave();
+  const body=await requestSetup(payload);
+  statusBox.textContent=body.message;
+  if(payload.action.startsWith('save_')){
+   settingsVersion++;
+   if(payload.action!=='save_connection')setTimeout(()=>refreshHealth(),0);
+  }
+  return body;
+ }catch(error){
+  statusBox.textContent=error.message||'The request failed.';
+  return null;
+ }finally{busy=false;refreshButtons();}
+}
+function showHealth(service,state,detail){
+ const badge=document.getElementById('health-'+service);
+ badge.dataset.state=state;
+ badge.textContent=state;
+ document.getElementById('detail-'+service).textContent=detail;
+}
+function checkFailure(error){
+ if(error.code==='configuration_error')return 'Needs setup';
+ return error.code ? 'Down' : 'Unknown';
+}
+async function checkModel(version=settingsVersion,background=false){
+ try{
+  const body=await requestSetup({action:'check_model',background});
+  if(version===settingsVersion)showHealth('model','Up',body.message);
+  return body;
+ }catch(error){
+  if(version===settingsVersion)showHealth('model',checkFailure(error),error.message);
+  throw error;
+ }finally{if(version===settingsVersion)modelChecked=Date.now();}
+}
+async function refreshGateway(version,loadCatalog){
+ try{
+  const body=await requestSetup({action:'discover',background:!loadCatalog});
+  if(version!==settingsVersion)return;
+  showHealth('gateway',body.gateway_enabled?'Up':'Inactive',
+   body.gateway_enabled?'Connected and enabled.':'Reachable. Tool execution is paused.');
+  if(loadCatalog||!catalogLoaded){renderTools(body.tools,body.roles);catalogLoaded=true;refreshButtons();}
+  const tools=new Map(body.tools.map(tool=>[tool.name,tool]));
+  for(const entry of catalog){
+   const tool=tools.get(entry.name);
+   entry.badge.textContent=!tool?'Missing':!tool.enabled||tool.module_paused||!body.gateway_enabled?'Inactive':'Active';
+   entry.badge.dataset.state=entry.badge.textContent;
+  }
+  const missing=document.getElementById('missing-tools');
+  missing.hidden=!body.missing.length;
+  missing.textContent=body.missing.length?'Enabled tools missing from the gateway: '+body.missing.join(', '):'';
+ }catch(error){
+  if(version!==settingsVersion)return;
+  showHealth('gateway',checkFailure(error),error.message);
+  for(const entry of catalog){entry.badge.textContent='Unknown';entry.badge.dataset.state='Unknown';}
+  if(!catalogLoaded)document.getElementById('tool-list').textContent='Tool discovery will retry automatically.';
+ }
+}
+async function refreshHealth(force=false){
+ if(refreshing||busy)return;
+ refreshing=true;
+ const version=settingsVersion;
+ const checks=['directory','superset','whatsapp','summary'].map(async service=>{
+  try{
+   const body=await requestSetup({action:'integration_status',service});
+   if(version===settingsVersion)showHealth(service,body.state,body.detail);
+  }catch(error){if(version===settingsVersion)showHealth(service,'Unknown',error.message);}
+ });
+ checks.push(refreshGateway(version,false));
+ if(force||Date.now()-modelChecked>=300000)checks.push(checkModel(version,!force));
+ try{await Promise.allSettled(checks);}
+ finally{
+  refreshing=false;
+  if(version!==settingsVersion)refreshHealth();
+  else document.getElementById('health-updated').textContent='Last refreshed '+new Date().toLocaleTimeString()+'. Model checks run every five minutes.';
+ }
 }
 function checkbox(text,checked){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.checked=checked;label.append(input,document.createTextNode(' '+text));return {label,input};}
 function renderTools(tools,roles){
@@ -96,6 +198,7 @@ function renderTools(tools,roles){
  tools.forEach(tool=>{
   const card=document.createElement('div');card.className='tool';
   const enabled=checkbox(tool.name,tool.enabled);card.append(enabled.label);
+  const badge=document.createElement('small');badge.className='health-state';card.append(badge);
   const desc=document.createElement('p');desc.textContent=tool.description;card.append(desc);
   const metadata={};
   [['display_name','Display name',150],['category','Category',80],['example_question','Example question (optional)',2000]].forEach(([key,title,maximum])=>{
@@ -121,14 +224,34 @@ function renderTools(tools,roles){
   const updateMode=()=>{const fixed=mode.value==='FIXED';branchLabel.hidden=!fixed;note.hidden=!fixed;const app=['UI','APP'].includes(mode.value);scopeStatus.textContent=app?'Assign users and their permitted branches in User access. No signing token is required. The native backend must apply the supplied branch filter.':(tool.loan_scope_contract?'Backend declares signed access.':'Signed access requires the backend token contract. Choose User Access permissions for an existing compatible native branch-filtered endpoint.');scopeStatus.hidden=fixed||(!app&&!loanScope.input.checked);loanScope.input.disabled=fixed||app||!!tool.loan_scope_mandatory;if(fixed||app)loanScope.input.checked=true;};mode.onchange=updateMode;updateMode();
   // Application-managed scope comes from User access, never the legacy allowlist.
   mode.addEventListener('change',()=>{if(['UI','APP'].includes(mode.value))branches.value='';});
-  catalog.push({name:tool.name,enabled:enabled.input,approval:approval.input,loanScope:loanScope.input,mode,branches,choices,metadata});
+  catalog.push({name:tool.name,badge,enabled:enabled.input,approval:approval.input,loanScope:loanScope.input,mode,branches,choices,metadata});
  });
 }
 document.getElementById('check-whatsapp').onclick=()=>action({action:'check_whatsapp'});
 document.getElementById('save-whatsapp').onclick=()=>action({action:'save_whatsapp',tool:document.getElementById('whatsapp-tool').value,recipients:document.getElementById('whatsapp-recipients').value});
 document.getElementById('save-pricing').onclick=()=>{const identity=document.getElementById('model-pricing');return action({action:'save_pricing',provider:identity.dataset.provider,model:identity.dataset.model,input_rate:document.getElementById('input-rate').value,output_rate:document.getElementById('output-rate').value,cached_rate:document.getElementById('cached-rate').value,currency:document.getElementById('price-currency').value.trim().toUpperCase()});};
-document.getElementById('save-connection').onclick=async()=>{const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});if(body){document.getElementById('gateway-token').value='';modelReady=false;catalog=[];document.getElementById('tool-list').textContent='Click “Find tools” to refresh the tool list.';refreshButtons();}};
-document.getElementById('discover').onclick=async()=>{const body=await action({action:'discover'});if(body){renderTools(body.tools,body.roles);refreshButtons();}};
-document.getElementById('check-model').onclick=async()=>{modelReady=false;const body=await action({action:'check_model'});modelReady=!!body;refreshButtons();};
-document.getElementById('save-tools').onclick=()=>action({action:'save_tools',tools:catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,requires_loan_scope:t.loanScope.checked,loan_access_mode:t.mode.value,fixed_branch_codes:t.branches.value.split(',').map(s=>s.trim()).filter(Boolean),display_name:t.metadata.display_name.value,category:t.metadata.category.value,example_question:t.metadata.example_question.value,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}))});
+document.getElementById('save-connection').onclick=async()=>{
+ const body=await action({action:'save_connection',url:document.getElementById('gateway-url').value,token:document.getElementById('gateway-token').value});
+ if(body){
+  document.getElementById('gateway-token').value='';
+  catalogLoaded=false;
+  catalog=[];
+  modelChecked=0;
+  document.getElementById('tool-list').textContent='Looking for tools on the saved gateway…';
+  refreshButtons();
+  await refreshHealth(true);
+ }
+};
+document.getElementById('discover').onclick=()=>refreshGateway(settingsVersion,true);
+document.getElementById('check-model').onclick=()=>checkModel().catch(()=>{});
+document.getElementById('save-tools').onclick=async()=>{
+ const tools=catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,requires_loan_scope:t.loanScope.checked,loan_access_mode:t.mode.value,fixed_branch_codes:t.branches.value.split(',').map(s=>s.trim()).filter(Boolean),display_name:t.metadata.display_name.value,category:t.metadata.category.value,example_question:t.metadata.example_question.value,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}));
+ await action({action:'save_tools',tools},async()=>{
+  await requestSetup({action:'discover'});
+  await checkModel();
+ });
+};
+document.getElementById('refresh-health').onclick=()=>refreshHealth(true);
+refreshHealth();
+setInterval(()=>{if(!document.hidden)refreshHealth();},60000);
 </script></body></html>
