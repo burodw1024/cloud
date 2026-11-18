@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 import requests
 from django.core import signing
 from django.db import transaction
-from .models import LoanZone, LoanBranch
+from .models import LoanArea, LoanBranch, LoanDivision, LoanZone
 
 MAX_BYTES = 4_000_000
 CODE = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,31}\Z')
@@ -103,7 +103,8 @@ def digest(value):
 
 
 def catalog():
-    return {'zones': list(LoanZone.objects.order_by('code').values()), 'branches': list(LoanBranch.objects.order_by('code').values())}
+    return {key: list(model.objects.order_by('code').values()) for key, model in
+            (('divisions', LoanDivision), ('zones', LoanZone), ('areas', LoanArea), ('branches', LoanBranch))}
 
 
 def preview(actor, activate_new=False):
@@ -113,6 +114,22 @@ def preview(actor, activate_new=False):
     changes = [r for r in rows if r['BRANCHCODE'] not in old or old[r['BRANCHCODE']]['name'] != r['BRANCHNAME'] or old[r['BRANCHCODE']]['zone_id'] != next((z['id'] for z in state['zones'] if z['code'] == r['ZONECODE']), None)]
     ticket = signing.dumps({'actor': actor.pk, 'source': digest(rows), 'catalog': digest(state), 'activate': bool(activate_new)}, salt='loan-directory-preview', compress=True)
     return {'ticket': ticket, 'count': len(rows), 'new_count': sum(r['BRANCHCODE'] not in old for r in rows), 'zone_count': len({r['ZONECODE'] for r in rows}), 'sample': changes[:20], 'activate': bool(activate_new)}
+
+
+def _sync_parent(model, code, fields, activate, actor, reason, level):
+    from .access_admin import directory_state, record_event
+
+    parent = model.objects.filter(pk=code).first()
+    before = directory_state(parent) if parent else {}
+    parent = parent or model(code=code, is_active=activate)
+    for field, value in fields.items():
+        setattr(parent, field, value)
+    after = directory_state(parent)
+    if before != after:
+        parent.full_clean()
+        parent.save()
+        record_event(actor, None, f'{level}_synced', reason, before, after)
+
 
 
 def apply_preview(actor, ticket, reason):
@@ -131,11 +148,17 @@ def apply_preview(actor, ticket, reason):
     with transaction.atomic():
         # Lock existing catalog rows on databases supporting row locks. SQLite
         # serializes writes; a racing update raises and rolls back the transaction.
-        list(LoanZone.objects.select_for_update().order_by('pk'))
-        list(LoanBranch.objects.select_for_update().order_by('pk'))
+        for model in (LoanDivision, LoanZone, LoanArea, LoanBranch):
+            list(model.objects.select_for_update().order_by('pk'))
         if digest(catalog()) != expected['catalog']:
             raise ValueError('Local directory changed. Fetch a new preview before applying.')
+        divisions, areas = set(), set()
         for row in rows:
+            division_code = row['DIVISIONCODE']
+            if division_code and division_code not in divisions:
+                _sync_parent(LoanDivision, division_code, {'name': row['DIVISIONNAME']},
+                             expected['activate'], actor, reason, 'division')
+                divisions.add(division_code)
             zone = LoanZone.objects.filter(code=row['ZONECODE']).first()
             before = directory_state(zone) if zone else {}
             zone = zone or LoanZone(code=row['ZONECODE'], is_active=expected['activate'])
@@ -144,6 +167,11 @@ def apply_preview(actor, ticket, reason):
             if directory_state(zone) != before:
                 zone.save()
                 record_event(actor, None, 'zone_synced', reason, before, directory_state(zone))
+            area_code = row['AREACODE']
+            if area_code and area_code not in areas:
+                _sync_parent(LoanArea, area_code, {'name': row['AREANAME'], 'zone': zone},
+                             expected['activate'], actor, reason, 'area')
+                areas.add(area_code)
             branch = LoanBranch.objects.filter(code=row['BRANCHCODE']).first()
             before = directory_state(branch) if branch else {}
             branch = branch or LoanBranch(code=row['BRANCHCODE'], is_active=expected['activate'])

@@ -48,6 +48,55 @@ def _reply(body, status=200):
     return response
 
 
+def _probe_config(config):
+    return {**config, "timeout": min(config.get("timeout", 10), 10),
+            "request_timeout": min(config.get("request_timeout", 12), 12)}
+
+
+def _integration_status(service, user):
+    from . import bangla_summary, directory_sync, reporting_admin, reporting_config, whatsapp
+
+    try:
+        if service == "directory":
+            directory_sync.configuration()
+        elif service == "superset":
+            config = reporting_config.current()
+            if not all(config.get(key) for key in
+                       ("URL", "USERNAME", "PASSWORD", "DATABASE_ID", "SNAPSHOT_DB")):
+                return "Needs setup", "Complete the connection and report storage fields."
+        elif service == "summary":
+            bangla_summary.summary_config()
+            return "Configured", "The summary endpoint is configured. Model invocation is checked when summarizing."
+        elif service == "whatsapp":
+            config = whatsapp.configuration()
+            if not config["tool"] or not config["recipients"]:
+                return "Needs setup", "Choose a WhatsApp tool and allowed recipients."
+            status = whatsapp.settings_status(user)
+            if not status["ready"]:
+                return "Inactive", status["status"]
+            tools = async_to_sync(discover_gateway)(_probe_config(load_gateway_config()))
+            tool = next((tool for tool in tools if tool.name == config["tool"]), None)
+            if tool is None:
+                return "Down", "The configured WhatsApp tool is missing from the gateway."
+            whatsapp.text_arguments(tool.inputSchema, config["recipients"][0], "Configuration check")
+            return "Ready", "Gateway tool and text schema verified. Delivery has not been tested."
+    except (ValueError, TypeError, GatewayError) as exc:
+        if service != "whatsapp" or isinstance(exc, (ValueError, TypeError)):
+            return "Needs setup", "Check the saved integration settings."
+        return "Down", "The gateway check failed."
+    except Exception:
+        return "Down", "The connection check failed."
+
+    try:
+        if service == "directory":
+            directory_sync.fetch_snapshot()
+            return "Up", "The API returned a valid directory snapshot."
+        reporting_admin.check_connection()
+        return "Up", "Superset login, database access and snapshot storage verified."
+    except Exception:
+        return "Down", "The connection check failed. Open the integration settings for details."
+
+
 @login_required
 @ensure_csrf_cookie
 def query_page(request):
@@ -110,6 +159,12 @@ def setup_page(request):
         if not isinstance(body, dict):
             raise ValueError
         action = body.get("action")
+        if action == "integration_status":
+            service = body.get("service")
+            if service not in ("directory", "superset", "summary", "whatsapp"):
+                return _reply({"ok": False, "error": "Unknown integration."}, 400)
+            state, detail = _integration_status(service, request.user)
+            return _reply({"ok": True, "state": state, "detail": detail})
         if action == "save_directory":
             try:
                 version = directory_config.save(request.user, body.get('url'), body.get('allow_http'),
@@ -197,32 +252,38 @@ def setup_page(request):
             from .application_scope import tool_supported
             mandatory_scope_tools = protected_tools()
             config = load_gateway_config()
-            tools = async_to_sync(discover_gateway)(config)
-            known = {record.name: record for record in AgentTool.objects.filter(name__in=[t.name for t in tools])}
+            tools = async_to_sync(discover_gateway)(_probe_config(config) if body.get("background") is True else config)
+            known = {record.name: record for record in AgentTool.objects.filter(name__in=[t.name for t in tools]).select_related("module")}
             catalog = []
             for tool in tools:
                 record = known.get(tool.name)
+                supports_application_scope = tool_supported(tool)
+                default_mode = "UI" if tool.name in mandatory_scope_tools and supports_application_scope else "SIGNED"
                 catalog.append({
                     "name": tool.name, "description": tool.description or "",
                     "display_name": record.display_name if record else "",
                     "category": record.category if record else "General",
                     "example_question": record.example_question if record else "",
                     "enabled": bool(record and record.is_active),
+                    "module_paused": bool(record and record.module_id and not record.module.is_active),
                     "roles": record.allowed_roles if record else [],
                     "requires_approval": record.requires_approval if record else not bool(tool.annotations and tool.annotations.readOnlyHint),
                     "requires_loan_scope": tool.name in mandatory_scope_tools or bool(record and record.requires_loan_scope),
                     "loan_scope_mandatory": tool.name in mandatory_scope_tools,
-                    "loan_access_mode": record.loan_access_mode if record else "SIGNED",
+                    "loan_access_mode": record.loan_access_mode if record else default_mode,
                     "fixed_branch_codes": record.fixed_branch_codes if record else [],
-                    "application_scope_supported": tool_supported(tool),
+                    "application_scope_supported": supports_application_scope,
                     "loan_scope_contract": tool.inputSchema.get('properties', {}).get(TOKEN_FIELD, {}).get('type') == 'string' and TOKEN_FIELD in tool.inputSchema.get('required', []),
                 })
             cache.set(cache_key, {"url": config["url"], "tools": catalog}, 300)
+            missing = list(AgentTool.objects.filter(is_active=True).exclude(name__in=known).order_by("name").values_list("name", flat=True))
             return _reply({"ok": True, "tools": catalog, "roles": _roles(),
+                           "missing": missing, "gateway_enabled": gateway_enabled(),
                            "message": f"Found {len(catalog)} tools. Choose tools and who can use them."})
         if action == "check_model":
+            cache.delete(cache_key + ":model")
             config = load_config()
-            check = async_to_sync(probe_model)(config)
+            check = async_to_sync(probe_model)(_probe_config(config) if body.get("background") is True else config)
             cache.set(cache_key + ":model", _signature(config), 300)
             return _reply({"ok": True, "message": f"Your project model ({check['model']}) can choose tools."})
         if action == "save_tools":

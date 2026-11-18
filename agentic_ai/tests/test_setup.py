@@ -56,6 +56,32 @@ class GuidedSetupTests(TestCase):
         self.assertFalse(AgentTool.objects.exists())
         self.assertIn("manager", response.json()["roles"])
 
+    def test_discovery_lists_enabled_tools_missing_from_gateway(self):
+        AgentTool.objects.create(name="retired-tool", is_active=True, allowed_roles=["manager"])
+        response = self.post("discover").json()
+        self.assertEqual(response["missing"], ["retired-tool"])
+        self.assertFalse(response["tools"][0]["enabled"])
+
+    @patch("agentic_ai.directory_sync.fetch_snapshot")
+    @patch("agentic_ai.directory_sync.configuration")
+    def test_directory_status_distinguishes_configuration_and_outage(self, config, fetch):
+        config.side_effect = ValueError("private credentials")
+        response = self.post("integration_status", service="directory").json()
+        self.assertEqual(response["state"], "Needs setup")
+        self.assertNotIn("private credentials", response["detail"])
+        fetch.assert_not_called()
+
+        config.side_effect = None
+        fetch.side_effect = ValueError("private response")
+        self.assertEqual(self.post("integration_status", service="directory").json()["state"], "Down")
+        fetch.side_effect = None
+        self.assertEqual(self.post("integration_status", service="directory").json()["state"], "Up")
+
+    def test_setup_status_requires_permissions(self):
+        self.user.is_superuser = False
+        self.user.save()
+        self.assertEqual(self.post("integration_status", service="superset").status_code, 403)
+
     @patch.object(setup_views, "_save_settings")
     def test_guided_flow_saves_exact_names_roles_and_enables_gateway(self, save):
         self.post("discover")

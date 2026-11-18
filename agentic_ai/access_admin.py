@@ -17,7 +17,7 @@ from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 
-from .models import LoanAccessPolicy, LoanAccessEvent, LoanZone, LoanBranch, AgentTool, UserToolAccess
+from .models import LoanAccessPolicy, LoanAccessEvent, LoanZone, LoanBranch, LoanDivision, LoanArea, AgentTool, UserToolAccess
 
 
 class ToolAccessChoices(forms.ModelMultipleChoiceField):
@@ -186,7 +186,7 @@ def access_manager(request):
             'events': LoanAccessEvent.objects.select_related('actor', 'subject')[:15],
             'zone_count': LoanZone.objects.filter(is_active=True).count(),
             'now': timezone.now(),
-            'branch_count': LoanBranch.objects.filter(is_active=True, zone__is_active=True).count(),
+            'branch_count': LoanBranch.objects.active_hierarchy(require_complete=False).count(),
             'signed_tools_need_setup': AgentTool.objects.filter(is_active=True, loan_access_mode='SIGNED').exists() and len(os.environ.get('LOAN_ACCESS_SIGNING_KEY', '').encode()) < 32,
         })
     response['Cache-Control'] = 'no-store'
@@ -208,8 +208,14 @@ class BranchForm(forms.ModelForm):
 
 
 def directory_state(record):
-    return {'code': record.code, 'name': record.name, 'is_active': record.is_active,
-            **({'zone': record.zone.code, 'area_code': record.area_code, 'area_name': record.area_name} if isinstance(record, LoanBranch) else {'division_code': record.division_code, 'division_name': record.division_name})}
+    state = {'code': record.code, 'name': record.name, 'is_active': record.is_active}
+    if isinstance(record, LoanBranch):
+        state.update(zone=record.zone.code, area_code=record.area_code, area_name=record.area_name)
+    elif isinstance(record, LoanZone):
+        state.update(division_code=record.division_code, division_name=record.division_name)
+    elif isinstance(record, LoanArea):
+        state['zone'] = record.zone.code
+    return state
 
 
 def import_branches(upload, actor, reason):
@@ -281,6 +287,22 @@ def directory_manager(request):
                     raise ValueError('Choose a CSV file.')
                 count = import_branches(upload, request.user, request.POST.get('reason', '').strip())
                 notice = f'{count} branches imported. Existing policies resolve against the updated directory.'
+            elif action in {'division_state', 'area_state'}:
+                model = LoanDivision if action == 'division_state' else LoanArea
+                code = request.POST.get('code', '').strip()
+                state = request.POST.get('active')
+                reason = request.POST.get('reason', '').strip()
+                if state not in {'0', '1'} or not 8 <= len(reason) <= 500:
+                    raise ValueError('Choose a state and provide a business justification of 8–500 characters.')
+                with transaction.atomic():
+                    parent = model.objects.select_for_update().filter(pk=code).first()
+                    if parent is None:
+                        raise ValueError('The directory entry changed. Reload and try again.')
+                    before = directory_state(parent)
+                    parent.is_active = state == '1'
+                    parent.save(update_fields=['is_active'])
+                    record_event(request.user, None, action, reason, before, directory_state(parent))
+                notice = 'Hierarchy state saved and audited.'
             elif action in {'zone', 'branch'}:
                 model, form_class = (LoanZone, ZoneForm) if action == 'zone' else (LoanBranch, BranchForm)
                 # Exact code identifies an existing record; leading zeros are preserved.
@@ -305,11 +327,19 @@ def directory_manager(request):
             error = 'The directory could not be saved. No changes from this request were applied. Reload and try again.'
         if notice and not error:
             return redirect(f'{request.path}?saved=1')
+    branches_page = Paginator(LoanBranch.objects.select_related('zone'), 50).get_page(request.GET.get('page'))
+    page_branches = LoanBranch.objects.filter(pk__in=[branch.pk for branch in branches_page])
+    active_branch_ids = set(page_branches.active_hierarchy().values_list('pk', flat=True))
+    legacy_branch_ids = set(page_branches.active_hierarchy(require_complete=False)
+                            .exclude(pk__in=active_branch_ids).values_list('pk', flat=True))
     response = render(request, 'agentic_ai/access_directory.html', {
         'zone_form': zone_form, 'branch_form': branch_form, 'notice': notice, 'error': error,
         'sync_preview': sync_preview, 'directory_configured': bool(public_status()['url']),
         'zones': LoanZone.objects.all(),
-        'branches_page': Paginator(LoanBranch.objects.select_related('zone').all(), 50).get_page(request.GET.get('page')),
+        'branches_page': branches_page, 'active_branch_ids': active_branch_ids,
+        'legacy_branch_ids': legacy_branch_ids,
+        'parents': ((LoanDivision.objects.all(), 'Divisions', 'division_state'),
+                    (LoanArea.objects.select_related('zone'), 'Areas', 'area_state')),
     })
     response['Cache-Control'] = 'no-store'
     return response

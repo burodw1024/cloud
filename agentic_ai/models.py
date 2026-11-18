@@ -2,12 +2,25 @@ import re
 import uuid
 
 from django.db import models
+from django.db.models import Exists, OuterRef, Q
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 
 
 scope_code = RegexValidator(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$', 'Use an exact code of up to 32 letters, digits, dots, underscores or hyphens.')
+
+
+class LoanDivision(models.Model):
+    code = models.CharField(max_length=32, primary_key=True, validators=[scope_code])
+    name = models.CharField(max_length=150)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['code']
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
 
 
 class LoanZone(models.Model):
@@ -24,7 +37,34 @@ class LoanZone(models.Model):
         return f'{self.code} · {self.name}'
 
 
+class LoanArea(models.Model):
+    code = models.CharField(max_length=32, primary_key=True, validators=[scope_code])
+    name = models.CharField(max_length=150)
+    zone = models.ForeignKey(LoanZone, on_delete=models.PROTECT, related_name='areas')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['code']
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
+
+
+class LoanBranchQuerySet(models.QuerySet):
+    def active_hierarchy(self, *, require_complete=True):
+        divisions = LoanDivision.objects.filter(code=OuterRef('zone__division_code'), is_active=True)
+        areas = LoanArea.objects.filter(code=OuterRef('area_code'), zone_id=OuterRef('zone_id'), is_active=True)
+        branches = self.filter(is_active=True, zone__is_active=True)
+        if require_complete:
+            return branches.filter(Exists(divisions), Exists(areas))
+        # Explicit policies can still cover legacy directory records with blank parent codes.
+        return branches.filter(Q(zone__division_code='') | Exists(divisions),
+                               Q(area_code='') | Exists(areas))
+
+
 class LoanBranch(models.Model):
+    objects = LoanBranchQuerySet.as_manager()
+
     area_code = models.CharField(max_length=32, blank=True, validators=[scope_code])
     area_name = models.CharField(max_length=150, blank=True)
     code = models.CharField(max_length=32, unique=True, validators=[scope_code])

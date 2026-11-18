@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from agentic_ai import directory_sync as sync
-from agentic_ai.models import LoanZone, LoanBranch, LoanAccessPolicy, LoanAccessEvent
+from agentic_ai.models import LoanZone, LoanBranch, LoanDivision, LoanArea, LoanAccessPolicy, LoanAccessEvent
 
 
 def payload():
@@ -33,7 +33,9 @@ class DirectorySyncTests(TestCase):
         self.assertEqual(branch.area_code, '0004')
         self.assertEqual(branch.zone.division_code, '01')
         self.assertFalse(LoanAccessPolicy.objects.exists())
-        self.assertEqual(LoanAccessEvent.objects.count(), 3)
+        self.assertFalse(LoanDivision.objects.get(code='01').is_active)
+        self.assertFalse(LoanArea.objects.get(code='0004').is_active)
+        self.assertEqual(LoanAccessEvent.objects.count(), 5)
 
     def test_explicit_activate_preserves_paused_and_existing_grant(self):
         self.apply(True)
@@ -47,6 +49,18 @@ class DirectorySyncTests(TestCase):
         self.assertFalse(branch.is_active)
         self.assertTrue(branch.zone.is_active)
         self.assertEqual(list(policy.zones.values_list('pk', flat=True)), [branch.zone_id])
+
+    def test_parent_pause_is_audited_and_preserved_by_sync(self):
+        self.apply(True)
+        self.client.force_login(self.actor)
+        response = self.client.post('/agentic/data-access/directory/', {
+            'action': 'area_state', 'code': '0004', 'active': '0', 'reason': 'Pause during directory review',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(LoanAccessEvent.objects.filter(action='area_state').exists())
+        self.apply(True)
+        self.assertFalse(LoanArea.objects.get(pk='0004').is_active)
+        self.assertFalse(LoanBranch.objects.active_hierarchy().exists())
 
     def test_stale_source_and_catalog_and_actor_rejected(self):
         result = sync.preview(self.actor)
