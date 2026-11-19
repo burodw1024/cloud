@@ -29,11 +29,15 @@ def response(body, status=200):
 
 def source_report(request, token=None):
     token = request.session.get('dashboard_report_token') if token is None else token
+    return authorized_snapshot(request.user, token)
+
+
+def authorized_snapshot(user, token):
     valid = isinstance(token, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', token)
     saved = cache.get('agentic:summary:' + token) if valid else None
-    if not saved or saved['user_id'] != request.user.pk:
+    if not saved or saved['user_id'] != user.pk:
         raise PublishError('Run a report first. The displayed report snapshot expires after 30 minutes.')
-    if not _can_replay_result(request.user, saved):
+    if not _can_replay_result(user, saved):
         raise PermissionError('Report access is no longer permitted.')
     return {**saved, 'report_token': token}
 
@@ -109,14 +113,14 @@ def publish_export(export, saved, config):
                      'message': 'Private snapshot dashboard created. Sign in to Superset to view it.'})
 
 
-def quick_publish(request, token):
+def quick_publish(user, token):
     if not isinstance(token, str) or not token:
         raise PublishError('Choose a valid report snapshot.')
-    saved = source_report(request, token)
-    config = configuration(request.user)
+    saved = authorized_snapshot(user, token)
+    config = configuration(user)
     # Stable for this user and snapshot across retries, browser tabs and cache workers.
-    identifier = uuid.uuid5(uuid.NAMESPACE_URL, f'agentic:quick-publish:{request.user.pk}:{token}')
-    export = DashboardExport.objects.filter(pk=identifier, user=request.user).first()
+    identifier = uuid.uuid5(uuid.NAMESPACE_URL, f'agentic:quick-publish:{user.pk}:{token}')
+    export = DashboardExport.objects.filter(pk=identifier, user=user).first()
     if export is None:
         template = config.get('DEFAULT_TEMPLATE', 'comparison')
         if not isinstance(template, str) or template not in DESIGNS:
@@ -135,7 +139,7 @@ def quick_publish(request, token):
             spec['fallback'] = True
         source = {key: saved[key] for key in ('tool', 'plan', 'loan_access') if key in saved}
         source['report_token'] = token
-        export, _ = DashboardExport.objects.get_or_create(pk=identifier, user=request.user, defaults={
+        export, _ = DashboardExport.objects.get_or_create(pk=identifier, user=user, defaults={
             'title': spec['title'], 'specification': spec, 'source': source,
         })
     if export.source.get('binding') and export.source['binding'] != binding(config):
@@ -151,7 +155,7 @@ def quick_publish(request, token):
                          'export_id': str(export.pk)}, 409)
     if export.status == 'creating':
         return response({'ok': False, 'error': 'This dashboard is already being published. Check again shortly.'}, 409)
-    if not current_authorization(request.user.pk, saved):
+    if not current_authorization(user.pk, saved):
         raise PermissionError('Report access is no longer permitted.')
     return publish_export(export, saved, config)
 
@@ -179,7 +183,7 @@ def dashboard_api(request):
         if set(body) - allowed:
             raise PublishError('Unexpected dashboard parameters. Report data and SQL cannot be submitted.')
         if action == 'quick_publish':
-            return quick_publish(request, body.get('report_token'))
+            return quick_publish(request.user, body.get('report_token'))
         if action == 'preview':
             rate_key = f'agentic:dashboard:preview:{request.user.pk}'
             if cache.add(rate_key, 1, 60):

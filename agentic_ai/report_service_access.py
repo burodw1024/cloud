@@ -12,6 +12,7 @@ from django.views.decorators.http import require_http_methods
 from .access_admin import record_event
 
 SERVICE_PERMISSIONS = {
+    'schedule_report': 'Schedule reports',
     'publish_dashboard': 'Publish private Superset dashboards',
     'export_powerbi_snapshot': 'Download Power BI workbooks',
     'share_report_whatsapp': 'Send through WhatsApp',

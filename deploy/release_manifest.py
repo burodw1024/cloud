@@ -37,7 +37,7 @@ if sys.argv[1] == 'validate':
     spec = dep['spec']['template']['spec']
     require(dep['spec'].get('replicas',1) == 1, 'Expected exactly one existing replica. Resolve scaling before release.')
     containers = {c['name']:c for c in spec['containers']}
-    require(set(containers) in ({'django','https'}, {'django','https','employee-sync'}), 'Unexpected application containers; refusing to replace an unknown spec.')
+    require({'django', 'https'} <= set(containers) <= {'django', 'https', 'employee-sync', 'agentic-scheduler'}, 'Unexpected application containers; refusing to replace an unknown spec.')
     require({c['name'] for c in spec.get('initContainers',[])}=={'collect-static'}, 'Unexpected init containers; every runtime image must be explicitly imported.')
     node = read('node.json')
     require(node['metadata']['name']=='worker-99' and node['status']['nodeInfo']['architecture']=='amd64', 'Expected worker-99/linux-amd64.')
@@ -121,7 +121,11 @@ elif sys.argv[1] == 'render':
     for key in ('args','ports','startupProbe','readinessProbe','livenessProbe','lifecycle'):
         worker.pop(key,None)
     environment(worker, {'PYTHONUNBUFFERED':'1'})
-    spec['containers']=[c for c in spec['containers'] if c['name']!='employee-sync']+[worker]
+    scheduler = copy.deepcopy(worker)
+    scheduler['name'] = 'agentic-scheduler'
+    scheduler['command'] = ['python', 'manage.py', 'run_scheduled_reports', '--watch']
+    spec['containers'] = [c for c in spec['containers']
+                          if c['name'] not in {'employee-sync', 'agentic-scheduler'}] + [worker, scheduler]
     write('nginx.after.json',cm)
     write('deployment.after.json',dep)
     migration=copy.deepcopy(django)
