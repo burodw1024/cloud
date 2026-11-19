@@ -89,8 +89,8 @@ class WhatsAppTests(TestCase):
         response = self.client.get('/agentic/')
         self.assertNotContains(response, 'id="whatsapp-recipient"')
         self.assertNotContains(response, 'WhatsApp tool is disabled')
-        self.assertContains(response, 'id="whatsapp-actions"')
-        self.assertContains(response, 'Open Services for setup and access details')
+        self.assertNotContains(response, 'id="report-share"')
+        self.assertContains(response, 'Service status &amp; instructions')
 
     def test_defaults_and_explicit_empty_configuration(self):
         self.settings.clear()

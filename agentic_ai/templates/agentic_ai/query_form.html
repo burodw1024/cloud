@@ -18,27 +18,6 @@
         <pre class="result-text" id="agent-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         <section id="loan-question-suggestions" aria-label="ব্যবসায়িক প্রশ্নের উদাহরণ" hidden></section>
 
-        <section id="whatsapp-actions" aria-label="Share result on WhatsApp">
-            <h3>Share result on WhatsApp</h3>
-            <p>Run a question, preview the message, then confirm sending. <a href="{% url 'agentic_ai:services' %}">Service status & instructions →</a></p>
-            {% if whatsapp.ready %}
-            {% if whatsapp.recipients %}
-            <label for="whatsapp-recipient">WhatsApp recipient</label>
-            <select id="whatsapp-recipient">{% for number in whatsapp.recipients %}<option value="{{ number }}">+{{ number }}</option>{% endfor %}</select>
-            <button type="button" class="copy-button" data-whatsapp-mode="summary" disabled>Preview summary</button>
-            <button type="button" class="copy-button" data-whatsapp-mode="full" disabled>Preview full result</button>
-            {% else %}
-            <button type="button" class="copy-button" disabled>Preview summary</button>
-            <button type="button" class="copy-button" disabled>Preview full result</button>
-            {% endif %}
-            <p class="result-details">Summary is a shortened extract. Full result includes returned table rows. Messages go to the selected person.</p>
-            <div id="whatsapp-preview" hidden><pre class="result-text" id="whatsapp-preview-text"></pre>
-            <button type="button" class="copy-button" id="whatsapp-confirm">Confirm and send</button>
-            <button type="button" class="copy-button" id="whatsapp-cancel">Cancel</button></div>
-            <p id="whatsapp-status" role="status" aria-live="polite"></p>
-            {% else %}<p class="result-details">WhatsApp is not ready for this account. Open Services for setup and access details.</p>{% endif %}
-        </section>
-        {% if share_channels %}{% include 'agentic_ai/report_share.html' %}{% endif %}
         {% include 'agentic_ai/report_templates.html' %}
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>
@@ -65,6 +44,7 @@
             <pre id="bangla-summary" class="result-text" style="white-space:pre-wrap;overflow-wrap:anywhere" role="status" aria-live="polite"></pre>
             <p id="bangla-summary-usage" class="result-details"></p>
         </section>
+        {% include 'agentic_ai/report_share.html' %}
         <details class="usage-panel" id="request-usage" hidden>
             <summary><span>Usage & estimated model cost</span><span id="usage-summary">Usage unavailable</span></summary>
             <div class="usage-body"><p id="usage-context"></p><div class="usage-metrics">
@@ -224,47 +204,6 @@
             if (generation === reportGeneration) { summaryButton.disabled = false; summaryPanel.setAttribute('aria-busy', 'false'); }
         }
     });
-    const waPanel = document.getElementById('whatsapp-actions');
-    let waResultId = null, waPending = null, waBusy = false;
-    async function whatsappAction(payload) {
-        const response = await fetch("{% url 'agentic_ai:whatsapp_api' %}", {
-            method:'POST', credentials:'same-origin',
-            headers:{'Content-Type':'application/json','X-CSRFToken':form.querySelector('[name=csrfmiddlewaretoken]').value},
-            body:JSON.stringify(payload)
-        });
-        if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('Session expired or server unavailable. Check send status before retrying.');
-        const data = await response.json();
-        if (!data.ok && !data.approval_required) throw new Error(data.error || data.answer || 'Send failed.');
-        return data;
-    }
-    if (waPanel && document.getElementById('whatsapp-recipient')) {
-        const preview = document.getElementById('whatsapp-preview');
-        const message = document.getElementById('whatsapp-status');
-        const controls = [...waPanel.querySelectorAll('button,select')];
-        const recipient = document.getElementById('whatsapp-recipient');
-        recipient.onchange = () => {waPending=null;preview.hidden=true;};
-        async function perform(task) {
-            if(waBusy)return;
-            if(!waResultId){message.textContent='Run a successful question before sharing.';return;}
-            waBusy=true;controls.forEach(c=>c.disabled=true);message.textContent='Working…';
-            try{await task();}catch(error){message.textContent=error.message;}
-            finally{waBusy=false;controls.forEach(c=>c.disabled=!waResultId);}
-        }
-        waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(button=>button.onclick=()=>perform(async()=>{
-            waPending=null;preview.hidden=true;
-            const payload={action:'preview',result_id:waResultId,recipient:recipient.value,mode:button.dataset.whatsappMode};
-            const data=await whatsappAction(payload);
-            waPending=payload;document.getElementById('whatsapp-preview-text').textContent=data.text;
-            preview.hidden=false;message.textContent='Review message for +'+payload.recipient+' ('+data.characters+' characters).';
-        }));
-        document.getElementById('whatsapp-cancel').onclick=()=>{waPending=null;preview.hidden=true;message.textContent='Cancelled. Nothing sent.';};
-        document.getElementById('whatsapp-confirm').onclick=()=>perform(async()=>{
-            if(!waPending)throw new Error('Preview the message first.');
-            const payload=waPending;waPending=null;preview.hidden=true;
-            const data=await whatsappAction({...payload,action:'send',confirmed:true});
-            message.textContent=data.message || data.answer;
-        });
-    }
     let copyText = '';
     copyButton.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(copyText); copyButton.textContent = 'Copied'; }
@@ -291,7 +230,6 @@
         window.BuroReportTemplates?.reset();
         window.BuroReportShare?.setResult(null);
         loanSuggestions.hidden = true; loanSuggestions.replaceChildren();
-        waResultId=null;waPending=null;if(waPanel&&document.getElementById('whatsapp-recipient')){waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=true);document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
         chartReport = null; chartButton.hidden = true; chartPanel.hidden = true; chartBars.replaceChildren();
         chartButton.setAttribute('aria-expanded', 'false'); chartButton.textContent = 'চার্টে দেখুন';
         reportGeneration++; summaryToken = null; summaryButton.hidden = true; summaryButton.disabled = false;
@@ -321,8 +259,7 @@
                     : 'The server returned HTTP '+response.status+'. Check the run log before retrying.');
             }
             const body = await response.json();
-            window.BuroReportShare?.setResult(body.share_result_id);
-            waResultId=body.whatsapp_result_id || null;if(waPanel)waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=!waResultId);
+            window.BuroReportShare?.setResult({whatsapp: body.whatsapp_result_id, other: body.share_result_id});
             renderUsage(body.usage,body.replayed);
             const answer = body.answer ?? body.error ?? 'No response was returned.';
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);

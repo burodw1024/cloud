@@ -1,5 +1,5 @@
-<section class="production-reports" aria-labelledby="production-reports-title"><span class="template-kicker">REPORT SERVICE / SUPERSET</span><h2 id="production-reports-title">Generate a Superset report.</h2><p>Run a structured report, then choose Generate Superset report under its data. Preview a template before creating a private dashboard snapshot.</p>
-<a href="{% url 'agentic_ai:services' %}">Service status & instructions →</a>
+<section class="production-reports" aria-labelledby="production-reports-title"><span class="template-kicker">REPORT SERVICE / SUPERSET</span><h2 id="production-reports-title">Generate a Superset report.</h2><p>Run a structured report, then publish a private dashboard with the default template or choose a template to preview first.</p>
+<a href="{% url 'agentic_ai:services' %}">Service status &amp; instructions →</a>
 {% if reporting.configured %}<a href="{{ reporting.url }}" target="_blank" rel="noopener noreferrer">Open Superset ↗</a>{% else %}<p>Superset needs a reporting connection before dashboards can be published.</p>{% endif %}
 {% if reporting.can_publish %}<a href="{% url 'agentic_ai:analytics' %}">Choose a template & preview →</a>{% else %}<p>Publishing requires a staff account with dashboard publishing permission and a mapped Superset account.</p>{% endif %}
 {% if user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:reporting_settings' %}">Connect & test Superset</a>{% endif %}</section>

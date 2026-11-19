@@ -67,7 +67,7 @@ class ServiceWorkflowTests(TestCase):
     def test_superset_remains_discoverable_before_service_configuration(self):
         page = self.client.get('/agentic/')
         self.assertContains(page, 'Generate a Superset report')
-        self.assertContains(page, 'Service status & instructions')
+        self.assertContains(page, 'Service status &amp; instructions')
         self.assertNotContains(page, 'id="generate-superset-report"')
 
     @patch('agentic_ai.workspace.gateway_enabled', return_value=True)
