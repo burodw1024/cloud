@@ -2,7 +2,7 @@
 {% include 'agentic_ai/page_nav.html' %}
 <main class="services-shell"><header><span class="services-eyebrow">CONNECTED SERVICES</span><h1>Use your results.</h1><p>Share a report through a configured delivery channel or create a private Superset dashboard.</p></header>
 <div class="services-grid"><section class="service-card" aria-labelledby="whatsapp-service-title"><span class="service-state">{% if whatsapp.ready %}Configured · check connection{% else %}Needs attention{% endif %}</span><h2 id="whatsapp-service-title">WhatsApp</h2><p>{{ whatsapp.status }}</p>
-<ol><li>Run a question in the workspace.</li><li>Under the result, choose an authorized recipient and preview a summary or the full result.</li><li>Review the message, then choose <strong>Confirm and send</strong>.</li></ol>
+<ol><li>Run a question in the workspace.</li><li>In Share this result, choose WhatsApp and an approved recipient and preview a summary or the full result.</li><li>Review the message, then choose <strong>Confirm and send</strong>.</li></ol>
 <p>Only configured recipients are available. A text-message tool and an active WhatsApp conversation are required. A template-only hello_world service cannot send report text. Outside the messaging window, use an approved template through your provider.</p>
 {% if whatsapp.ready %}<form id="whatsapp-service-check" action="{% url 'agentic_ai:whatsapp_service_check' %}" method="post">{% csrf_token %}<button type="submit">Check WhatsApp connection</button><p id="service-check-status" role="status" aria-live="polite">This check discovers the tool without sending a message.</p></form>{% endif %}
 <a href="{% url 'agentic_ai:query_page' %}">Run a question →</a>
@@ -18,7 +18,7 @@
 {% for channel in share_channels %}
 <section class="service-card"><span class="service-state">{% if channel.ready %}Configured{% else %}Unavailable{% endif %}</span>
 <h2>{{ channel.label }}</h2><p>{{ channel.status }}</p>
-<p>From a successful result, choose the channel and an approved recipient, preview the report text, and confirm delivery.</p>
+<p>In Share this result, select the channel and an approved recipient, then preview and confirm the message.</p>
 {% if user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}#report-delivery-channels">Configure report delivery</a>{% endif %}
 </section>
 {% endfor %}

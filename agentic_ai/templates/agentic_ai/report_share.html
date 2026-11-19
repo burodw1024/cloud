@@ -1,22 +1,37 @@
 {% load static %}
-<section class="report-publishing" id="report-share" aria-labelledby="report-share-title" hidden>
-<h3 id="report-share-title">Share this report</h3>
-{% for channel in share_channels %}
-<details data-share-channel data-share-endpoint="{% url 'agentic_ai:report_share_api' channel.key %}">
-  <summary>{{ channel.label }}</summary>
-  <label for="share-{{ channel.key }}-recipient">Recipient</label>
-  <select id="share-{{ channel.key }}-recipient">{% for recipient in channel.recipients %}<option>{{ recipient }}</option>{% endfor %}</select>
-  <div class="report-publishing-actions">
-    <button type="button" class="copy-button" data-share-preview="summary">Preview summary</button>
-    <button type="button" class="copy-button" data-share-preview="full">Preview full result</button>
+{% if share_channels %}
+<link rel="stylesheet" href="{% static 'agentic_ai/report_share.css' %}">
+<section class="report-share" id="report-share" aria-labelledby="report-share-title" hidden>
+  <header>
+    <h3 id="report-share-title">Share this result</h3>
+    <a href="{% url 'agentic_ai:services' %}">Delivery services</a>
+  </header>
+  <p>Choose an approved recipient and review the message before sending.</p>
+  <label for="report-share-channel">Delivery channel</label>
+  <select id="report-share-channel">
+    {% for channel in share_channels %}<option value="{{ channel.key }}">{{ channel.label }}</option>{% endfor %}
+  </select>
+  {% for channel in share_channels %}
+  <div data-share-channel="{{ channel.key }}" data-share-endpoint="{% if channel.key == 'whatsapp' %}{% url 'agentic_ai:whatsapp_api' %}{% else %}{% url 'agentic_ai:report_share_api' channel.key %}{% endif %}"{% if channel.key == 'whatsapp' %} id="whatsapp-actions"{% endif %} hidden>
+    <label for="{% if channel.key == 'whatsapp' %}whatsapp-recipient{% else %}share-{{ channel.key }}-recipient{% endif %}">Recipient</label>
+    <select id="{% if channel.key == 'whatsapp' %}whatsapp-recipient{% else %}share-{{ channel.key }}-recipient{% endif %}">
+      {% for recipient in channel.recipients %}<option value="{{ recipient }}">{% if channel.key == 'whatsapp' %}+{% endif %}{{ recipient }}</option>{% endfor %}
+    </select>
+    <div class="report-publishing-actions">
+      <button type="button" class="copy-button" data-share-preview="summary">Preview summary</button>
+      <button type="button" class="copy-button" data-share-preview="full">Preview full result</button>
+    </div>
+    <div class="share-message-preview" data-share-preview-panel hidden>
+      <h4 data-share-destination tabindex="-1"></h4>
+      <pre class="result-text" data-share-message></pre>
+      <div class="report-publishing-actions">
+        <button type="button" class="run-button" data-share-confirm{% if channel.key == 'whatsapp' %} id="whatsapp-confirm"{% endif %}>Confirm and send</button>
+        <button type="button" class="copy-button" data-share-cancel>Cancel preview</button>
+      </div>
+    </div>
+    <p role="status" class="result-details" data-share-status></p>
   </div>
-  <div data-share-preview-panel hidden>
-    <pre class="result-text" data-share-message></pre>
-    <button type="button" class="copy-button" data-share-confirm>Confirm and send</button>
-    <button type="button" class="copy-button" data-share-cancel>Cancel</button>
-  </div>
-  <p role="status" class="result-details" data-share-status></p>
-</details>
-{% endfor %}
+  {% endfor %}
 </section>
-<script src="{% static 'agentic_ai/report_share.js' %}"></script>
+<script src="{% static 'agentic_ai/report_share.js' %}?v=2"></script>
+{% endif %}

@@ -1,36 +1,48 @@
 (() => {
     const root = document.getElementById('report-share');
     const csrf = document.querySelector('#agent-query-form [name=csrfmiddlewaretoken]');
-    let token = null, generation = 0;
-    const resetters = [];
-    for (const panel of root.querySelectorAll('[data-share-channel]')) {
+    const channel = document.getElementById('report-share-channel');
+    const panels = [...root.querySelectorAll('[data-share-channel]')];
+    let result = {}, generation = 0;
+    const tokenFor = key => key === 'whatsapp' ? result.whatsapp : result.other;
+
+    for (const panel of panels) {
+        const key = panel.dataset.shareChannel;
         const recipient = panel.querySelector('select');
         const status = panel.querySelector('[data-share-status]');
         const preview = panel.querySelector('[data-share-preview-panel]');
         const message = panel.querySelector('[data-share-message]');
+        const destination = panel.querySelector('[data-share-destination]');
         const controls = [...panel.querySelectorAll('button, select')];
-        let pending = null, busy = false;
+        let pending = null, busy = false, previewButton = null;
 
         function clearPreview() {
             pending = null;
             preview.hidden = true;
             message.textContent = '';
+            destination.textContent = '';
         }
-        resetters.push(() => {
+        function showSelected() {
+            panel.hidden = channel.value !== key || !tokenFor(key);
             clearPreview();
-            panel.open = false;
+            if (!busy) status.textContent = '';
+        }
+        channel.addEventListener('change', showSelected);
+        recipient.addEventListener('change', () => {
+            clearPreview();
             status.textContent = '';
         });
-        recipient.addEventListener('change', clearPreview);
         panel.querySelector('[data-share-cancel]').addEventListener('click', () => {
             clearPreview();
-            status.textContent = 'Cancelled.';
+            status.textContent = 'Preview cancelled.';
+            previewButton?.focus();
         });
 
         async function request(payload, onSuccess) {
-            if (busy || !token) return;
+            if (busy || !tokenFor(key)) return;
             busy = true;
             const version = generation;
+            channel.disabled = true;
             controls.forEach(control => { control.disabled = true; });
             status.textContent = payload.action === 'send' ? 'Sending…' : 'Preparing preview…';
             try {
@@ -39,6 +51,9 @@
                     headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf.value},
                     body: JSON.stringify(payload),
                 });
+                if (!response.headers.get('content-type')?.includes('application/json')) {
+                    throw new Error(payload.action === 'send' ? 'Delivery status unavailable. Check the gateway before retrying.' : 'Preview unavailable. Try again.');
+                }
                 const data = await response.json();
                 if (version !== generation) return;
                 if (!data.ok && !data.approval_required) throw new Error(data.error || data.answer || 'Delivery unavailable.');
@@ -47,19 +62,24 @@
                 if (version === generation) status.textContent = error.message || 'Delivery unavailable.';
             } finally {
                 busy = false;
+                channel.disabled = false;
                 controls.forEach(control => { control.disabled = false; });
+                if (version !== generation) status.textContent = '';
             }
         }
 
         for (const button of panel.querySelectorAll('[data-share-preview]')) {
             button.addEventListener('click', () => {
+                previewButton = button;
                 clearPreview();
-                const payload = {action: 'preview', result_id: token, recipient: recipient.value, mode: button.dataset.sharePreview};
+                const payload = {action: 'preview', result_id: tokenFor(key), recipient: recipient.value, mode: button.dataset.sharePreview};
                 request(payload, data => {
                     pending = payload;
+                    destination.textContent = 'Review message for ' + recipient.selectedOptions[0].textContent.trim();
                     message.textContent = (data.subject ? 'Subject: ' + data.subject + '\n\n' : '') + data.text;
                     preview.hidden = false;
-                    status.textContent = 'Review the message for ' + payload.recipient + '.';
+                    destination.focus();
+                    status.textContent = '';
                 });
             });
         }
@@ -70,10 +90,15 @@
             request(payload, data => { status.textContent = data.message || data.answer; });
         });
     }
+
     window.BuroReportShare = {setResult(value) {
-        token = value;
+        result = value || {};
         generation++;
-        root.hidden = !value;
-        resetters.forEach(reset => reset());
+        for (const option of channel.options) option.disabled = !tokenFor(option.value);
+        const selected = [...channel.options].find(option => !option.disabled && option.value === channel.value)
+            || [...channel.options].find(option => !option.disabled);
+        root.hidden = !selected;
+        channel.value = selected?.value || '';
+        channel.dispatchEvent(new Event('change'));
     }};
 })();
