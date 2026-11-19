@@ -1,7 +1,7 @@
 import json
 from unittest.mock import AsyncMock, patch
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.core.cache import cache
 from django.test import TestCase
 
@@ -14,7 +14,9 @@ class ReportChannelsTests(TestCase):
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user('sender')
-        self.user.groups.add(Group.objects.create(name='share'))
+        group = Group.objects.create(name='share')
+        group.permissions.add(*Permission.objects.filter(codename__in=[f'share_report_{channel}' for channel in CHANNELS]))
+        self.user.groups.add(group)
         self.settings = {}
         for channel in CHANNELS:
             tool, recipients = setting_keys(channel)

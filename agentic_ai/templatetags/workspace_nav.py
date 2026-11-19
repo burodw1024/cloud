@@ -24,8 +24,12 @@ def admin_navigation(context):
     if not (user.is_authenticated and user.is_active and user.is_staff):
         return []
     current = getattr(request.resolver_match, 'view_name', None)
-    return [
+    links = [
         {'label': label, 'url': reverse(f'agentic_ai:{route}'),
          'current': current == f'agentic_ai:{route}'}
         for route, label, permissions in ADMIN_LINKS if user.has_perms(permissions)
     ]
+    if user.is_superuser:
+        links.append({'label': 'Report service access', 'url': reverse('agentic_ai:service_access'),
+                      'current': current == 'agentic_ai:service_access'})
+    return links

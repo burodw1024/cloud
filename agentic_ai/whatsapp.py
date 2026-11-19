@@ -7,6 +7,7 @@ import uuid
 
 from asgiref.sync import async_to_sync, sync_to_async
 from django.core.cache import cache
+from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_protect
 
@@ -15,7 +16,7 @@ from .api import _can_replay_result
 from .mcp_gateway import (_allowed, _decision, _failure, _validator, discover_tools,
                           gateway_enabled, load_gateway_config, mcp_http_client)
 from .models import AgentRunLog, AgentTool
-from .share_channels import CHANNELS, SUBJECT, accepted_delivery, delivery_arguments, describe
+from .share_channels import CHANNELS, SUBJECT, accepted_delivery, can_share, delivery_arguments, describe
 
 TTL = 900
 
@@ -44,6 +45,8 @@ def settings_status(user):
     except (ValueError, TypeError):
         return {'tool': '', 'recipients': [], 'ready': False,
                 'status': 'Invalid WhatsApp settings. Ask an administrator to check setup.'}
+    if not can_share(user, 'whatsapp'):
+        return {'tool': '', 'recipients': [], 'ready': False, 'status': 'Your account does not have permission to share through WhatsApp.'}
     record = AgentTool.objects.filter(name=config['tool']).first()
     if not config['tool'] or not config['recipients']:
         message = 'Configure a WhatsApp tool and recipient in Set up tools.'
@@ -162,10 +165,13 @@ async def dispatch(config, name, recipient, text, user, source_result=None, chan
                          else delivery_arguments(channel, tool.inputSchema, recipient, text))
             if source_result is not None and not await sync_to_async(_can_replay_result)(user, source_result):
                 return {'ok': False, 'http_status': 403, 'error': 'Report access changed before sharing. Nothing was sent.'}
-            if channel != 'whatsapp':
-                current = await sync_to_async(describe)(channel, user)
-                if not current['ready'] or current['tool'] != name or recipient not in current['recipients']:
-                    return {'ok': False, 'http_status': 403, 'error': 'Sharing access changed. Nothing was sent.'}
+            fresh_user = await sync_to_async(get_user_model().objects.filter(pk=user.pk, is_active=True).first)()
+            if fresh_user is None:
+                return {'ok': False, 'http_status': 403, 'error': 'Sharing access changed. Nothing was sent.'}
+            status = settings_status if channel == 'whatsapp' else lambda account: describe(channel, account)
+            current = await sync_to_async(status)(fresh_user)
+            if not current['ready'] or current['tool'] != name or recipient not in current['recipients']:
+                return {'ok': False, 'http_status': 403, 'error': 'Sharing access changed. Nothing was sent.'}
             decision = await sync_to_async(_decision)(user, name, arguments)
             if decision:
                 return decision

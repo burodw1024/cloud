@@ -1,8 +1,8 @@
 # Power BI Report Server handoff
 
 Enable **Reporting setup → Power BI Report Server → Power BI handoff** and
-grant **Export authorized Power BI report snapshots** to the intended users or
-groups. Downloads work before the Report Server is installed. When the server
+use **Report service access** as a superuser to grant **Download Power BI
+workbooks** to the intended users or groups. Downloads work before the Report Server is installed. When the server
 is ready, add the internal web portal URL, such as
 `https://powerbi.internal/reports`. The link opens in the user's browser under
 their Report Server permissions.

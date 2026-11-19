@@ -1,0 +1,42 @@
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report service access · BURO Insight AI</title>
+{% include 'agentic_ai/ui_head.html' %}
+<link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}">
+</head><body>
+{% include 'agentic_ai/page_nav.html' %}
+<main class="studio-shell studio-card">
+<h1>Report service access</h1>
+<p>Grant a service to a Django role or to one user. Role members inherit its grants. Clearing a direct user grant leaves inherited grants in effect.</p>
+<form method="get">
+<label for="grant-kind">Grant to</label>
+<select name="kind" id="grant-kind"><option value="group"{% if kind == 'group' %} selected{% endif %}>Role</option><option value="user"{% if kind == 'user' %} selected{% endif %}>User</option></select>
+<label for="grant-name">Exact role name or username</label>
+<input id="grant-name" name="name" value="{{ name }}" list="report-service-roles" required maxlength="150">
+<datalist id="report-service-roles">{% for role in roles %}<option value="{{ role.name }}">{% endfor %}</datalist>
+<button type="submit">Find role or user</button>
+</form>
+{% if saved %}<p role="status">Service grants saved.</p>{% endif %}
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% if target %}
+<h2>{{ name }}</h2>
+{% if kind == 'user' and target.is_superuser %}<p>This superuser already has all service grants.</p>
+{% else %}
+<form method="post">
+{% csrf_token %}
+<input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="name" value="{{ name }}">
+<fieldset><legend>Service grants</legend>
+{% for key,label,checked,inherited in services %}
+<label><input type="checkbox" name="permissions" value="{{ key }}"{% if checked %} checked{% endif %}> {{ label }}{% if inherited %} · Inherited from a role{% endif %}</label>
+{% endfor %}
+</fieldset>
+<label for="grant-reason">Reason for the change</label>
+<textarea id="grant-reason" name="reason" minlength="8" maxlength="500" required></textarea>
+<button type="submit" class="studio-primary">Save service grants</button>
+</form>
+{% endif %}
+{% endif %}
+<p>Superset publishing also requires a staff account and a mapped Superset user. Delivery channels also require an enabled ContextForge tool, tool access, and approved recipients.</p>
+<p><a href="{% url 'agentic_ai:setup' %}#report-delivery-channels">Configure delivery tools</a> · <a href="{% url 'agentic_ai:reporting_settings' %}">Reporting setup</a></p>
+</main></body></html>

@@ -8,6 +8,7 @@ from .access_admin import access_manager, directory_manager
 from .performance_dashboard import performance_dashboard
 from .dashboard_studio import studio, dashboard_api
 from .reporting_admin import reporting_settings
+from .report_service_access import service_access
 from .report_history import report_history, report_run
 from .powerbi import powerbi_export
 from .services import services_page, check_whatsapp
@@ -27,6 +28,7 @@ urlpatterns = [
     path("reports/<uuid:run_id>/power-bi/", powerbi_export, name="powerbi_export"),
     path("analytics/", studio, name="analytics"),
     path("api/dashboards/", dashboard_api, name="dashboard_publish_api"),
+    path("service-access/", service_access, name="service_access"),
     path("reporting-settings/", reporting_settings, name="reporting_settings"),
     path("performance/", performance_dashboard, name="performance"),
     path("dashboard/", views.dashboard, name="dashboard"),
