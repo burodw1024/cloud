@@ -188,6 +188,56 @@ class StudioTests(TestCase):
         self.assertEqual(self.post({'action': 'publish', 'export_id': identifier}).status_code, 400)
 
     @patch.object(studio, 'publish')
+    def test_quick_publish_uses_the_explicit_snapshot_and_configured_default(self, publish):
+        self.config['DEFAULT_TEMPLATE'] = 'line'
+        other = {**self.saved, 'report': {**REPORT, 'rows': REPORT['rows'][:1]}}
+        cache.set('agentic:summary:other-tab', other, 1800)
+
+        def complete(export, report, config, authorize):
+            self.assertTrue(authorize())
+            self.assertEqual(report, other['report'])
+            export.status = 'ready'
+            export.dashboard_id = 50
+            export.save()
+
+        publish.side_effect = complete
+        payload = {'action': 'quick_publish', 'report_token': 'other-tab'}
+        first, repeated = self.post(payload), self.post(payload)
+        self.assertEqual(first.status_code, 200, first.content)
+        self.assertEqual(repeated.status_code, 200, repeated.content)
+        self.assertEqual(first.json()['url'], repeated.json()['url'])
+        export = DashboardExport.objects.get()
+        self.assertEqual(export.specification['template'], 'line')
+        self.assertEqual(export.source['report_token'], 'other-tab')
+        with patch.object(studio, '_can_replay_result', return_value=False):
+            self.assertEqual(self.post(payload).status_code, 403)
+        publish.assert_called_once()
+
+    @patch.object(studio, 'publish', side_effect=RuntimeError('sensitive connection detail'))
+    def test_quick_publish_fallback_and_partial_failure_are_recorded_once(self, publish):
+        self.config['DEFAULT_TEMPLATE'] = 'satellite'
+        payload = {'action': 'quick_publish', 'report_token': 'report-token'}
+        reply = self.post(payload)
+        self.assertEqual(reply.status_code, 502, reply.content)
+        self.assertNotContains(reply, 'sensitive connection detail', status_code=502)
+        export = DashboardExport.objects.get()
+        self.assertEqual(export.status, 'failed')
+        self.assertEqual(export.specification['template'], 'comparison')
+        self.assertTrue(export.specification['fallback'])
+        self.assertEqual(self.post(payload).status_code, 409)
+        publish.assert_called_once()
+
+    @patch.object(studio, 'publish')
+    def test_quick_publish_rejects_missing_foreign_and_client_supplied_data(self, publish):
+        cache.set('agentic:summary:foreign', {**self.saved, 'user_id': self.user.pk + 1}, 1800)
+        for fields in ({}, {'report_token': 'foreign'}, {'report_token': 'missing'},
+                       {'report_token': 'report-token', 'rows': REPORT['rows']}):
+            reply = self.post({'action': 'quick_publish', **fields})
+            self.assertEqual(reply.status_code, 400, reply.content)
+        self.assertFalse(DashboardExport.objects.exists())
+        publish.assert_not_called()
+
+    @patch.object(studio, 'publish')
     def test_publish_once_with_durable_duplicate_protection(self, publish):
         identifier = self.preview()
         def complete(export, report, config, authorize):

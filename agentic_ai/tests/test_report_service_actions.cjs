@@ -7,7 +7,7 @@ class Element {
   constructor() { this.dataset = {}; this.children = []; this.hidden = false; this.value = ''; }
   append(child) { this.children.push(child); }
   replaceChildren() { this.children = []; }
-  addEventListener() {}
+  addEventListener(event, listener) { this[event] = listener; }
   querySelectorAll() { return []; }
   setAttribute(name, value) { this[name] = value; }
   removeAttribute(name) { delete this[name]; }
@@ -16,8 +16,14 @@ const ids = new Map();
 const get = id => { if (!ids.has(id)) ids.set(id, new Element()); return ids.get(id); };
 get('report-templates').dataset.default = 'table';
 get('generate-superset-report').dataset.studioUrl = '/agentic/analytics/';
-const context = { document: {getElementById: get, createElement: () => new Element()}, window: {print() {}},
-  fetch() { throw new Error('Showing actions must never send or publish'); } };
+get('quick-superset-publish').dataset.endpoint = '/agentic/api/dashboards/';
+const requests = [];
+const context = { document: {getElementById: get, createElement: () => new Element(),
+  querySelector: () => ({value: 'csrf-token'})}, window: {print() {}}, URL,
+  async fetch(url, options) {
+    requests.push([url, JSON.parse(options.body), options.headers['X-CSRFToken']]);
+    return {ok: true, async json() { return {ok: true, url: 'https://superset.internal/superset/dashboard/9/'}; }};
+  } };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/agentic_ai/report_templates.js'), 'utf8'), context);
 const templates = context.window.BuroReportTemplates;
@@ -30,5 +36,18 @@ assert.equal(get('generate-superset-report').hidden, true);
 assert.equal(get('generate-superset-report').href, undefined);
 templates.show(report, {});
 assert.equal(get('generate-superset-report').hidden, true, 'Unsupported snapshots cannot reuse a previous report token');
-assert.match(get('superset-result-status').textContent, /no supported export snapshot/);
-console.log('Report service action checks passed.');
+assert.match(get('superset-result-status').textContent, /no exportable snapshot/);
+assert.equal(requests.length, 0, 'Displaying results never publishes');
+(async () => {
+  templates.show(report, {summary_token: 'selected-report'});
+  const button = get('quick-superset-publish');
+  assert.equal(button.hidden, false);
+  await Promise.all([button.click(), button.click()]);
+  assert.deepEqual(requests, [['/agentic/api/dashboards/',
+    {action: 'quick_publish', report_token: 'selected-report'}, 'csrf-token']]);
+  assert.equal(button.hidden, true);
+  assert.equal(get('open-superset-result').href, 'https://superset.internal/superset/dashboard/9/');
+  templates.reset();
+  assert.equal(get('open-superset-result').hidden, true);
+  console.log('Report service action checks passed.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

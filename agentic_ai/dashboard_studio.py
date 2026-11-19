@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_protect
 
 from .api import _can_replay_result
 from .models import DashboardExport
-from .report_catalog import CATALOG
+from .report_catalog import CATALOG, DESIGNS
 from .superset_publisher import PublishError, configuration, specification, publish, remove
 
 
@@ -79,6 +79,83 @@ def studio(request):
     return result
 
 
+def report_for_template(saved, template):
+    return saved.get('dashboard_map_report', saved['report']) if template == 'satellite' else saved['report']
+
+
+def dashboard_url(export, config):
+    return f'{config.get("PUBLIC_URL", config["URL"])}/superset/dashboard/{export.dashboard_id}/'
+
+
+def publish_export(export, saved, config):
+    # Durable compare-and-set prevents duplicate dispatch, even after cache loss.
+    export.source['binding'] = binding(config)
+    if not DashboardExport.objects.filter(pk=export.pk, status='pending').update(
+            status='creating', source=export.source):
+        return response({'ok': False, 'error': 'This export was already requested. Review its recorded status.'}, 409)
+    export.status = 'creating'
+    try:
+        report = report_for_template(saved, export.specification.get('template'))
+        publish(export, report, config,
+                lambda: current_authorization(export.user_id, saved))
+    except Exception as exc:
+        export.status = 'failed'
+        detail = str(exc) if isinstance(exc, PublishError) else 'Publication failed.'
+        export.error = (detail + ' Recorded objects may exist; remove this export before creating another.')[:500]
+        export.save(update_fields=['status', 'error'])
+        return response({'ok': False, 'error': export.error, 'export_id': str(export.pk)}, 502)
+    return response({'ok': True, 'url': dashboard_url(export, config),
+                     'template': export.specification.get('template', 'comparison'), 'fallback': export.specification.get('fallback', False),
+                     'message': 'Private snapshot dashboard created. Sign in to Superset to view it.'})
+
+
+def quick_publish(request, token):
+    if not isinstance(token, str) or not token:
+        raise PublishError('Choose a valid report snapshot.')
+    saved = source_report(request, token)
+    config = configuration(request.user)
+    # Stable for this user and snapshot across retries, browser tabs and cache workers.
+    identifier = uuid.uuid5(uuid.NAMESPACE_URL, f'agentic:quick-publish:{request.user.pk}:{token}')
+    export = DashboardExport.objects.filter(pk=identifier, user=request.user).first()
+    if export is None:
+        template = config.get('DEFAULT_TEMPLATE', 'comparison')
+        if not isinstance(template, str) or template not in DESIGNS:
+            template = 'comparison'
+        report = report_for_template(saved, template)
+        date = report.get('report_date')
+        title = 'Report snapshot'
+        if isinstance(date, str) and re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', date):
+            title = f'{title} · {date}'
+        try:
+            spec = specification(report, title, template=template)
+        except PublishError:
+            if template == 'comparison':
+                raise
+            spec = specification(saved['report'], title, template='comparison')
+            spec['fallback'] = True
+        source = {key: saved[key] for key in ('tool', 'plan', 'loan_access') if key in saved}
+        source['report_token'] = token
+        export, _ = DashboardExport.objects.get_or_create(pk=identifier, user=request.user, defaults={
+            'title': spec['title'], 'specification': spec, 'source': source,
+        })
+    if export.source.get('binding') and export.source['binding'] != binding(config):
+        raise PublishError('Superset destination changed. An administrator must reconcile this export.')
+    if export.status == 'ready':
+        return response({'ok': True, 'url': dashboard_url(export, config),
+                         'template': export.specification.get('template', 'comparison'), 'fallback': export.specification.get('fallback', False),
+                         'message': 'This snapshot already has a private Superset dashboard.'})
+    if export.status == 'deleted':
+        raise PublishError('This dashboard was removed. Use the guided builder to publish this snapshot again.')
+    if export.status == 'failed':
+        return response({'ok': False, 'error': 'The previous attempt needs review. Open the dashboard export library before retrying.',
+                         'export_id': str(export.pk)}, 409)
+    if export.status == 'creating':
+        return response({'ok': False, 'error': 'This dashboard is already being published. Check again shortly.'}, 409)
+    if not current_authorization(request.user.pk, saved):
+        raise PermissionError('Report access is no longer permitted.')
+    return publish_export(export, saved, config)
+
+
 @csrf_protect
 def dashboard_api(request):
     if not permitted(request.user):
@@ -92,11 +169,17 @@ def dashboard_api(request):
         if not isinstance(body, dict):
             raise PublishError('Expected an action object.')
         action = body.get('action')
-        if action not in {'preview', 'publish', 'delete', 'open'}:
-            raise PublishError('Choose preview, publish, open or delete.')
-        allowed = {'action', 'title', 'dimension', 'secondary_dimension', 'metrics', 'template', 'report_token'} if action == 'preview' else {'action', 'export_id'}
+        if action not in {'preview', 'publish', 'quick_publish', 'delete', 'open'}:
+            raise PublishError('Choose preview, publish, quick publish, open or delete.')
+        allowed = {'action', 'export_id'}
+        if action == 'preview':
+            allowed = {'action', 'title', 'dimension', 'secondary_dimension', 'metrics', 'template', 'report_token'}
+        elif action == 'quick_publish':
+            allowed = {'action', 'report_token'}
         if set(body) - allowed:
             raise PublishError('Unexpected dashboard parameters. Report data and SQL cannot be submitted.')
+        if action == 'quick_publish':
+            return quick_publish(request, body.get('report_token'))
         if action == 'preview':
             rate_key = f'agentic:dashboard:preview:{request.user.pk}'
             if cache.add(rate_key, 1, 60):
@@ -109,7 +192,7 @@ def dashboard_api(request):
                 raise PublishError('Choose a valid report snapshot.')
             saved = source_report(request, body.get('report_token'))
             template = body.get('template', 'comparison')
-            report = saved.get('dashboard_map_report', saved['report']) if template == 'satellite' else saved['report']
+            report = report_for_template(saved, template)
             spec = specification(report, body.get('title', 'Report dashboard'),
                                  body.get('dimension'), body.get('metrics'), template, body.get('secondary_dimension'))
             source = {k: v for k, v in saved.items() if k in {'tool', 'plan', 'loan_access'}}
@@ -131,7 +214,7 @@ def dashboard_api(request):
         if action == 'open':
             if export.status != 'ready' or not current_authorization(request.user.pk, export.source):
                 raise PermissionError('This dashboard is no longer available to your current access.')
-            return response({'ok': True, 'url': f'{config.get("PUBLIC_URL",config["URL"])}/superset/dashboard/{export.dashboard_id}/'})
+            return response({'ok': True, 'url': dashboard_url(export, config)})
         if action == 'delete':
             # Allow removal after source access revocation. Lock against concurrent
             # publication and never delete objects from a different destination.
@@ -155,25 +238,7 @@ def dashboard_api(request):
             raise PublishError('Report expired. Run the report and preview again.')
         if not current_authorization(request.user.pk, saved):
             raise PermissionError('Report access is no longer permitted.')
-        # Durable compare-and-set prevents duplicate dispatch, even after cache loss.
-        export.source['binding'] = binding(config)
-        if not DashboardExport.objects.filter(pk=export.pk, status='pending').update(
-                status='creating', source=export.source):
-            return response({'ok': False, 'error': 'This export was already requested. Review its recorded status.'}, 409)
-        export.status = 'creating'
-        try:
-            report = (saved.get('dashboard_map_report', saved['report'])
-                      if export.specification.get('template') == 'satellite' else saved['report'])
-            publish(export, report, config,
-                    lambda: current_authorization(request.user.pk, saved))
-        except Exception as exc:
-            export.status = 'failed'
-            detail = str(exc) if isinstance(exc, PublishError) else 'Publication failed.'
-            export.error = (detail + ' Recorded objects may exist; remove this export before creating another.')[:500]
-            export.save(update_fields=['status', 'error'])
-            return response({'ok': False, 'error': export.error, 'export_id': str(export.pk)}, 502)
-        return response({'ok': True, 'url': f'{config.get("PUBLIC_URL",config["URL"])}/superset/dashboard/{export.dashboard_id}/',
-                         'message': 'Private snapshot dashboard created. Sign in to Superset to view it.'})
+        return publish_export(export, saved, config)
     except PermissionError as exc:
         return response({'ok': False, 'error': str(exc)}, 403)
     except PublishError as exc:

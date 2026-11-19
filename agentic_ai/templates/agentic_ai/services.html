@@ -9,7 +9,7 @@
 {% if user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}#whatsapp-tool">Configure WhatsApp</a>{% endif %}
 <p class="service-note">A Meta message ID confirms acceptance, not delivery. No automatic send retries are made.</p></section>
 <section class="service-card" aria-labelledby="superset-service-title"><span class="service-state">{% if superset_ready %}Publishing configured{% elif reporting.configured %}Service configured{% else %}Needs setup{% endif %}</span><h2 id="superset-service-title">Superset reporting</h2><p>{{ superset_status }}</p>
-<ol><li>Run a structured report in the workspace.</li><li>Choose <strong>Generate Superset report</strong> under that result.</li><li>Select a template and measures, preview, then choose <strong>Create private Superset dashboard</strong>.</li></ol>
+<ol><li>Run a structured report in the workspace.</li><li>Choose <strong>Publish private Superset report</strong> to publish with the default template.</li><li>To customize first, choose <strong>Choose a template &amp; preview</strong>, then publish from the preview.</li></ol>
 <p>Creates a private snapshot of up to 100 supported, authorized displayed rows. It does not rerun your query or create a live refresh schedule.</p>
 {% if reporting.configured %}<a href="{{ reporting.url }}" target="_blank" rel="noopener noreferrer">Open Superset ↗</a>{% endif %}
 {% if reporting.can_publish %}<a href="{% url 'agentic_ai:analytics' %}">Open report studio →</a>{% endif %}
