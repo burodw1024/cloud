@@ -7,3 +7,15 @@
 .report-publishing-actions [hidden]{display:none!important}
 .report-publishing .result-details{margin:6px 0 0}
 @media print{.report-publishing{display:none!important}}
+
+.report-ready-prompt{
+  position:fixed;inset:auto max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) auto;
+  z-index:20;width:min(365px,calc(100% - 32px));box-sizing:border-box;margin:0;padding:18px;
+  border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);
+  box-shadow:0 12px 42px #132c3350
+}
+.report-ready-prompt[hidden]{display:none}
+.report-ready-prompt h5{margin:0;font-size:16px}
+.report-ready-prompt p{margin:5px 28px 12px 0;color:var(--muted);font-size:13px}
+.report-ready-prompt .copy-button{position:absolute;top:9px;right:9px;min-width:32px;min-height:32px}
+@media print{.report-ready-prompt{display:none!important}}
