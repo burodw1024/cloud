@@ -85,6 +85,8 @@
     function showSource(context, runId) {
         const details=$('result-source-details'), facts=$('result-source-facts');
         const history=$('result-history-link');
+        const powerbi=$('result-powerbi'), exportLink=$('result-powerbi-export');
+        if(powerbi){powerbi.hidden=true;exportLink.removeAttribute('href');}
         details.hidden=!context;
         details.open=false;
         facts.replaceChildren();
@@ -111,6 +113,10 @@
         if(typeof runId==='string' && /^[0-9a-f-]{36}$/i.test(runId) && history.dataset.historyUrl){
             history.href=history.dataset.historyUrl+encodeURIComponent(runId)+'/';
             history.hidden=false;
+            if(powerbi){
+                exportLink.href=exportLink.dataset.historyUrl+encodeURIComponent(runId)+'/power-bi/';
+                powerbi.hidden=false;
+            }
         }
     }
     const numeric=value=>{

@@ -18,6 +18,16 @@
 <a href="{% url 'agentic_ai:query_page' %}?reuse={{ run.pk }}#agent-query-form">Reuse question</a>
 {% if report and can_publish %}<a href="{% url 'agentic_ai:analytics' %}?report={{ run.snapshot_token|urlencode }}">Choose a template &amp; preview</a>{% endif %}
 </div>
+{% if powerbi.enabled %}
+<section class="studio-card">
+<h2>Power BI Report Server</h2>
+<p>Open the workbook in Power BI Desktop for Report Server, then save or publish from Desktop.</p>
+<div class="history-actions">
+{% if report %}<a href="{% url 'agentic_ai:powerbi_export' run.pk %}">Download Power BI workbook</a>{% endif %}
+{% if powerbi.portal_url %}<a href="{{ powerbi.portal_url }}" target="_blank" rel="noopener noreferrer">Open Report Server ↗</a>{% endif %}
+</div>
+</section>
+{% endif %}
 <section class="studio-card">
 <h2>Source and scope</h2>
 <dl class="history-facts">

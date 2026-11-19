@@ -61,7 +61,9 @@ def reporting_settings(request):
         ('02 / REPORT STORAGE','Connect the dedicated analytics database', ['database_id','database_host','database_port','database_name','database_user','database_password','database_sslmode','schema']),
         ('03 / USERS & TEMPLATE','Choose who publishes and the default layout', ['user_mappings','private_access_verified','default_template']),
         ('04 / MAP IMAGERY', 'Set the default map background for new dashboards',
-         ['map_background', 'map_tile_url', 'map_tile_attribution'])]
+         ['map_background', 'map_tile_url', 'map_tile_attribution']),
+        ('05 / POWER BI REPORT SERVER', 'Configure the on-premises Power BI handoff',
+         ['powerbi_mode', 'powerbi_portal_url', 'powerbi_allow_http'])]
     response = render(request,'agentic_ai/reporting_settings.html',{'form':form,'notice':notice,
         'sections':[(step,title,[form[name] for name in fields]) for step,title,fields in sections]})
     response['Cache-Control']='no-store'

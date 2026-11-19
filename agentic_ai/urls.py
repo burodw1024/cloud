@@ -9,6 +9,7 @@ from .performance_dashboard import performance_dashboard
 from .dashboard_studio import studio, dashboard_api
 from .reporting_admin import reporting_settings
 from .report_history import report_history, report_run
+from .powerbi import powerbi_export
 from .services import services_page, check_whatsapp
 
 app_name = "agentic_ai"
@@ -23,6 +24,7 @@ urlpatterns = [
     path("", query_page, name="query_page"),
     path("reports/", report_history, name="report_history"),
     path("reports/<uuid:run_id>/", report_run, name="report_run"),
+    path("reports/<uuid:run_id>/power-bi/", powerbi_export, name="powerbi_export"),
     path("analytics/", studio, name="analytics"),
     path("api/dashboards/", dashboard_api, name="dashboard_publish_api"),
     path("reporting-settings/", reporting_settings, name="reporting_settings"),

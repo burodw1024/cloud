@@ -8,6 +8,7 @@ from django.views.decorators.http import require_safe
 from .api import _can_replay_result
 from .dashboard_studio import permitted
 from .models import DashboardExport, ReportRun
+from .reporting_config import workspace_settings
 
 
 def render_history(request, context):
@@ -54,5 +55,6 @@ def report_run(request, run_id):
         exports = DashboardExport.objects.filter(user=request.user, source__report_token=run.snapshot_token).exclude(status='deleted')
     return render_history(request, {
         'run': run, 'report': report, 'exports': exports, 'can_publish': can_publish,
+        'powerbi': workspace_settings(request.user)['powerbi'],
         'table_rows': [[row.get(col) for col in report['columns']] for row in report['rows']] if report else [],
     })
