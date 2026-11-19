@@ -1,0 +1,35 @@
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scheduled requests · BURO Insight AI</title>
+{% include 'agentic_ai/ui_head.html' %}
+<link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}">
+</head><body>{% include 'agentic_ai/page_nav.html' %}
+<main class="studio-shell">
+<h1>Scheduled requests</h1>
+<p>Run a loan or savings report once at a future time. Use an explicit branch and report dates.</p>
+<div class="studio-grid">
+<section class="studio-card">
+<h2>Schedule a report</h2>
+<form method="post">
+{% csrf_token %}
+{{ form.as_p }}
+<button type="submit" class="studio-primary">Schedule report</button>
+</form>
+<p>Delivery channels send a report summary. Power BI workbooks remain available for 30 minutes after the run and are published from Power BI Desktop.</p>
+</section>
+<section class="studio-card">
+<h2>Your recent schedules</h2>
+<div class="studio-table-wrap">
+<table><thead><tr><th scope="col">Run time (BDT)</th><th scope="col">Request</th><th scope="col">Status</th></tr></thead><tbody>
+{% for job,label in recent %}
+<tr><td>{{ job.run_at|date:"Y-m-d H:i" }}</td><td>{{ job.question|truncatechars:150 }}<br><small>{{ label }}{% if job.recipient %} · {{ job.recipient }}{% endif %}</small></td>
+<td>{{ job.get_status_display }}{% if job.message %}<small>{{ job.message }}</small>{% endif %}
+{% if job.report_run_id %}<a href="{% url 'agentic_ai:report_run' job.report_run_id %}">Open report run</a>{% endif %}
+{% if job.status == 'pending' %}<form method="post">{% csrf_token %}<input type="hidden" name="schedule_id" value="{{ job.pk }}"><button name="action" value="cancel">Cancel</button></form>{% endif %}
+</td></tr>
+{% empty %}<tr><td colspan="3">No requests scheduled.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+</div>
+</main></body></html>

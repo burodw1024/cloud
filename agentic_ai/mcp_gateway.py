@@ -479,6 +479,13 @@ async def _run(config, user, query, allowed_names):
             await session.initialize()
         with stage(state, 'discovery'):
             tools = await discover_tools(session, allowed_names)
+        if config.get('scheduled'):
+            from .application_scope import savings_schema_supported
+            from .native_loan_query import supports_native_query
+            from .loan_access import protected_tools
+            loan_names = await sync_to_async(protected_tools)()
+            tools = [tool for tool in tools if savings_schema_supported(tool)
+                     or supports_native_query(tool, loan_names)]
         if not tools:
             return {"ok": False, "status": "blocked", "code": "no_tools", "http_status": 403, "answer": NO_TOOLS}
         from .application_scope import ApplicationLoanGrant, SCOPE_FIELD
@@ -544,6 +551,8 @@ async def _run(config, user, query, allowed_names):
         loan_grant = decision if isinstance(decision, (LoanGrant, FixedLoanGrant, ApplicationLoanGrant)) else None
         if decision and not loan_grant:
             return dict(decision, plan=plan)
+        if config.get('scheduled') and (not loan_grant or getattr(loan_grant, 'access', None) is None):
+            raise GatewayError('scheduled_scope_required', 'Scheduled reports require a verified branch scope. No tool was executed.', 403)
         if loan_grant:
             from .loan_scope_backend import TOKEN_FIELD
             if isinstance(loan_grant, LoanGrant):
@@ -650,7 +659,7 @@ def _failure(exc, state=None):
     return "gateway_error", "MCP selection or execution failed. Check the server log using the request ID.", 502
 
 
-def run_mcp_query(user=None, query="", session_id=None):
+def run_mcp_query(user=None, query="", session_id=None, scheduled=False):
     request_id = uuid.uuid4().hex
     started = time.monotonic()
     state, audit = {}, None
@@ -678,7 +687,7 @@ def run_mcp_query(user=None, query="", session_id=None):
         else:
             with stage(state, 'configuration'):
                 config = load_config()
-            config.update(state=state, audit_id=audit.pk, usage_meter=meter)
+            config.update(state=state, audit_id=audit.pk, usage_meter=meter, scheduled=scheduled)
             result = async_to_sync(_bounded_run)(config, user, query, allowed)
     except Exception as exc:
         code, answer, status = _failure(exc, state)

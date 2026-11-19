@@ -11,6 +11,7 @@ from .reporting_admin import reporting_settings
 from .report_service_access import service_access
 from .report_history import report_history, report_run
 from .powerbi import powerbi_export
+from .scheduled_reports import schedule_page
 from .services import services_page, check_whatsapp
 
 app_name = "agentic_ai"
@@ -23,6 +24,7 @@ urlpatterns = [
     path("api/share/<str:channel>/", whatsapp_api, name="report_share_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),
     path("", query_page, name="query_page"),
+    path("scheduled/", schedule_page, name="schedule_page"),
     path("reports/", report_history, name="report_history"),
     path("reports/<uuid:run_id>/", report_run, name="report_run"),
     path("reports/<uuid:run_id>/power-bi/", powerbi_export, name="powerbi_export"),

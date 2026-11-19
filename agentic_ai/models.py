@@ -318,3 +318,23 @@ class ReportRun(models.Model):
             ('share_report_outlook', 'Share reports through Outlook'),
             ('share_report_viber', 'Share reports through Viber'),
         ]
+
+
+class ScheduledReport(models.Model):
+    STATUS = [(key, label) for key, label in (
+        ('pending', 'Scheduled'), ('running', 'Running'), ('ready', 'Completed'),
+        ('failed', 'Needs review'), ('cancelled', 'Cancelled'),
+    )]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    question = models.TextField()
+    run_at = models.DateTimeField(db_index=True)
+    destination = models.CharField(max_length=20)
+    recipient = models.CharField(max_length=254, blank=True)
+    status = models.CharField(max_length=12, choices=STATUS, default='pending', db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    report_run = models.ForeignKey(ReportRun, null=True, blank=True, on_delete=models.SET_NULL)
+    message = models.CharField(max_length=400, blank=True)
+
+    class Meta:
+        ordering = ['-run_at']
+        permissions = [('schedule_report', 'Schedule authorized report requests')]
