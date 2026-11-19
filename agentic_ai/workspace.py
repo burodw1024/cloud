@@ -48,9 +48,11 @@ def workspace_context(user, module_slug=''):
         'user_query', 'status', 'created_at', 'usage_summary')[:5])
     approvals = list(AgentApprovalRequest.objects.filter(user=user, status='pending').order_by('-created_at').values(
         'tool_name', 'created_at')[:3])
+    pending_count = AgentApprovalRequest.objects.filter(user=user, status='pending').count()
     return {'capabilities': catalog, 'capability_count': len(catalog),
             'has_loan_capabilities': any(item['name'] in loan_names for item in catalog),
             'has_savings_capabilities': any('saving' in (item['name'] + ' ' + item['description']).casefold() or 'সঞ্চ' in item['description'] for item in catalog),
             'business_modules': modules, 'selected_module': selected_module,
             'recent_activity': activity, 'pending_approvals': approvals,
-            'pending_approval_count': AgentApprovalRequest.objects.filter(user=user, status='pending').count()}
+            'pending_approval_count': pending_count,
+            'show_approvals': bool(pending_count or any(item['requires_approval'] for item in catalog))}

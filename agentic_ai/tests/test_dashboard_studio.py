@@ -12,6 +12,8 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 
 from agentic_ai import dashboard_studio as studio
 from agentic_ai import superset_publisher as publisher
+from agentic_ai.bangla_summary import remember_report
+from agentic_ai.report_catalog import CATALOG
 from agentic_ai.models import DashboardExport
 
 
@@ -55,6 +57,42 @@ class DesignTests(SimpleTestCase):
         for rows in [[], REPORT['rows'] * 51]:
             with self.assertRaises(publisher.PublishError):
                 publisher.specification({**REPORT, 'rows': rows}, 'Report')
+
+
+    @override_settings(AGENTIC_SATELLITE_TILE_URL='https://tiles.internal/{z}/{x}/{y}.jpg',
+                       AGENTIC_SATELLITE_TILE_ATTRIBUTION='Internal imagery provider')
+    def test_catalog_generates_the_expected_superset_visualizations(self):
+        columns = ['BRANCHCODE', 'ZONECODE', 'VALUE', 'LATITUDE', 'LONGITUDE', 'MARKER_ICON']
+        report = {'columns': columns, 'rows': [
+            dict(zip(columns, ['0007', '01', 20, '23.7', '90.4', 'pin'])),
+            dict(zip(columns, ['0008', '01', 40, '23.9', '90.5', 'branch'])),
+        ]}
+        expected = {
+            'table': 'table', 'comparison': 'echarts_timeseries_bar', 'management': 'echarts_timeseries_bar',
+            'columns': 'echarts_timeseries_bar', 'line': 'echarts_timeseries_line',
+            'smooth': 'echarts_timeseries_smooth', 'step': 'echarts_timeseries_step',
+            'area': 'echarts_timeseries_line', 'points': 'echarts_timeseries_scatter',
+            'donut': 'pie', 'heatmap': 'heatmap_v2', 'satellite': 'buro_icon_map',
+        }
+        for template, *_ in CATALOG:
+            with self.subTest(template=template):
+                spec = publisher.specification(report, 'Snapshot', template=template)
+                charts = list(publisher.chart_specs(spec, columns))
+                self.assertEqual(charts[0][1], 'table')
+                self.assertEqual(charts[-1][1], expected[template])
+                self.assertNotIn('LATITUDE', spec['measures'])
+                if template == 'satellite':
+                    options = charts[-1][2]
+                    self.assertEqual(options['latitude_column'], 'c3')
+                    self.assertEqual(options['icon_column'], 'c5')
+                    self.assertEqual(options['tile_url'], 'https://tiles.internal/{z}/{x}/{y}.jpg')
+                if template == 'heatmap':
+                    self.assertEqual(charts[-1][3], ['c0', 'c1'])
+
+    def test_templates_with_incompatible_source_data_are_rejected(self):
+        for template in ('donut', 'heatmap', 'satellite'):
+            with self.subTest(template=template), self.assertRaises(publisher.PublishError):
+                publisher.specification(REPORT, 'Snapshot', template=template)
 
 
 class StudioTests(TestCase):
@@ -184,6 +222,25 @@ class StudioTests(TestCase):
         export.source['binding'] = {**studio.binding(self.config), 'DATABASE_ID': 100}
         export.save()
         self.assertEqual(self.post({'action': 'publish', 'export_id': identifier}).status_code, 400)
+
+    @override_settings(AGENTIC_SATELLITE_TILE_URL='https://tiles.internal/{z}/{x}/{y}.jpg',
+                       AGENTIC_SATELLITE_TILE_ATTRIBUTION='Internal imagery')
+    def test_satellite_preview_uses_only_authorized_branch_coordinates(self):
+        report = {'level': 'BRANCH', 'columns': ['BRANCHCODE', 'LAT', 'LNG', 'ICON', 'NAME'],
+                  'rows': [{'BRANCHCODE': '0007', 'LAT': '23.7', 'LNG': '90.4', 'ICON': 'warning',
+                            'NAME': 'Excluded field'}]}
+        result = remember_report(self.user, {'ok': True, 'tool': self.saved['tool'],
+                                 'raw': {'structuredContent': report}})
+        token = result['summary_token']
+        saved = cache.get('agentic:summary:' + token)
+        self.assertEqual(saved['report']['columns'], ['BRANCHCODE'])
+        self.assertEqual(saved['dashboard_map_report']['rows'][0]['MARKER_ICON'], 'warning')
+        self.assertNotIn('NAME', saved['dashboard_map_report']['columns'])
+        with patch.object(studio, '_can_replay_result', return_value=True):
+            reply = self.post({'action': 'preview', 'report_token': token,
+                               'template': 'satellite', 'title': 'Locations'})
+        self.assertEqual(reply.status_code, 200, reply.content)
+        self.assertEqual(reply.json()['sample'][0]['LATITUDE'], '23.7')
 
     def test_studio_renders_and_is_not_cached(self):
         reply = self.client.get('/agentic/analytics/')

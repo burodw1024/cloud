@@ -6,11 +6,14 @@ are supplied by the deployment administrator, never by a browser or model.
 import json
 import re
 from decimal import Decimal, InvalidOperation
+from itertools import combinations
 from urllib.parse import urlsplit
 
 import requests
 from django.conf import settings
 from django.db import connections, transaction
+
+from .report_catalog import DESIGNS, SERIES, satellite_tiles
 
 MAX_ROWS = 100
 FIELD_LABELS = {
@@ -83,7 +86,27 @@ def number(value):
         return None
 
 
-def specification(report, title, dimension=None, metrics=None, template="comparison"):
+def coordinate_fields(columns):
+    aliases = {'latitude': {'latitude', 'lat', 'branchlatitude', 'branchlat'},
+               'longitude': {'longitude', 'lon', 'lng', 'long', 'branchlongitude', 'branchlon', 'branchlng'}}
+    return {axis: next((c for c in columns if re.sub(r'[^a-z]', '', c.lower()) in names), None)
+            for axis, names in aliases.items()}
+
+
+def map_fields(columns, rows):
+    coordinates = coordinate_fields(columns)
+    lat, lon = coordinates.values()
+    if not lat or not lon:
+        raise PublishError('Satellite icon maps require latitude and longitude columns in the report.')
+    if not any((y := number(row.get(lat))) is not None and abs(y) <= Decimal('85.0511')
+               and (x := number(row.get(lon))) is not None and abs(x) <= 180 for row in rows):
+        raise PublishError('The satellite map needs at least one valid coordinate pair.')
+    icon = next((field for field in columns if field.lower() in {'icon', 'icon_type', 'marker_icon'}), None)
+    category = next((field for field in columns if field.lower() in {'category', 'marker_category', 'zonecode'}), None)
+    return {**coordinates, 'icon': icon, 'category': category}
+
+
+def specification(report, title, dimension=None, metrics=None, template="comparison", secondary_dimension=None):
     if not isinstance(title, str) or not 1 <= len(title.strip()) <= 150:
         raise PublishError('Choose a title of 1–150 characters.')
     rows, columns = report.get('rows'), report.get('columns')
@@ -93,37 +116,135 @@ def specification(report, title, dimension=None, metrics=None, template="compari
             or any(not isinstance(row, dict) for row in rows)):
         raise PublishError('This report cannot be exported as a dashboard snapshot.')
     # Codes and dates remain dimensions even when represented by digits.
-    measures = [c for c in columns if not any(s in c.upper() for s in
-                ('CODE', 'DATE', 'RANK', 'FREQUENCY', 'NAME'))
+    coordinates = set(coordinate_fields(columns).values())
+    measures = [c for c in columns if c not in coordinates
+                and not re.search(r'CODE|DATE|RANK|FREQUENCY|NAME|PHONE|ACCOUNT|(?:^|_)ID(?:$|_)', c, re.I)
                 and any(row.get(c) is not None for row in rows)
                 and all(row.get(c) is None or number(row[c]) is not None for row in rows)]
     dimensions = [c for c in columns if c not in measures]
-    if dimension is None:
+    automatic_dimension = dimension is None
+    if automatic_dimension:
         dimension = next((c for c in dimensions if 'CODE' in c.upper()),
                          dimensions[0] if dimensions else None)
     elif dimension == '':
         dimension = None  # Explicit row-number selection in the studio.
-    if template not in {'table', 'comparison', 'management'}:
+    if not isinstance(template, str) or template not in DESIGNS:
         raise PublishError('Choose a supported report template.')
-    defaults = [] if template == 'table' else measures[:4 if template == 'management' else 2]
+    limit = {'table': 0, 'management': 4, 'comparison': 2}.get(template, 1)
+    defaults = [] if template == 'satellite' else measures[:limit]
     metrics = defaults if metrics is None else metrics
     if template == 'table':
         metrics = []
-    if (not isinstance(metrics, list) or len(metrics) > 4
+    if (not isinstance(metrics, list) or len(metrics) > (4 if template == 'comparison' else limit)
             or any(not isinstance(m, str) or m not in measures for m in metrics)
             or len(set(metrics)) != len(metrics)):
         raise PublishError('Select up to four numeric report fields, or none for a table.')
     if dimension is not None and dimension not in dimensions:
         raise PublishError('Select a dimension from the report.')
-    # Table and per-row bars preserve report granularity. No invented SUM/KPI,
-    # percentage or historical trend from a potentially limited snapshot.
+    map_columns = {}
+    notice = 'Immutable snapshot of displayed rows (maximum 100). No automatic refresh.'
+    if template == 'satellite':
+        map_columns = map_fields(columns, rows)
+        if not satellite_tiles():
+            raise PublishError('Ask an administrator to configure the approved satellite tile service.')
+        notice += ' The map omits invalid coordinates. Tile requests go to the configured provider.'
+    elif template in {'heatmap', 'donut', 'columns', 'line', 'smooth', 'step', 'area', 'points'} and not metrics:
+        raise PublishError('This template needs a numeric report field. Try Source table for this result.')
+    if template == 'heatmap':
+        # A cell represents one displayed row, so never merge duplicate pairs.
+        categories = [c for c in dimensions if c not in coordinates]
+
+        def unique_pairs(first, second):
+            pairs = [tuple('' if row.get(c) is None else str(row[c])[:2000] for c in (first, second))
+                     for row in rows]
+            return len(set(pairs)) == len(pairs) and all(a.strip() and b.strip() for a, b in pairs)
+
+        if automatic_dimension and secondary_dimension is None:
+            match = next(((x, y) for x, y in combinations(categories, 2) if unique_pairs(x, y)), None)
+            if match:
+                dimension, secondary_dimension = match
+        candidates = [c for c in categories if c != dimension]
+        if secondary_dimension is None and dimension in categories:
+            secondary_dimension = next((c for c in candidates if unique_pairs(dimension, c)), None)
+        if dimension not in categories or secondary_dimension not in candidates:
+            raise PublishError('Heatmaps need two populated report categories with unique pairs. Try a bar template.')
+        if not unique_pairs(dimension, secondary_dimension):
+            raise PublishError('Choose populated heatmap categories with unique pairs across displayed rows.')
+    else:
+        secondary_dimension = None
+    if template == 'donut':
+        values = [number(row.get(metrics[0])) for row in rows]
+        if (not 2 <= len(values) <= 12 or any(value is None or value < 0 for value in values)
+                or not any(values)):
+            raise PublishError('Donut composition needs 2–12 rows with non-negative values and at least one positive value.')
+        notice += ' Shares use the displayed rows only.'
+    if template in {'line', 'smooth', 'step', 'area'}:
+        notice += ' The horizontal axis is displayed row order.'
+    if template in {'table', 'comparison', 'management'}:
+        notice += ' Values are shown per row; totals and trends are not inferred.'
     return {'template': template, 'title': title.strip(), 'dimension': dimension, 'metrics': metrics,
             'labels': {c: field_label(c) for c in columns},
             'dimensions': dimensions, 'measures': measures, 'rows': len(rows),
+            'secondary_dimension': secondary_dimension, 'map_columns': map_columns,
+            'metric_limit': 4 if template == 'comparison' else limit,
             'report_date': report.get('report_date'), 'truncated': bool(report.get('truncated')),
-            'mode': 'snapshot', 'charts': ['Source table'] + [f'{m} by displayed row' for m in metrics],
-            'notice': 'Immutable snapshot of displayed rows (maximum 100). No automatic refresh. '
-                      'Values are shown per row; totals and trends are not inferred.'}
+            'mode': 'snapshot', 'charts': ['Source table'] + (
+                ['Satellite icon map'] if map_columns else [f'{m} by displayed row' for m in metrics]),
+            'notice': notice}
+
+
+def chart_specs(spec, fields):
+    template = spec.get('template', 'comparison')
+    physical = {name: f'c{i}' for i, name in enumerate(fields)}
+    columns = ['row_label', *physical.values()]
+    yield 'Source table', 'table', {
+        'query_mode': 'raw', 'all_columns': columns,
+        'order_by_cols': [json.dumps(['row_no', True])], 'row_limit': MAX_ROWS,
+    }, columns, []
+    if template == 'satellite':
+        mapping = spec['map_columns']
+        location = {
+            'latitude_column': physical[mapping['latitude']], 'longitude_column': physical[mapping['longitude']],
+            'icon_column': physical.get(mapping['icon']), 'category_column': physical.get(mapping['category']),
+            'label_column': 'row_label', 'size_column': physical.get(next(iter(spec['metrics']), None)),
+        }
+        location = {key: value for key, value in location.items() if value is not None}
+        tiles = satellite_tiles()
+        if not tiles:
+            raise PublishError('The approved satellite tile service is no longer configured.')
+        yield 'Satellite icon map', 'buro_icon_map', {
+            **tiles, **location, 'icon_type': 'branch', 'show_legend': True, 'row_limit': MAX_ROWS,
+        }, list(dict.fromkeys(location.values())), []
+    for metric in ([] if template == 'satellite' else spec['metrics']):
+        column = physical[metric]
+        label = field_label(metric)
+        measure = {'expressionType': 'SIMPLE', 'column': {'column_name': column},
+                   'aggregate': 'MAX', 'label': label, 'optionName': 'metric_' + column}
+        if template == 'heatmap':
+            x, y = physical[spec['dimension']], physical[spec['secondary_dimension']]
+            yield label + ' · category heatmap', 'heatmap_v2', {
+                'x_axis': x, 'groupby': [y], 'metric': measure, 'row_limit': MAX_ROWS,
+                'sort_x_axis': 'alpha_asc', 'sort_y_axis': 'alpha_asc',
+                'normalize_across': 'heatmap', 'legend_type': 'continuous',
+                'linear_color_scheme': 'blue_yellow', 'show_legend': True, 'show_values': True,
+                'show_percentage': False,
+            }, [x, y], [measure]
+        elif template == 'donut':
+            yield label + ' · displayed shares', 'pie', {
+                'groupby': ['row_label'], 'metric': measure, 'row_limit': MAX_ROWS,
+                'color_scheme': 'd3Category10', 'donut': True, 'innerRadius': 45,
+                'outerRadius': 75, 'show_legend': True, 'show_labels': True,
+                'label_type': 'key_percent',
+            }, ['row_label'], [measure]
+        else:
+            viz, scheme, options = SERIES[template]
+            sequential = template in {'line', 'smooth', 'step', 'area', 'points'}
+            axis = 'row_no' if sequential else 'row_label'
+            yield label + ' · displayed rows', viz, {
+                'x_axis': axis, 'x_axis_sort_asc': True, 'metrics': [measure], 'groupby': [],
+                'row_limit': MAX_ROWS, 'show_legend': False, 'color_scheme': scheme,
+                'truncate_metric': False, **options,
+            }, [axis], [measure]
 
 
 def stage(export, report, config):
@@ -199,6 +320,7 @@ def created_id(response):
 def publish(export, report, config, authorize):
     client = SupersetClient(config)
     try:
+        designs = list(chart_specs(export.specification, report['columns']))
         client.login()
         if not authorize():
             raise PublishError('Report access changed before publication.')
@@ -222,19 +344,7 @@ def publish(export, report, config, authorize):
             'owners': [config['OWNER_ID']], 'roles': []}))
         export.save(update_fields=['dashboard_id'])
         dataset = f'{export.dataset_id}__table'
-        table_columns = ['row_label'] + ['c' + str(i) for i in range(len(report['columns']))]
-        chart_specs = [('Source table', 'table', {'query_mode': 'raw', 'all_columns': table_columns,
-                        'order_by_cols': [json.dumps(['row_no', True])], 'row_limit': MAX_ROWS})]
-        for metric in export.specification['metrics']:
-            column = 'c' + str(report['columns'].index(metric))
-            chart_specs.append((field_label(metric) + ' · displayed rows', 'echarts_timeseries_bar', {
-                'x_axis': 'row_label', 'metrics': [{'expressionType': 'SIMPLE',
-                    'column': {'column_name': column}, 'aggregate': 'MAX',
-                    'label': field_label(metric), 'optionName': 'metric_' + column}],
-                'groupby': [], 'row_limit': MAX_ROWS, 'orientation': 'horizontal',
-                'show_legend': False, 'show_value': True, 'color_scheme': 'supersetColors',
-                'truncate_metric': False}))
-        for title, viz_type, options in chart_specs:
+        for title, viz_type, options, columns, metrics in designs:
             if not authorize():
                 raise PublishError('Report access changed during publication; remove the export.')
             chart_id = created_id(client.call('POST', 'chart/', {
@@ -246,8 +356,7 @@ def publish(export, report, config, authorize):
                     'adhoc_filters': [], **options})}))
             export.chart_ids = export.chart_ids + [chart_id]
             export.save(update_fields=['chart_ids'])
-            query = {'columns': table_columns if viz_type == 'table' else ['row_label'],
-                     'metrics': [] if viz_type == 'table' else options['metrics'],
+            query = {'columns': columns, 'metrics': metrics,
                      'filters': [], 'extras': {}, 'row_limit': MAX_ROWS,
                      'order_desc': False}
             probe = client.call('POST', 'chart/data', {

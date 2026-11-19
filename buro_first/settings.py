@@ -312,3 +312,7 @@ POLICY_WORK_DIR=_openai_policy_os.getenv("POLICY_WORK_DIR",_openai_policy_os.pat
 GOOGLE_CLOUD_REGION=_openai_policy_os.getenv("GOOGLE_CLOUD_REGION","global").strip()
 GOOGLE_TTS_MODEL=_openai_policy_os.getenv("GOOGLE_TTS_MODEL","gemini-2.5-flash-tts").strip()
 GOOGLE_TTS_VOICE=_openai_policy_os.getenv("GOOGLE_TTS_VOICE","Kore").strip()
+
+# Browser-accessible, approved satellite XYZ tiles for the BURO Icon Map.
+AGENTIC_SATELLITE_TILE_URL = _openai_policy_os.environ.get('AGENTIC_SATELLITE_TILE_URL', '')
+AGENTIC_SATELLITE_TILE_ATTRIBUTION = _openai_policy_os.environ.get('AGENTIC_SATELLITE_TILE_ATTRIBUTION', '')

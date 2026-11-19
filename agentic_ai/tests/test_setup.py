@@ -39,11 +39,12 @@ class GuidedSetupTests(TestCase):
     def test_main_page_has_universal_workspace_and_csrf(self):
         response = self.client.get("/agentic/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Your organization. Connected.")
+        self.assertContains(response, "<h1>My workspace</h1>", html=True)
         self.assertContains(response, "workspace-capabilities")
         self.assertNotContains(response, "Show the loan aging report for branch 0253")
         self.assertContains(response, "csrfmiddlewaretoken")
         self.assertContains(response, "Integration settings")
+        self.assertContains(response, 'href="/agentic/data-access/directory/"')
 
     def test_setup_requires_privileged_staff(self):
         self.user.is_superuser = False

@@ -1,0 +1,3 @@
+{% for item in admin_links %}
+<a href="{{ item.url }}"{% if item.current %} class="active" aria-current="page"{% endif %}>{{ item.label }}</a>
+{% endfor %}

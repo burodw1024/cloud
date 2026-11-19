@@ -3,15 +3,25 @@
 <title>Analytics studio · BURO Insight AI</title>{% include 'agentic_ai/ui_head.html' %}
 <link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}"></head>
 <body>{% include 'agentic_ai/page_nav.html' %}<main class="studio-shell">
-<header class="studio-hero"><div><span class="studio-eyebrow">ANALYTICS STUDIO</span><h1>Your report. A clearer perspective.</h1><p>Turn your latest authorized report into a private Superset dashboard.</p></div><span class="studio-pill">On premises · Snapshot</span></header>
+<header class="studio-hero"><div><span class="studio-eyebrow">ANALYTICS STUDIO</span><h1>Create a Superset dashboard</h1><p>Turn your latest authorized report into a private Superset dashboard.</p></div><span class="studio-pill">On premises · Snapshot</span></header>
 <p class="studio-readiness">{{ readiness }}</p>{% if user.is_superuser %}<p><a href="{% url 'agentic_ai:reporting_settings' %}">Configure or test Superset →</a></p>{% endif %}
 <div class="studio-grid"><section class="studio-card"><span class="studio-step">01 / DESIGN</span><h2>Build your dashboard</h2>
 <p>Run a report in the workspace first. We select charts from its numeric fields and preserve each displayed row.</p>
 <form id="dashboard-design" data-endpoint="{% url 'agentic_ai:dashboard_publish_api' %}" data-report-token="{{ report_token|default:'' }}">{% csrf_token %}
-<label for="studio-template">Report template</label><select id="studio-template">{% for value,label in reporting.templates %}<option value="{{ value }}"{% if reporting.default_template == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select><label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="My report dashboard">
-<div id="studio-options" hidden><label for="studio-dimension">Row label</label><select id="studio-dimension"></select><fieldset><legend>Measures · choose up to four</legend><div id="studio-metrics"></div></fieldset></div>
+<fieldset class="design-picker"><legend>Choose a template</legend>
+<div class="design-gallery">
+{% for value,label,visual,accent,guidance in catalog %}
+<label class="design-card">
+<input type="radio" name="studio-template" value="{{ value }}"{% if reporting.default_template == value or not satellite_ready and value == "comparison" and reporting.default_template == "satellite" %} checked{% endif %}{% if value == "satellite" and not satellite_ready %} disabled{% endif %}>
+<span class="design-swatch {{ visual }} {{ accent }}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+<strong>{{ label }}</strong><small>{% if value == "satellite" and not satellite_ready %}Requires the BURO Icon Map and an approved satellite tile service.{% else %}{{ guidance }}{% endif %}</small>
+</label>
+{% endfor %}
+</div></fieldset>
+<label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="My report dashboard">
+<div id="studio-options" hidden><label for="studio-dimension">Row label</label><select id="studio-dimension"></select><div id="studio-secondary-field" hidden><label for="studio-secondary">Second category</label><select id="studio-secondary"></select></div><fieldset id="studio-measure-field"><legend id="studio-measure-legend">Measures</legend><div id="studio-metrics"></div></fieldset></div>
 <button type="submit" class="studio-primary">Generate preview →</button></form>
-<div class="studio-note"><strong>Designed around your data</strong><p>A source table plus comparisons for numeric fields. Codes remain labels. A single report date never becomes a historical trend. No financial totals are inferred.</p></div>
+<div class="studio-note"><strong>Designed around your data</strong><p>Every dashboard includes a source table. Line and area templates follow displayed row order. Heatmaps and maps require compatible report fields.</p></div>
 </section><section class="studio-card studio-preview" aria-labelledby="preview-title" aria-busy="false"><span class="studio-step">02 / PREVIEW & CREATE</span><h2 id="preview-title">A home for your insights</h2>
 <p id="studio-status" role="status" aria-live="polite">Generate a preview to see the proposed layout.</p>
 <div id="studio-preview" hidden><div class="studio-meta" id="studio-meta"></div><div id="studio-chart-cards"></div><div class="studio-table-wrap" id="studio-sample"></div><p id="studio-notice"></p>
@@ -21,6 +31,6 @@
 <div class="studio-table-wrap"><table><thead><tr><th>Dashboard</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead><tbody>
 {% for export in exports %}<tr><td><strong>{{ export.title }}</strong><small>{{ export.id }}</small>{% if export.error %}<small>{{ export.error }}</small>{% endif %}</td><td>{{ export.created_at|date:'Y-m-d H:i' }}</td><td><span class="studio-pill">{{ export.get_status_display }}</span></td><td>{% if export.status == 'ready' %}<button data-export="{{ export.id }}" data-action="open">Open</button>{% endif %}{% if export.status == 'ready' or export.status == 'failed' %}<button data-export="{{ export.id }}" data-action="delete">Remove export</button>{% endif %}</td></tr>
 {% empty %}<tr><td colspan="4">Your first dashboard starts with a report.</td></tr>{% endfor %}</tbody></table></div>
-<p>Publishing to a team, scheduled refresh and additional chart families require a separately governed dataset. This workflow creates private snapshots.</p></section>
+<p>Team publishing and scheduled refresh require a separately governed dataset.</p></section>
 </main><script src="{% static 'agentic_ai/dashboard_studio.js' %}" defer></script></body></html>
 

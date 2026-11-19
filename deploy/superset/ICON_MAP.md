@@ -50,3 +50,25 @@ kubectl --context mamun -n superset-onprem rollout status \
 ```
 
 Keep the previous image imported on the node. Saved Icon Map charts need the new image to render; reverting does not delete their metadata. Do not reinitialize the metadata database to install this plugin.
+
+## Agentic report studio satellite template
+
+Install the BURO Icon Map-enabled Superset 4.1.2 image first. In the Agentic
+Django deployment set both variables below using your approved, browser-accessible
+satellite imagery service and its required attribution.
+
+- `AGENTIC_SATELLITE_TILE_URL` is an internal HTTP(S) XYZ tile URL, for example
+  `https://imagery.example.org/satellite/{z}/{x}/{y}.jpg`. Use HTTPS when
+  Superset is served over HTTPS.
+- `AGENTIC_SATELLITE_TILE_ATTRIBUTION` is the provider's attribution text.
+
+Run an authorized structured branch report with level `BRANCH`, a
+`BRANCHCODE` field, and decimal latitude and longitude from the report source.
+The publisher does not geocode branch codes. If an icon field is supplied, its
+values can select supported icons. Other rows use the branch icon. The browser
+requests tiles for the displayed viewport. Use an internal service approved for
+the locations being mapped.
+
+From the result choose **Generate Superset report**, then **Satellite icon map**.
+Check the coordinates in the preview, publish a private snapshot, and verify
+the imagery, markers, labels, and source table in Superset as the mapped user.
