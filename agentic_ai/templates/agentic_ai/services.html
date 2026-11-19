@@ -1,6 +1,6 @@
 {% load static %}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report services · BURO Insight AI</title>{% include 'agentic_ai/ui_head.html' %}<link rel="stylesheet" href="{% static 'agentic_ai/services.css' %}"></head><body>
 {% include 'agentic_ai/page_nav.html' %}
-<main class="services-shell"><header><span class="services-eyebrow">CONNECTED SERVICES</span><h1>Use your results.</h1><p>Share a report with WhatsApp or create a Superset dashboard from authorized data.</p></header>
+<main class="services-shell"><header><span class="services-eyebrow">CONNECTED SERVICES</span><h1>Use your results.</h1><p>Share a report through a configured delivery channel or create a private Superset dashboard.</p></header>
 <div class="services-grid"><section class="service-card" aria-labelledby="whatsapp-service-title"><span class="service-state">{% if whatsapp.ready %}Configured · check connection{% else %}Needs attention{% endif %}</span><h2 id="whatsapp-service-title">WhatsApp</h2><p>{{ whatsapp.status }}</p>
 <ol><li>Run a question in the workspace.</li><li>Under the result, choose an authorized recipient and preview a summary or the full result.</li><li>Review the message, then choose <strong>Confirm and send</strong>.</li></ol>
 <p>Only configured recipients are available. A text-message tool and an active WhatsApp conversation are required. A template-only hello_world service cannot send report text. Outside the messaging window, use an approved template through your provider.</p>
@@ -14,5 +14,13 @@
 {% if reporting.configured %}<a href="{{ reporting.url }}" target="_blank" rel="noopener noreferrer">Open Superset ↗</a>{% endif %}
 {% if reporting.can_publish %}<a href="{% url 'agentic_ai:analytics' %}">Open report studio →</a>{% endif %}
 {% if user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:reporting_settings' %}">Connect & test Superset</a>{% endif %}
-<p class="service-note">An administrator must configure Superset, report storage, user mapping and publishing permission. A registered service alone does not verify connectivity.</p></section></div></main>
+<p class="service-note">An administrator must configure Superset, report storage, user mapping and publishing permission. A registered service alone does not verify connectivity.</p></section>
+{% for channel in share_channels %}
+<section class="service-card"><span class="service-state">{% if channel.ready %}Configured{% else %}Unavailable{% endif %}</span>
+<h2>{{ channel.label }}</h2><p>{{ channel.status }}</p>
+<p>From a successful result, choose the channel and an approved recipient, preview the report text, and confirm delivery.</p>
+{% if user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}#report-delivery-channels">Configure report delivery</a>{% endif %}
+</section>
+{% endfor %}
+</div></main>
 <script src="{% static 'agentic_ai/services.js' %}"></script></body></html>

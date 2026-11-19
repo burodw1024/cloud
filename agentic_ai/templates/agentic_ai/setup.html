@@ -88,6 +88,22 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <button id="save-whatsapp" type="button">Save WhatsApp settings</button>
 <button id="check-whatsapp" type="button">Check WhatsApp settings</button>
 </section>
+<section class="card" id="report-delivery-channels"><h2>Report delivery</h2>
+<p>Register each provider tool in ContextForge and enable it for the appropriate roles. Keep provider credentials in the gateway or its adapter.</p>
+{% for channel in share_channels %}
+<details data-report-channel="{{ channel.key }}">
+<summary>{{ channel.label }}</summary>
+<label for="{{ channel.key }}-report-tool">Exact ContextForge tool name</label>
+<input id="{{ channel.key }}-report-tool" data-channel-tool maxlength="150" value="{{ channel.tool }}">
+<label for="{{ channel.key }}-report-recipients">{% if channel.key == 'viber' %}Allowed bot subscriber IDs{% else %}Allowed email addresses{% endif %} (one per line)</label>
+<textarea id="{{ channel.key }}-report-recipients" data-channel-recipients rows="4">{{ channel.recipient_text }}</textarea>
+<p>{% if channel.key == 'viber' %}Use subscriber IDs from your Viber bot. The tool accepts receiver, type and text.{% else %}The tool accepts to, subject and body for the configured mailbox.{% endif %}</p>
+<button type="button" data-channel-action="save_report_channel">Save {{ channel.label }}</button>
+<button type="button" data-channel-action="check_report_channel">Check {{ channel.label }} tool</button>
+</details>
+{% endfor %}
+</section>
+
 </main><script>
 const statusBox=document.getElementById('setup-status');
 document.getElementById('save-directory').addEventListener('click',async()=>{
@@ -227,6 +243,15 @@ function renderTools(tools,roles){
   catalog.push({name:tool.name,badge,enabled:enabled.input,approval:approval.input,loanScope:loanScope.input,mode,branches,choices,metadata});
  });
 }
+document.querySelectorAll('[data-channel-action]').forEach(button => button.onclick = () => {
+ const channel = button.closest('[data-report-channel]');
+ const payload = {action: button.dataset.channelAction, channel: channel.dataset.reportChannel};
+ if (payload.action === 'save_report_channel') {
+  payload.tool = channel.querySelector('[data-channel-tool]').value;
+  payload.recipients = channel.querySelector('[data-channel-recipients]').value;
+ }
+ return action(payload);
+});
 document.getElementById('check-whatsapp').onclick=()=>action({action:'check_whatsapp'});
 document.getElementById('save-whatsapp').onclick=()=>action({action:'save_whatsapp',tool:document.getElementById('whatsapp-tool').value,recipients:document.getElementById('whatsapp-recipients').value});
 document.getElementById('save-pricing').onclick=()=>{const identity=document.getElementById('model-pricing');return action({action:'save_pricing',provider:identity.dataset.provider,model:identity.dataset.model,input_rate:document.getElementById('input-rate').value,output_rate:document.getElementById('output-rate').value,cached_rate:document.getElementById('cached-rate').value,currency:document.getElementById('price-currency').value.trim().toUpperCase()});};

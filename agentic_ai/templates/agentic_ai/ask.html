@@ -166,7 +166,7 @@ tbody tr:hover { background:var(--soft) }
 <a href="#my-activity">My activity</a>
 <a href="{% url 'agentic_ai:report_history' %}">My report runs</a>
 {% if show_approvals %}<a href="#my-approvals">My approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>{% endif %}
-{% if whatsapp.ready or reporting.configured or reporting.can_publish or admin_links %}<a href="{% url 'agentic_ai:services' %}">Services</a>{% endif %}
+{% if whatsapp.ready or reporting.configured or reporting.can_publish or share_channels or admin_links %}<a href="{% url 'agentic_ai:services' %}">Services</a>{% endif %}
 </nav>
 </div>
 {% if business_modules %}

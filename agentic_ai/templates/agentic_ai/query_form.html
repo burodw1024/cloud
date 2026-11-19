@@ -38,6 +38,7 @@
             <p id="whatsapp-status" role="status" aria-live="polite"></p>
             {% else %}<p class="result-details">WhatsApp is not ready for this account. Open Services for setup and access details.</p>{% endif %}
         </section>
+        {% if share_channels %}{% include 'agentic_ai/report_share.html' %}{% endif %}
         {% include 'agentic_ai/report_templates.html' %}
         <div class="report-toolbar" id="report-toolbar" hidden>
             <label class="sr-only" for="report-search">Find in displayed rows</label>
@@ -288,6 +289,7 @@
         const question = form.elements.message.value.trim();
         if (!question) return;
         window.BuroReportTemplates?.reset();
+        window.BuroReportShare?.setResult(null);
         loanSuggestions.hidden = true; loanSuggestions.replaceChildren();
         waResultId=null;waPending=null;if(waPanel&&document.getElementById('whatsapp-recipient')){waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=true);document.getElementById('whatsapp-preview').hidden=true;document.getElementById('whatsapp-status').textContent='';}
         chartReport = null; chartButton.hidden = true; chartPanel.hidden = true; chartBars.replaceChildren();
@@ -319,6 +321,7 @@
                     : 'The server returned HTTP '+response.status+'. Check the run log before retrying.');
             }
             const body = await response.json();
+            window.BuroReportShare?.setResult(body.share_result_id);
             waResultId=body.whatsapp_result_id || null;if(waPanel)waPanel.querySelectorAll('[data-whatsapp-mode]').forEach(c=>c.disabled=!waResultId);
             renderUsage(body.usage,body.replayed);
             const answer = body.answer ?? body.error ?? 'No response was returned.';

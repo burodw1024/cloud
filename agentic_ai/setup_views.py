@@ -104,6 +104,7 @@ def query_page(request):
     from .whatsapp import settings_status
     from .loan_access import own_access_summary
     from .reporting_config import workspace_settings
+    from .share_channels import CHANNELS, describe
     from django.urls import reverse
     workspace = workspace_context(request.user, request.GET.get('module', ''))
     whatsapp_status = settings_status(request.user)
@@ -123,7 +124,9 @@ def query_page(request):
             run = ReportRun.objects.filter(pk=run_id, user=request.user).first()
             if run and _can_replay_result(request.user, run.source):
                 question = run.question
-    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": whatsapp_status, "draft_question": question,
+    channels = [describe(channel, request.user) for channel in CHANNELS]
+    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": whatsapp_status,
+                      "share_channels": [channel for channel in channels if channel['ready']], "draft_question": question,
                       'reporting':workspace_settings(request.user), 'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})
     response["Cache-Control"] = "no-store"
     return response
@@ -148,6 +151,7 @@ def setup_page(request):
     cache_key = f"agentic:setup:{request.user.pk}"
     if request.method == "GET":
         from .whatsapp import configuration
+        from .share_channels import CHANNELS, describe
         try:
             whatsapp = configuration()
         except (ValueError, TypeError):
@@ -158,6 +162,8 @@ def setup_page(request):
             "enabled": gateway_enabled(), **_pricing_context(),
             "summary_model": get_setting("MCP_SUMMARY_MODEL", "openrouter/auto"),
             "summary_base": get_setting("MCP_SUMMARY_BASE_URL"),
+            "share_channels": [{**detail, 'recipient_text': '\n'.join(detail['recipients'])}
+                               for detail in (describe(channel) for channel in CHANNELS)],
             "whatsapp_tool": whatsapp["tool"],
             "whatsapp_recipients": "\n".join(whatsapp["recipients"]),
         })
@@ -219,6 +225,34 @@ def setup_page(request):
                     return _reply({"ok": False, "error": "Use the same ContextForge origin as the gateway connection."}, 400)
             _save_settings({"MCP_SUMMARY_BASE_URL": base.strip(), "MCP_SUMMARY_MODEL": model.strip()})
             return _reply({"ok": True, "message": "Bangla summary settings saved. The gateway token is reused; its role needs llm.invoke."})
+        if action in {'save_report_channel', 'check_report_channel'}:
+            from .share_channels import CHANNELS, delivery_arguments, describe, recipient_list, setting_keys
+            channel = body.get('channel')
+            if not isinstance(channel, str) or channel not in CHANNELS:
+                raise ValueError
+            if action == 'save_report_channel':
+                name, recipients = body.get('tool', ''), body.get('recipients', '')
+                if not isinstance(name, str) or len(name) > 150 or not isinstance(recipients, str):
+                    raise ValueError
+                try:
+                    values = recipient_list(channel, [line.strip() for line in recipients.splitlines() if line.strip()])
+                except ValueError as exc:
+                    return _reply({'ok': False, 'error': str(exc)}, 400)
+                tool_key, recipients_key = setting_keys(channel)
+                _save_settings({tool_key: name.strip(), recipients_key: json.dumps(values)})
+                return _reply({'ok': True, 'message': f'{CHANNELS[channel]} settings saved.'})
+            status = describe(channel, request.user)
+            if not status['ready']:
+                return _reply({'ok': False, 'error': status['status']}, 400)
+            tools = async_to_sync(discover_gateway)(load_gateway_config())
+            tool = next((item for item in tools if item.name == status['tool']), None)
+            if tool is None:
+                return _reply({'ok': False, 'error': 'The configured delivery tool is absent from the gateway.'}, 400)
+            try:
+                delivery_arguments(channel, tool.inputSchema, status['recipients'][0], 'Configuration check')
+            except ValueError as exc:
+                return _reply({'ok': False, 'error': str(exc)}, 400)
+            return _reply({'ok': True, 'message': 'Gateway tool and message schema verified. No message was sent.'})
         if action == "save_whatsapp":
             from .whatsapp import recipient_text
             name = body.get("tool", "")

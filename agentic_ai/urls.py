@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/services/whatsapp/check/', check_whatsapp, name='whatsapp_service_check'),
     path("api/summary/", summary_api, name="summary_api"),
     path("api/whatsapp/", whatsapp_api, name="whatsapp_api"),
+    path("api/share/<str:channel>/", whatsapp_api, name="report_share_api"),
     path('api/website-query/', views.public_website_query_api, name='public_website_query_api'),
     path("", query_page, name="query_page"),
     path("reports/", report_history, name="report_history"),

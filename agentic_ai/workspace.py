@@ -12,7 +12,12 @@ def workspace_context(user, module_slug=''):
     roles = set(get_user_role_names(user))
     catalog = []
     if gateway_enabled():
+        from .share_channels import CHANNELS, setting_keys
+        from chat.dynamic_config import get_setting
+        delivery_tools = {get_setting(setting_keys(channel)[0]).strip() for channel in CHANNELS}
         for record in records:
+            if record.name in delivery_tools:
+                continue
             if not _allowed(record, user, roles):
                 continue
             catalog.append({'name': record.name,

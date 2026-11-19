@@ -150,7 +150,7 @@ def agentic_query_api(request):
         from .whatsapp import remember_result
         remember_result(request.user, result)
     except Exception:
-        logger.warning("WhatsApp result snapshot unavailable")
+        logger.warning("Report delivery snapshot unavailable")
     if cache_key:
         try:
             cache.set(cache_key, {"fingerprint": fingerprint, "result": result, "status": status}, IDEMPOTENCY_TTL)
