@@ -31,3 +31,25 @@ class ReportServiceAccessTests(TestCase):
         self.assertFalse(user.has_perm('agentic_ai.share_report_viber'))
         self.assertTrue(user.has_perm('agentic_ai.export_powerbi_snapshot'))
         self.assertEqual(LoanAccessEvent.objects.filter(action='report_service_access').count(), 2)
+
+    def test_user_access_shows_and_saves_selected_employee_service_grants(self):
+        root = User.objects.create_superuser('inline-root')
+        employee = User.objects.create_user('inline-employee')
+        delegated = User.objects.create_user('inline-delegate', is_staff=True)
+        delegated.user_permissions.add(Permission.objects.get(codename='manage_loan_access'))
+        editor = reverse('agentic_ai:data_access') + f'?user={employee.pk}'
+        self.client.force_login(delegated)
+        self.assertNotContains(self.client.get(editor), 'Save report service grants')
+        self.client.force_login(root)
+        self.assertContains(self.client.get(editor), 'Report services for inline-employee')
+        self.assertContains(self.client.get(editor), 'Send through Viber')
+        reply = self.client.post(reverse('agentic_ai:service_access'), {
+            'kind': 'user', 'name': employee.username, 'return_to': 'user_access',
+            'permissions': ['share_report_whatsapp', 'share_report_viber'],
+            'reason': 'Approved delivery channels',
+        })
+        self.assertRedirects(reply, editor + '&services_saved=1#service-grants')
+        employee.refresh_from_db()
+        self.assertTrue(employee.has_perm('agentic_ai.share_report_viber'))
+        self.assertFalse(employee.has_perm('agentic_ai.share_report_gmail'))
+        self.assertFalse(hasattr(employee, 'loan_access_policy'))
