@@ -2,6 +2,7 @@
 import re
 
 FIELD_LABELS = {
+    'from_date': 'Period start', 'to_date_exclusive': 'Period end (exclusive)',
     'branch_code': 'Branch', 'zone_code': 'Zone', 'authorized_branch_count': 'Authorized branches',
     'level': 'Level', 'report_date': 'Requested report date', 'disbursed_from': 'Disbursed from', 'disbursed_to': 'Disbursed to',
     'sort_by': 'Sort field', 'sort_order': 'Sort direction', 'top_n': 'Requested row limit',

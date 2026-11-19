@@ -573,12 +573,22 @@ async def _run(config, user, query, allowed_names):
         if loan_grant:
             try:
                 with stage(state, 'scope_validation'):
+                    if result.isError and isinstance(loan_grant, ApplicationLoanGrant) and loan_grant.report_kind == 'savings':
+                        raise ValueError('Savings backend returned an MCP error.')
                     validate_response(raw, loan_grant)
                     if not await sync_to_async(current_access)(user, loan_grant.access):
                         raise ValueError('Access changed while the report was running.')
             except (ValueError, TypeError, KeyError) as exc:
                 state['scope_failure'] = str(exc)[:300]
                 raise GatewayError('loan_scope_unverified', 'Loan authorization changed or the backend scope could not be verified. No report was displayed.', 403) from exc
+        if isinstance(loan_grant, ApplicationLoanGrant) and loan_grant.report_kind == 'savings':
+            from .savings_presentation import present_savings
+            try:
+                with stage(state, 'presentation'):
+                    presentation = present_savings(raw, loan_grant.query['operation'])
+            except (ValueError, TypeError, KeyError) as exc:
+                raise GatewayError("invalid_savings_result", "The savings result could not be formatted. No report was displayed.") from exc
+            return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
         if native_query:
             if result.isError:
                 raise GatewayError("native_query_backend_error", "The loan query endpoint returned an error. No financial data was displayed.")

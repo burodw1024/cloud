@@ -15,6 +15,7 @@ from django.views.decorators.csrf import csrf_protect
 
 from chat.dynamic_config import get_setting
 from .mcp_gateway import GatewayError, _http_url, _model_response
+from .savings_presentation import SAVINGS_MEASURES
 
 logger = logging.getLogger(__name__)
 TTL = 1800
@@ -23,8 +24,8 @@ SAFE_COLUMNS = {
     'PRODUCTNAME', 'ENTITY_CODE', 'LOAN_COUNT', 'DUEAMOUNT', 'OUTSTANDINGP',
     'OUTSTANDING_PI', 'Outstanding(P+I)', 'DUE_DAYS', 'DUEINSTNO_U',
     'DISBURSE_AMOUNT', 'DISBURSEDATE', 'MATURITYDATE', 'INSTALLMENT_AMOUNT',
-    'PAYMENTFREQUENCY', 'GS_BALANCE', 'CS_BALANCE',
-}
+    'PAYMENTFREQUENCY', 'GS_BALANCE', 'CS_BALANCE', 'ITEMCODE',
+} | SAVINGS_MEASURES
 FIELD_LABELS = {
     'OUTSTANDINGP': 'অপরিশোধিত মূলধন', 'DUEAMOUNT': 'পরিশোধযোগ্য বকেয়া',
     'OUTSTANDING_PI': 'সুদসহ মোট অপরিশোধিত স্থিতি',
@@ -69,7 +70,7 @@ def remember_report(user, result):
     # No names, phones, member/employee IDs, raw tool output or user instructions.
     projected = {k: report[k] for k in ('report_date', 'level', 'row_count', 'truncated', 'order') if k in report}
     scope = report.get('scope')
-    projected['scope'] = ({key: scope[key] for key in ('branch_code', 'zone_code', 'authorized_branch_count') if key in scope}
+    projected['scope'] = ({key: scope[key] for key in ('branch_code', 'zone_code', 'authorized_branch_count', 'from_date', 'to_date_exclusive') if key in scope}
                           if isinstance(scope, dict) else 'Displayed authorized rows only')
     params = result.get('plan', {}).get('params', {})
     projected['filters'] = {key: params[key] for key in ('report_date', 'branch_code', 'zone_code',
