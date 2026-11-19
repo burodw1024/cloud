@@ -103,6 +103,25 @@ class MigrationExecutor:
                     self.assertEqual(json.loads((backups/'migration-complete.json').read_text()),
                                      {'model_probe_passed': False, 'gateway_enabled': False})
 
+    def test_report_projection_recovery_keeps_existing_backup_and_retries_explicit_field(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            _, checkpoint, backups = self.fixture(base)
+            script_path = base/'app/deploy/migrate_release.py'
+            script = ("raise RuntimeError('must not repeat migration')\n\nimport django\ndjango.setup()\n"
+                      + f"Path({str(checkpoint)!r}).write_text("
+                      + "'Show only outstanding principal from this already scoped sample report.')\n")
+            script_path.write_text(script)
+            code = self.helper['recovery_code'](hashlib.sha256(script.encode()).hexdigest(),
+                                                retry_report_projection=True)
+            code = code.replace("'/app/deploy/migrate_release.py'", repr(str(script_path)))
+            code = code.replace("'/app'", repr(str(base/'app'))).replace("'/data'", repr(str(base/'data')))
+            before = (backups/'db.sqlite3').read_bytes()
+            result = self.execute(code, base)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(checkpoint.read_text(), 'Show only outstanding principal.')
+            self.assertEqual((backups/'db.sqlite3').read_bytes(), before)
+
     def test_missing_backup_blocks_recovery(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
