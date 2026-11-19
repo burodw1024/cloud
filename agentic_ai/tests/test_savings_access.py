@@ -35,7 +35,8 @@ def response(query):
     return {'success': True, 'scope': {
         **{key: query[key] for key in ('branch_code', 'from_date', 'to_date_exclusive')},
         'zone_code': query.get('zone_code'), 'authorized_branch_count': 1},
-        'data': [{'branch_code': query['branch_code'], 'deposits': '123.45'}]}
+        'data': [{'branch_code': query['branch_code'], 'item_code': '21.01', 'total_deposits': 123.45,
+                  'total_withdrawals': None, 'register_row_count': 1, 'missing_amount_rows': 1}]}
 
 
 class SavingsSetupTests(TestCase):
@@ -136,6 +137,16 @@ class SavingsScopeTests(TestCase):
         self.assertTrue(result['ok'], result)
         session.call_tool.assert_awaited_once_with(TOOL.name, arguments={**ARGS, 'branch_code': '0253'})
         self.assertEqual(result['loan_access']['branches'], ['0253'])
+        report = result['raw']['structuredContent']
+        self.assertEqual(report['columns'], ['BRANCHCODE', 'ITEMCODE', 'REGISTER_ROW_COUNT',
+                                            'TOTAL_DEPOSITS', 'TOTAL_WITHDRAWALS', 'MISSING_AMOUNT_ROWS'])
+        self.assertEqual(report['rows'][0]['TOTAL_DEPOSITS'], '123.45')
+        self.assertIsNone(report['rows'][0]['TOTAL_WITHDRAWALS'])
+        self.assertEqual(report['scope']['to_date_exclusive'], '2026-11-01')
+        from agentic_ai.bangla_summary import remember_report
+        saved = remember_report(self.user, result)
+        self.assertIn('summary_token', saved)
+        self.assertEqual(saved['report_context']['scope']['Period end (exclusive)'], '2026-11-01')
 
     def test_gateway_blocks_unverified_response_and_revocation(self):
         for options in ({'bad_scope': True}, {'revoke': True}):

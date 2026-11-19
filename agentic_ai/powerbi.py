@@ -11,11 +11,12 @@ from .api import _can_replay_result
 from .models import ReportRun
 from .reporting_config import workspace_settings
 from .superset_publisher import number
+from .savings_presentation import SAVINGS_MEASURES
 
 REPORT_MEASURES = {
     'GS_BALANCE', 'CS_BALANCE', 'LOAN_COUNT', 'DUEAMOUNT', 'OUTSTANDINGP', 'OUTSTANDING_PI',
     'Outstanding(P+I)', 'DUE_DAYS', 'DUEINSTNO_U', 'DISBURSE_AMOUNT', 'INSTALLMENT_AMOUNT',
-}
+} | SAVINGS_MEASURES
 
 
 def workbook(report, context):
