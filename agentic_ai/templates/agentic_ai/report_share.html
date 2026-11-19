@@ -1,0 +1,22 @@
+{% load static %}
+<section class="report-publishing" id="report-share" aria-labelledby="report-share-title" hidden>
+<h3 id="report-share-title">Share this report</h3>
+{% for channel in share_channels %}
+<details data-share-channel data-share-endpoint="{% url 'agentic_ai:report_share_api' channel.key %}">
+  <summary>{{ channel.label }}</summary>
+  <label for="share-{{ channel.key }}-recipient">Recipient</label>
+  <select id="share-{{ channel.key }}-recipient">{% for recipient in channel.recipients %}<option>{{ recipient }}</option>{% endfor %}</select>
+  <div class="report-publishing-actions">
+    <button type="button" class="copy-button" data-share-preview="summary">Preview summary</button>
+    <button type="button" class="copy-button" data-share-preview="full">Preview full result</button>
+  </div>
+  <div data-share-preview-panel hidden>
+    <pre class="result-text" data-share-message></pre>
+    <button type="button" class="copy-button" data-share-confirm>Confirm and send</button>
+    <button type="button" class="copy-button" data-share-cancel>Cancel</button>
+  </div>
+  <p role="status" class="result-details" data-share-status></p>
+</details>
+{% endfor %}
+</section>
+<script src="{% static 'agentic_ai/report_share.js' %}"></script>

@@ -15,6 +15,7 @@ from .api import _can_replay_result
 from .mcp_gateway import (_allowed, _decision, _failure, _validator, discover_tools,
                           gateway_enabled, load_gateway_config, mcp_http_client)
 from .models import AgentRunLog, AgentTool
+from .share_channels import CHANNELS, SUBJECT, accepted_delivery, delivery_arguments, describe
 
 TTL = 900
 
@@ -131,15 +132,21 @@ def export_text(result, mode):
 
 
 def remember_result(user, result):
-    if (not result.get('ok') or result.get('kind') in {'clarification', 'loan_question_help', 'business_question_help'}
-            or not availability(user)['recipients']):
+    if not result.get('ok') or result.get('kind') in {'clarification', 'loan_question_help', 'business_question_help'}:
+        return
+    whatsapp_ready = bool(availability(user)['recipients'])
+    other_ready = any(describe(channel, user)['ready'] for channel in CHANNELS)
+    if not whatsapp_ready and not other_ready:
         return
     token = uuid.uuid4().hex
     cache.set(f'agentic:whatsapp:result:{user.pk}:{token}', result.copy(), TTL)
-    result['whatsapp_result_id'] = token
+    if whatsapp_ready:
+        result['whatsapp_result_id'] = token
+    if other_ready:
+        result['share_result_id'] = token
 
 
-async def dispatch(config, name, recipient, text, user, source_result=None):
+async def dispatch(config, name, recipient, text, user, source_result=None, channel="whatsapp"):
     from mcp import ClientSession
     from mcp.client.streamable_http import streamablehttp_client
     headers = {'Authorization': 'Bearer ' + config['token']} if config['token'] else {}
@@ -150,19 +157,26 @@ async def dispatch(config, name, recipient, text, user, source_result=None):
             tools = await discover_tools(session, {name})
             tool = next((t for t in tools if t.name == name), None)
             if tool is None:
-                raise ValueError('Configured WhatsApp tool is not available on this gateway.')
-            arguments = text_arguments(tool.inputSchema, recipient, text)
+                raise ValueError('The configured delivery tool is not available on this gateway.')
+            arguments = (text_arguments(tool.inputSchema, recipient, text) if channel == 'whatsapp'
+                         else delivery_arguments(channel, tool.inputSchema, recipient, text))
+            if source_result is not None and not await sync_to_async(_can_replay_result)(user, source_result):
+                return {'ok': False, 'http_status': 403, 'error': 'Report access changed before sharing. Nothing was sent.'}
+            if channel != 'whatsapp':
+                current = await sync_to_async(describe)(channel, user)
+                if not current['ready'] or current['tool'] != name or recipient not in current['recipients']:
+                    return {'ok': False, 'http_status': 403, 'error': 'Sharing access changed. Nothing was sent.'}
             decision = await sync_to_async(_decision)(user, name, arguments)
             if decision:
                 return decision
-            if source_result is not None and not await sync_to_async(_can_replay_result)(user, source_result):
-                return {'ok': False, 'http_status': 403, 'error': 'Report access changed before sharing. Nothing was sent.'}
             # No retry: a timeout after dispatch can have an unknown delivery outcome.
             response = await session.call_tool(name, arguments=arguments)
             data = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             if data.get('isError'):
-                return {'ok': False, 'error': 'WhatsApp tool reported an error. Check ContextForge logs before retrying.'}
-            identifier = accepted_message_id(data)
+                return {'ok': False, 'error': 'Delivery tool reported an error. Check ContextForge logs before retrying.'}
+            if channel != 'whatsapp' and accepted_delivery(data):
+                return {'ok': True, 'message': f'{CHANNELS[channel]} accepted the message. Delivery is not yet confirmed.'}
+            identifier = accepted_message_id(data) if channel == 'whatsapp' else None
             if identifier:
                 return {'ok': True, 'message_id': identifier,
                         'message': 'Meta accepted the message. Delivery is not yet confirmed.'}
@@ -176,12 +190,14 @@ def reply(data, status=200):
 
 
 @csrf_protect
-def whatsapp_api(request):
+def whatsapp_api(request, channel="whatsapp"):
     if not request.user.is_authenticated or not request.user.is_active:
         return reply({'ok': False, 'error': 'Authentication required.'}, 401)
     if request.method != 'POST':
         return reply({'ok': False, 'error': 'POST required.'}, 405)
-    audit = None
+    if channel not in ('whatsapp', *CHANNELS):
+        return reply({'ok': False, 'error': 'Unknown sharing channel.'}, 404)
+    label = CHANNELS.get(channel, 'WhatsApp')
     dispatched = False
     try:
         if len(request.body) > 8192:
@@ -189,11 +205,11 @@ def whatsapp_api(request):
         body = json.loads(request.body)
         if not isinstance(body, dict):
             raise ValueError('Expected a JSON object.')
-        config = availability(request.user)
+        config = availability(request.user) if channel == 'whatsapp' else describe(channel, request.user)
         recipient, token, mode = body.get('recipient'), body.get('result_id'), body.get('mode')
         if not config['tool'] or recipient not in config['recipients']:
-            return reply({'ok': False, 'error': 'Recipient or WhatsApp tool is not authorized.'}, 403)
-        if mode not in {'summary', 'full'} or not isinstance(token, str) or not re.fullmatch(r'[a-f0-9]{32}', token):
+            return reply({'ok': False, 'error': 'Recipient or delivery tool is not authorized.'}, 403)
+        if not isinstance(mode, str) or mode not in {'summary', 'full'} or not isinstance(token, str) or not re.fullmatch(r'[a-f0-9]{32}', token):
             raise ValueError('Choose a valid result and summary/full mode.')
         result = cache.get(f'agentic:whatsapp:result:{request.user.pk}:{token}')
         if not result:
@@ -201,24 +217,35 @@ def whatsapp_api(request):
         if not _can_replay_result(request.user, result):
             return reply({'ok': False, 'error': 'You no longer have access to this result.'}, 403)
         text = export_text(result, mode)
+        preview_key = 'agentic:share:preview:' + hashlib.sha256(
+            f'{request.user.pk}:{channel}:{token}:{recipient}:{mode}:{config["tool"]}:{text}'.encode()).hexdigest()
         if body.get('action') == 'preview':
-            return reply({'ok': True, 'text': text, 'characters': len(text)})
+            if channel != 'whatsapp':
+                cache.set(preview_key, True, TTL)
+            return reply({'ok': True, 'text': text, 'characters': len(text),
+                          'subject': SUBJECT if channel in {'gmail', 'outlook'} else ''})
         if body.get('action') != 'send' or body.get('confirmed') is not True:
             raise ValueError('Preview and confirm the message before sending.')
-        digest = hashlib.sha256(f'{request.user.pk}:{token}:{recipient}:{mode}'.encode()).hexdigest()
+        if channel != 'whatsapp' and not cache.get(preview_key):
+            raise ValueError('Preview this recipient and message before sending.')
+        dedupe_scope = '' if channel == 'whatsapp' else channel + ':'
+        digest = hashlib.sha256(f'{request.user.pk}:{dedupe_scope}{token}:{recipient}:{mode}'.encode()).hexdigest()
         if not cache.add('agentic:whatsapp:send:' + digest, True, TTL):
             return reply({'ok': False, 'error': 'This message was already requested. Check its status before retrying.'}, 409)
-        audit = AgentRunLog.objects.create(user=request.user, user_query=f'WhatsApp {mode} export',
-            selected_tool=config['tool'], detected_intent='whatsapp_export', status='failed', risk_level='high',
+        audit = AgentRunLog.objects.create(user=request.user, user_query=f'{label} {mode} export',
+            selected_tool=config['tool'], detected_intent=f'{channel}_export', status='failed', risk_level='high',
             tool_input={'mode': mode, 'recipient_suffix': recipient[-4:], 'result_id': token},
             error_message='Dispatch pending; check gateway before retrying.')
         gateway = load_gateway_config()
         dispatched = True
-        output = async_to_sync(asyncio.wait_for)(dispatch(gateway, config['tool'], recipient, text, request.user, result), gateway['request_timeout'])
+        extra = {} if channel == 'whatsapp' else {'channel': channel}
+        output = async_to_sync(asyncio.wait_for)(
+            dispatch(gateway, config['tool'], recipient, text, request.user, result, **extra), gateway['request_timeout'])
         audit.status = 'success' if output.get('ok') else ('approval_required' if output.get('approval_required') else 'failed')
         audit.error_message = '' if output.get('ok') else output.get('error', output.get('answer', ''))
         if output.get('ok'):
-            audit.tool_output_summary = 'Meta accepted message: ' + str(output.get('message_id', 'not supplied'))
+            audit.tool_output_summary = ('Meta accepted message: ' + str(output.get('message_id', 'not supplied'))
+                                         if channel == 'whatsapp' else f'{label} accepted the message.')
         audit.save(update_fields=['status', 'error_message', 'tool_output_summary'])
         if output.get('answer') and not output.get('message'):
             output['message'] = output['answer']
