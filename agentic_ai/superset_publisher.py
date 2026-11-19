@@ -13,6 +13,7 @@ import requests
 from django.conf import settings
 from django.db import connections, transaction
 
+from .report_context import report_context
 from .report_catalog import DESIGNS, SERIES, satellite_tiles
 
 MAX_ROWS = 100
@@ -373,11 +374,23 @@ def publish(export, report, config, authorize):
             scope_notice += ' Report date: ' + str(export.specification['report_date'])
         if export.specification['truncated']:
             scope_notice += ' Source result is limited; this is not the complete portfolio.'
-        # Only server-authored text and a strictly formatted date enter Markdown.
+        context = report_context(report, export.source.get('tool'))
+        source_parts = []
+        if context['source']:
+            source_parts.append(f"Source tool: {context['source']}")
+        row_count = f"Displayed rows: {context['displayed_rows']}"
+        if context['source_rows'] is not None:
+            row_count += f" of {context['source_rows']} reported"
+        source_parts.append(row_count)
+        for fields in (context['scope'], context['filters']):
+            source_parts += [f'{key}: {value}' for key, value in fields.items()]
+        # Remove Markdown syntax from report-supplied fields before storing the note.
         safe_notice = re.sub(r'[^A-Za-z0-9 .,;:()—/-]', '', scope_notice)
+        source_line = ' | '.join(re.sub(r'[^A-Za-z0-9 .,:()-]', '', part) for part in source_parts)
+        safe_notice += '\n\n' + source_line
         layout['NOTICE'] = {'id': 'NOTICE', 'type': 'MARKDOWN', 'children': [],
             'parents': ['ROOT_ID', 'GRID_ID', 'NOTICE-ROW'],
-            'meta': {'code': safe_notice, 'width': 12, 'height': 15}}
+            'meta': {'code': safe_notice, 'width': 12, 'height': 20}}
         for index, chart_id in enumerate(export.chart_ids):
             row_id, component = f'ROW-{index}', f'CHART-{chart_id}'
             layout['GRID_ID']['children'].append(row_id)

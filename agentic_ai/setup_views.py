@@ -110,7 +110,20 @@ def query_page(request):
     for capability in workspace['capabilities']:
         if capability['name'] == whatsapp_status['tool']:
             capability['service_url'] = reverse('agentic_ai:services') + '#whatsapp-service-title'
-    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": whatsapp_status,
+    question = ''
+    if request.GET.get('reuse'):
+        from uuid import UUID
+        from .api import _can_replay_result
+        from .models import ReportRun
+        try:
+            run_id = UUID(request.GET['reuse'])
+        except ValueError:
+            run_id = None
+        if run_id:
+            run = ReportRun.objects.filter(pk=run_id, user=request.user).first()
+            if run and _can_replay_result(request.user, run.source):
+                question = run.question
+    response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": whatsapp_status, "draft_question": question,
                       'reporting':workspace_settings(request.user), 'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})
     response["Cache-Control"] = "no-store"
     return response

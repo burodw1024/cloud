@@ -1,0 +1,16 @@
+.report-history{max-width:930px}
+.report-history h1{margin-bottom:8px}
+.report-history a{color:var(--green);text-underline-offset:3px}
+.report-history .studio-card{margin-block:16px;padding:20px}
+.history-list h2{font-size:17px;margin:0;overflow-wrap:anywhere}
+.history-list p{margin:5px 0}
+.history-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.history-search{margin:22px 0}
+.history-search div{display:flex;max-width:470px;gap:8px}
+.history-search input{flex:1;min-width:0}
+.history-search input,.history-search button{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.run-question{overflow-wrap:anywhere;white-space:pre-wrap}
+.history-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
+.history-facts dt{font-size:12px;color:var(--muted)}
+.history-facts dd{margin:0;overflow-wrap:anywhere;font-weight:550}
+.history-export{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 0;border-top:1px solid var(--line)}

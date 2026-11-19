@@ -1,6 +1,11 @@
-{% load static %}<link rel="stylesheet" href="{% static 'agentic_ai/report_templates.css' %}?v=3">
+{% load static %}<link rel="stylesheet" href="{% static 'agentic_ai/report_templates.css' %}?v=4">
 <section id="report-templates" class="report-templates" data-default="{{ reporting.default_template|default:'comparison' }}" hidden aria-labelledby="report-layout-heading">
 <header><div><span class="template-kicker">YOUR RESULT / YOUR LAYOUT</span><h4 id="report-layout-heading">Choose a report template</h4></div><button type="button" id="print-current-report" class="copy-button">Print report</button></header>
+<details id="result-source-details" class="result-source-details" hidden>
+<summary>Source and scope</summary>
+<dl id="result-source-facts"></dl>
+<a id="result-history-link" data-history-url="{% url 'agentic_ai:report_history' %}" hidden>Open in My report runs</a>
+</details>
 {% if reporting.can_publish %}
 <section class="report-publishing" aria-label="Superset publishing">
 <div class="report-publishing-actions">
@@ -29,4 +34,4 @@
 <div id="report-template-heading" hidden><h4>Authorized report snapshot</h4><div id="report-template-facts" class="report-template-facts"></div><p id="report-template-scope"></p></div>
 <div id="template-comparison" hidden><label for="template-measure">Compare field</label><select id="template-measure"></select><div id="template-bars"></div><p class="result-details">First 20 displayed rows, in their returned order. Values are not summed or inferred.</p></div>
 </section>
-<script src="{% static 'agentic_ai/report_templates.js' %}?v=3"></script>
+<script src="{% static 'agentic_ai/report_templates.js' %}?v=4"></script>

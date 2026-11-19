@@ -82,6 +82,37 @@
             if(token===publishToken)publishButton.disabled=false;
         }
     });
+    function showSource(context, runId) {
+        const details=$('result-source-details'), facts=$('result-source-facts');
+        const history=$('result-history-link');
+        details.hidden=!context;
+        details.open=false;
+        facts.replaceChildren();
+        history.hidden=true;
+        history.removeAttribute('href');
+        if(!context)return;
+        const rows=context.source_rows==null ? context.displayed_rows : context.displayed_rows+' of '+context.source_rows;
+        const items=[
+            ['Source tool', context.source || 'Unavailable'],
+            ['Report date', context.report_date || 'Unavailable'],
+            ['Displayed rows', String(rows)+(context.limited?' · Limited result':'')],
+            ...Object.entries(context.scope || {}),
+            ...Object.entries(context.filters || {}).map(([key,value])=>['Filter · '+key,value]),
+        ];
+        for(const [label,value] of items){
+            const group=document.createElement('div');
+            const term=document.createElement('dt'), description=document.createElement('dd');
+            term.textContent=label;
+            description.textContent=value;
+            group.append(term);
+            group.append(description);
+            facts.append(group);
+        }
+        if(typeof runId==='string' && /^[0-9a-f-]{36}$/i.test(runId) && history.dataset.historyUrl){
+            history.href=history.dataset.historyUrl+encodeURIComponent(runId)+'/';
+            history.hidden=false;
+        }
+    }
     const numeric=value=>{
         if(typeof value!=='number' && (typeof value!=='string'||! /^-?\d+(?:\.\d+)?$/.test(value)))return null;
         const n=Number(value);return Number.isFinite(n)?n:null;
@@ -112,10 +143,11 @@
     $('template-measure').addEventListener('change',chart);
     $('print-current-report').addEventListener('click',()=>window.print());
     window.BuroReportTemplates={
-        reset(){report=null;body=null;root.hidden=true;$('template-bars').replaceChildren();configurePublishing('');},
+        reset(){report=null;body=null;root.hidden=true;$('template-bars').replaceChildren();configurePublishing('');showSource(null);},
         show(value,response){
             if(!value||!Array.isArray(value.columns)||!Array.isArray(value.rows))return;
             report=value;body=response;root.hidden=false;
+            showSource(body.report_context, body.report_run_id);
             configurePublishing(typeof body.summary_token==='string'?body.summary_token:'');
             $('report-template-facts').replaceChildren();
             [report.rows.length+' displayed rows',report.columns.length+' fields',report.report_date||body.plan?.params?.report_date||body.plan?.params?.reportDate||'Date not provided'].forEach(text=>{const item=document.createElement('span');item.textContent=text;$('report-template-facts').append(item);});

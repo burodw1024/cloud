@@ -19,3 +19,10 @@
 .report-ready-prompt p{margin:5px 28px 12px 0;color:var(--muted);font-size:13px}
 .report-ready-prompt .copy-button{position:absolute;top:9px;right:9px;min-width:32px;min-height:32px}
 @media print{.report-ready-prompt{display:none!important}}
+
+.result-source-details{border:1px solid var(--line);border-radius:10px;margin-bottom:14px;padding:10px 12px;background:var(--surface)}
+.result-source-details summary{cursor:pointer;font-size:14px;font-weight:650}
+.result-source-details dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;font-size:13px}
+.result-source-details dt{color:var(--muted)}
+.result-source-details dd{margin:0;overflow-wrap:anywhere}
+.result-source-details a{color:var(--green);text-decoration:underline}

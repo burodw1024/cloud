@@ -5,7 +5,7 @@
     <form id="agent-query-form" action="{% url 'agentic_ai:agentic_query_api' %}" method="post">
         {% csrf_token %}
         <label class="field-label" for="agent-message">Your question</label>
-        <textarea id="agent-message" name="message" rows="3" maxlength="16000" required placeholder="Ask a question, find information, or describe what you need help with…" aria-describedby="query-hint"></textarea>
+        <textarea id="agent-message" name="message" rows="3" maxlength="16000" required placeholder="Ask a question, find information, or describe what you need help with…" aria-describedby="query-hint">{{ draft_question }}</textarea>
         {% if has_loan_capabilities %}<button type="button" class="copy-button" id="loan-question-help" data-question-help="ঋণ ও বকেয়া রিপোর্ট নিয়ে কী কী প্রশ্ন করতে পারি? সব প্রশ্নের উদাহরণ দেখাও।">ঋণ নিয়ে কী কী প্রশ্ন করতে পারি?</button>{% endif %}
         {% if has_savings_capabilities %}<button type="button" class="copy-button" id="savings-question-help" data-question-help="সঞ্চয় নিয়ে কী কী প্রশ্ন করতে পারি? ব্যবসায়িক প্রশ্নের উদাহরণ দেখাও।">সঞ্চয় নিয়ে কী কী প্রশ্ন করতে পারি?</button>{% endif %}
         {% if capability_count %}<button type="button" class="copy-button" id="business-question-help" data-question-help="{% if selected_module %}{{ selected_module.name }} মডিউলের{% else %}আমার অনুমোদিত ব্যবসার কাজের{% endif %} প্রশ্নের উদাহরণ দেখাও।">{% if selected_module %}এই মডিউলে{% else %}ব্যবসার কাজে{% endif %} কী কী প্রশ্ন করতে পারি?</button>{% endif %}
