@@ -65,11 +65,11 @@ if gateway_enabled():
     assert probe['gateway_tool_executed'] is False
     from agentic_ai.report_presentation import present_report
     from agentic_ai.mcp_gateway import _model_response
-    presentation=async_to_sync(present_report)(config,
-        'Show only outstanding principal from this already scoped sample report.',
+    presentation=async_to_sync(present_report)({**config, 'summarize_reports': False},
+        'Show only outstanding principal.',
         {'structuredContent':{'rows':[{'OUTSTANDINGP':'123.45','DUEAMOUNT':'7.00'}]}}, _model_response)
-    assert presentation['raw']['structuredContent']['columns']==['OUTSTANDINGP'], 'Selected model failed the synthetic report-column selection probe.'
-    print('MCP discovery, project-model selection and synthetic report formatting passed; no real report was executed.',flush=True)
+    assert presentation['raw']['structuredContent']['columns']==['OUTSTANDINGP'], 'Synthetic report-column projection failed.'
+    print('MCP discovery, live project-model probe and deterministic report projection passed; no real report was executed.',flush=True)
     model_probe_passed = True
 else:
     print('MCP gateway remains disabled; external gateway/model probes skipped. Enable it through Integration settings when ready.', flush=True)

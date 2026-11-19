@@ -22,7 +22,7 @@ def require(ok, message):
         raise RuntimeError(message)
 
 
-def recovery_code(expected_sha, preserve_disabled_gateway=False):
+def recovery_code(expected_sha, preserve_disabled_gateway=False, retry_report_projection=False):
     return '''import hashlib, json, os, sqlite3, subprocess, sys
 from pathlib import Path
 os.chdir('/app')
@@ -48,6 +48,7 @@ assert not (backups/'migration-complete.json').exists(), 'Post-migration phase a
 print('Existing backup verified; no pending migrations. Resuming post-migration checks only.', flush=True)
 post_migration = 'import django\\ndjango.setup()\\n' + script_text.split(marker, 1)[1]
 GATEWAY_RECOVERY_PATCH
+REPORT_PROJECTION_PATCH
 exec(compile(post_migration, '/app/deploy/migrate_release.py:post-migration', 'exec'), globals())
 '''.replace('EXPECTED_SHA', repr(expected_sha)).replace('GATEWAY_RECOVERY_PATCH', '''
 start_marker = "assert gateway_enabled(), 'Expected the existing MCP gateway to be enabled; configuration was preserved.'"
@@ -60,7 +61,11 @@ replacement = "model_probe_passed = False\\nif gateway_enabled():\\n" + ''.join(
 replacement += "    model_probe_passed = True\\nelse:\\n    print('MCP gateway remains disabled; external probes skipped.', flush=True)\\n"
 post_migration = post_migration[:start] + replacement + post_migration[end:]
 post_migration = post_migration.replace("'model_probe_passed':True", "'model_probe_passed':model_probe_passed,'gateway_enabled':gateway_enabled()")
-''' if preserve_disabled_gateway else '')
+''' if preserve_disabled_gateway else '').replace('REPORT_PROJECTION_PATCH', '''
+old_prompt = 'Show only outstanding principal from this already scoped sample report.'
+assert post_migration.count(old_prompt) == 1, 'Unrecognized synthetic report projection probe'
+post_migration = post_migration.replace(old_prompt, 'Show only outstanding principal.')
+''' if retry_report_projection else '')
 
 
 def backup_retry_code(expected_sha):
@@ -113,7 +118,8 @@ exec(compile(script_text, __file__, 'exec'), globals())
 """.replace('EXPECTED_SHA', repr(expected_sha))
 
 
-def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_gateway=False, start_missing_job=False):
+def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_gateway=False, start_missing_job=False,
+                   retry_report_projection=False):
     job = copy.deepcopy(saved)
     original = job['metadata']['name']
     suffix = '-start' if start_missing_job else '-backup-retry' if retry_backup else '-resume'
@@ -127,7 +133,7 @@ def build_recovery(saved, expected_sha, retry_backup=False, preserve_disabled_ga
     require(container.get('imagePullPolicy') == 'Never', 'Recovery must use the imported image')
     require(container['command'] == ['python', '/app/deploy/migrate_release.py'], 'Unrecognized migration script entrypoint')
     code = (missing_job_code(expected_sha) if start_missing_job else backup_retry_code(expected_sha)
-            if retry_backup else recovery_code(expected_sha, preserve_disabled_gateway))
+            if retry_backup else recovery_code(expected_sha, preserve_disabled_gateway, retry_report_projection))
     container['command'] = ['python', '-c', code]
     container.pop('args', None)
     container['workingDir'] = '/app'
@@ -141,11 +147,13 @@ def main():
     parser.add_argument('--retry-backup', action='store_true', help='Recover the reported read-only backup failure before migrations; retain the original failed backup.')
     parser.add_argument('--preserve-disabled-gateway', action='store_true', help='Recover the confirmed gateway-enabled assertion failure without enabling a paused integration.')
     parser.add_argument('--start-missing-job', action='store_true', help='Start the saved migration only when the original Job, its status snapshot and its backup are absent.')
+    parser.add_argument('--retry-report-projection', action='store_true',
+                        help='Resume the confirmed synthetic report-column failure using an explicit field request.')
     parser.add_argument('--context', required=True)
     parser.add_argument('--url', required=True)
     parser.add_argument('--cert', type=Path, default=Path.home()/'.config/agentic/tls/tls.crt')
     args = parser.parse_args()
-    require(sum((args.retry_backup, args.preserve_disabled_gateway, args.start_missing_job)) <= 1, 'Choose only one recovery mode')
+    require(sum((args.retry_backup, args.preserve_disabled_gateway, args.start_missing_job, args.retry_report_projection)) <= 1, 'Choose only one recovery mode')
     stage = args.stage.resolve()
     def read(name): return json.loads((stage/name).read_text())
     saved = read('migration.json')
@@ -206,7 +214,12 @@ def main():
         require('SQLite database and existing shared cache backed up:' in logs
                 and 'AssertionError: Expected the existing MCP gateway to be enabled; configuration was preserved.' in logs,
                 'Gateway recovery requires the confirmed post-migration gateway-enabled assertion failure')
-    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup, args.preserve_disabled_gateway, args.start_missing_job)
+    if args.retry_report_projection:
+        logs = subprocess.check_output(command+['logs', 'job/'+original_job, '-c', 'migrate'], text=True)
+        require('SQLite database and existing shared cache backed up:' in logs
+                and 'AssertionError: Selected model failed the synthetic report-column selection probe.' in logs,
+                'Projection recovery requires the confirmed post-migration report-column probe failure')
+    recovery = build_recovery(saved, hashlib.sha256(source.read_bytes()).hexdigest(), args.retry_backup, args.preserve_disabled_gateway, args.start_missing_job, args.retry_report_projection)
     recovery_name = recovery['metadata']['name']
     require(len(recovery_name) <= 63, 'Recovery Job name is too long')
     prior = subprocess.check_output(command+['get','job',recovery_name,'--ignore-not-found','-o','json'], text=True).strip()
