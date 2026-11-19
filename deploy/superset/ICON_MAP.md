@@ -53,14 +53,26 @@ Keep the previous image imported on the node. Saved Icon Map charts need the new
 
 ## Agentic report studio satellite template
 
-Install the BURO Icon Map-enabled Superset 4.1.2 image first. In the Agentic
-Django deployment set both variables below using your approved, browser-accessible
-satellite imagery service and its required attribution.
+Install the BURO Icon Map-enabled Superset 4.1.2 image first. Maps work on the
+offline coordinate grid without an imagery subscription.
 
-- `AGENTIC_SATELLITE_TILE_URL` is an internal HTTP(S) XYZ tile URL, for example
-  `https://imagery.example.org/satellite/{z}/{x}/{y}.jpg`. Use HTTPS when
-  Superset is served over HTTPS.
-- `AGENTIC_SATELLITE_TILE_ATTRIBUTION` is the provider's attribution text.
+For satellite imagery, open **Agentic → Reporting setup → Map imagery**. Choose
+**Approved satellite imagery** and enter the provider's attribution and an
+approved XYZ URL reachable from employees' browsers. An HTTPS URL such as
+`https://imagery.example.org/satellite/{z}/{x}/{y}.jpg` or a same-origin route
+such as `/tiles/satellite/{z}/{x}/{y}.jpg` works. For a paid provider, use an
+infrastructure-managed proxy that holds the credentials server-side and enforces
+the provider's license and limits. Superset saves the tile URL in chart metadata.
+Use a URL without passwords, keys or signed query strings. No vendor is selected
+or billed by default.
+
+**Use deployment settings** reads `AGENTIC_SATELLITE_TILE_URL` and
+`AGENTIC_SATELLITE_TILE_ATTRIBUTION`; if either is missing or invalid, maps use
+the grid. **Offline coordinate grid** forces the grid. Changes apply to new
+exports. Existing charts retain their saved settings, so edit them in Superset
+or create a new export to switch backgrounds. **Test saved connection** verifies
+Superset and report storage. Check imagery from an employee browser using a
+published dashboard.
 
 Run an authorized structured branch report with level `BRANCH`, a
 `BRANCHCODE` field, and decimal latitude and longitude from the report source.

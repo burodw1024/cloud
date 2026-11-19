@@ -17,7 +17,7 @@ CATALOG = (
     ('points', 'Dot plot', 'points', 'blue', 'Inspect individual values and spot outliers.'),
     ('donut', 'Donut composition', 'donut', 'rose', 'Show shares of one non-negative measure across 2–12 displayed rows.'),
     ('heatmap', 'Category heatmap', 'heatmap', 'amber', 'Compare one measure across two report categories with unique pairs.'),
-    ('satellite', 'Satellite icon map', 'map', 'teal', 'Plot real coordinates over approved satellite imagery with location icons.'),
+    ('satellite', 'Satellite icon map', 'map', 'teal', 'Plot branch locations with icons over a coordinate grid or configured satellite imagery.'),
 )
 TEMPLATES = [(key, title) for key, title, *_ in CATALOG]
 DESIGNS = {row[0]: row for row in CATALOG}
@@ -34,17 +34,39 @@ SERIES = {
 }
 
 
-def satellite_tiles():
-    """Return only deployment-owned settings. Tile requests originate in the browser."""
-    url = getattr(settings, 'AGENTIC_SATELLITE_TILE_URL', '').strip()
-    attribution = getattr(settings, 'AGENTIC_SATELLITE_TILE_ATTRIBUTION', '').strip()
+def valid_tile_url(url):
+    # Tile requests come from the Superset browser. A same-origin route can
+    # proxy licensed imagery without putting credentials into chart metadata.
+    if not url or not all(token in url for token in ('{z}', '{x}', '{y}')):
+        return False
+    if any(ord(char) < 33 or ord(char) == 127 for char in url) or '\\' in url:
+        return False
     try:
         target = urlsplit(url)
-        valid = (target.scheme in {'http', 'https'} and target.hostname and not target.username
-                 and not target.password and not target.query and not target.fragment
-                 and all(token in target.path for token in ('{z}', '{x}', '{y}')))
+        if target.query or target.fragment or target.username or target.password:
+            return False
+        if not all(token in target.path for token in ('{z}', '{x}', '{y}')):
+            return False
+        if url.startswith('/'):
+            return not url.startswith('//')
+        return target.scheme in {'http', 'https'} and bool(target.hostname) and target.port != 0
     except ValueError:
-        valid = False
-    if valid and attribution and len(attribution) <= 300:
+        return False
+
+
+def satellite_tiles(config=None):
+    config = {} if config is None else config
+    mode = config.get('MAP_BACKGROUND', 'deployment')
+    if mode == 'grid':
+        return {}
+    if mode == 'custom':
+        url = config.get('MAP_TILE_URL', '').strip()
+        attribution = config.get('MAP_TILE_ATTRIBUTION', '').strip()
+    else:
+        url = getattr(settings, 'AGENTIC_SATELLITE_TILE_URL', '').strip()
+        attribution = getattr(settings, 'AGENTIC_SATELLITE_TILE_ATTRIBUTION', '').strip()
+    if (url.startswith('http:') and (config.get('PUBLIC_URL') or config.get('URL', '')).startswith('https:')):
+        return {}
+    if valid_tile_url(url) and attribution and len(attribution) <= 300:
         return {'tile_url': url, 'tile_attribution': attribution}
     return {}

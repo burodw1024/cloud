@@ -89,6 +89,16 @@ class DesignTests(SimpleTestCase):
                 if template == 'heatmap':
                     self.assertEqual(charts[-1][3], ['c0', 'c1'])
 
+    @override_settings(AGENTIC_SATELLITE_TILE_URL='', AGENTIC_SATELLITE_TILE_ATTRIBUTION='')
+    def test_map_without_imagery_still_builds_icon_chart(self):
+        columns = ['BRANCHCODE', 'LATITUDE', 'LONGITUDE']
+        report = {'columns': columns, 'rows': [dict(zip(columns, ['001', 23.7, 90.4]))]}
+        spec = publisher.specification(report, 'Branch locations', template='satellite')
+        _, chart, options, _, _ = list(publisher.chart_specs(spec, columns))[-1]
+        self.assertEqual(chart, 'buro_icon_map')
+        self.assertNotIn('tile_url', options)
+        self.assertEqual(options['icon_type'], 'branch')
+
     def test_templates_with_incompatible_source_data_are_rejected(self):
         for template in ('donut', 'heatmap', 'satellite'):
             with self.subTest(template=template), self.assertRaises(publisher.PublishError):

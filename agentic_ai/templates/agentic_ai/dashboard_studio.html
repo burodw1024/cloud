@@ -12,16 +12,16 @@
 <div class="design-gallery">
 {% for value,label,visual,accent,guidance in catalog %}
 <label class="design-card">
-<input type="radio" name="studio-template" value="{{ value }}"{% if reporting.default_template == value or not satellite_ready and value == "comparison" and reporting.default_template == "satellite" %} checked{% endif %}{% if value == "satellite" and not satellite_ready %} disabled{% endif %}>
+<input type="radio" name="studio-template" value="{{ value }}"{% if reporting.default_template == value %} checked{% endif %}>
 <span class="design-swatch {{ visual }} {{ accent }}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-<strong>{{ label }}</strong><small>{% if value == "satellite" and not satellite_ready %}Requires the BURO Icon Map and an approved satellite tile service.{% else %}{{ guidance }}{% endif %}</small>
+<strong>{{ label }}</strong><small>{% if value == "satellite" and not reporting.map_imagery_configured %}Uses the offline grid until satellite imagery is configured.{% else %}{{ guidance }}{% endif %}</small>
 </label>
 {% endfor %}
 </div></fieldset>
 <label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="My report dashboard">
 <div id="studio-options" hidden><label for="studio-dimension">Row label</label><select id="studio-dimension"></select><div id="studio-secondary-field" hidden><label for="studio-secondary">Second category</label><select id="studio-secondary"></select></div><fieldset id="studio-measure-field"><legend id="studio-measure-legend">Measures</legend><div id="studio-metrics"></div></fieldset></div>
 <button type="submit" class="studio-primary">Generate preview →</button></form>
-<div class="studio-note"><strong>Designed around your data</strong><p>Every dashboard includes a source table. Line and area templates follow displayed row order. Heatmaps and maps require compatible report fields.</p></div>
+<div class="studio-note"><strong>Designed around your data</strong><p>Every dashboard includes a source table. Line and area templates follow displayed row order. Heatmaps and maps require compatible report fields. Map dashboards require the BURO Icon Map in Superset.</p></div>
 </section><section class="studio-card studio-preview" aria-labelledby="preview-title" aria-busy="false"><span class="studio-step">02 / PREVIEW & CREATE</span><h2 id="preview-title">A home for your insights</h2>
 <p id="studio-status" role="status" aria-live="polite">Generate a preview to see the proposed layout.</p>
 <div id="studio-preview" hidden><div class="studio-meta" id="studio-meta"></div><div id="studio-chart-cards"></div><div class="studio-table-wrap" id="studio-sample"></div><p id="studio-notice"></p>

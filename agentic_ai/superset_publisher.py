@@ -145,9 +145,7 @@ def specification(report, title, dimension=None, metrics=None, template="compari
     notice = 'Immutable snapshot of displayed rows (maximum 100). No automatic refresh.'
     if template == 'satellite':
         map_columns = map_fields(columns, rows)
-        if not satellite_tiles():
-            raise PublishError('Ask an administrator to configure the approved satellite tile service.')
-        notice += ' The map omits invalid coordinates. Tile requests go to the configured provider.'
+        notice += ' The map omits invalid coordinates. If imagery is unavailable, the coordinate grid remains visible.'
     elif template in {'heatmap', 'donut', 'columns', 'line', 'smooth', 'step', 'area', 'points'} and not metrics:
         raise PublishError('This template needs a numeric report field. Try Source table for this result.')
     if template == 'heatmap':
@@ -193,7 +191,7 @@ def specification(report, title, dimension=None, metrics=None, template="compari
             'notice': notice}
 
 
-def chart_specs(spec, fields):
+def chart_specs(spec, fields, config=None):
     template = spec.get('template', 'comparison')
     physical = {name: f'c{i}' for i, name in enumerate(fields)}
     columns = ['row_label', *physical.values()]
@@ -209,9 +207,7 @@ def chart_specs(spec, fields):
             'label_column': 'row_label', 'size_column': physical.get(next(iter(spec['metrics']), None)),
         }
         location = {key: value for key, value in location.items() if value is not None}
-        tiles = satellite_tiles()
-        if not tiles:
-            raise PublishError('The approved satellite tile service is no longer configured.')
+        tiles = satellite_tiles(config)
         yield 'Satellite icon map', 'buro_icon_map', {
             **tiles, **location, 'icon_type': 'branch', 'show_legend': True, 'row_limit': MAX_ROWS,
         }, list(dict.fromkeys(location.values())), []
@@ -320,7 +316,7 @@ def created_id(response):
 def publish(export, report, config, authorize):
     client = SupersetClient(config)
     try:
-        designs = list(chart_specs(export.specification, report['columns']))
+        designs = list(chart_specs(export.specification, report['columns'], config))
         client.login()
         if not authorize():
             raise PublishError('Report access changed before publication.')
