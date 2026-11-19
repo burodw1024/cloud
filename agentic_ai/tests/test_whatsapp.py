@@ -1,6 +1,6 @@
 import json
 from unittest.mock import AsyncMock, patch
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User, Group, Permission
 from django.core.cache import cache
 from django.test import TestCase, Client
 from agentic_ai.models import AgentTool, AgentRunLog
@@ -11,7 +11,9 @@ class WhatsAppTests(TestCase):
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user('wa-user')
-        self.user.groups.add(Group.objects.create(name='report-users'))
+        group = Group.objects.create(name='report-users')
+        group.permissions.add(Permission.objects.get(codename='share_report_whatsapp'))
+        self.user.groups.add(group)
         self.tool = AgentTool.objects.create(name='send-whatsapp-text', allowed_roles=['report-users'])
         self.report_tool = AgentTool.objects.create(name='loan-report', allowed_roles=['report-users'])
         self.settings = {'MCP_WHATSAPP_TOOL': self.tool.name, 'MCP_WHATSAPP_RECIPIENTS': '["8801700000000"]'}
@@ -179,6 +181,7 @@ class GatewayDispatchTests(TestCase):
         from contextlib import asynccontextmanager
         from types import SimpleNamespace
         self.SimpleNamespace = SimpleNamespace
+        self.user = User.objects.create_superuser('dispatch-root')
         self.session = AsyncMock()
         self.session.call_tool.return_value = SimpleNamespace(model_dump=lambda **kwargs: {
             'structuredContent': {'messages': [{'id': 'wamid.test'}]}})
@@ -195,6 +198,8 @@ class GatewayDispatchTests(TestCase):
         patches = [patch('mcp.client.streamable_http.streamablehttp_client', transport),
                    patch('mcp.ClientSession', client),
                    patch.object(wa, 'discover_tools', new=AsyncMock(return_value=[self.tool])),
+                   patch.object(wa, 'settings_status', return_value={'ready': True, 'tool': self.tool.name,
+                               'recipients': ['8801700000000']}),
                    patch.object(wa, '_decision', new=lambda *args: None)]
         for p in patches:
             p.start(); self.addCleanup(p.stop)
@@ -202,7 +207,7 @@ class GatewayDispatchTests(TestCase):
     def run_dispatch(self):
         from asgiref.sync import async_to_sync
         return async_to_sync(wa.dispatch)({'url': 'https://gateway.example/mcp', 'token': '', 'timeout': 2},
-                                         self.tool.name, '8801700000000', 'Report result', None)
+                                         self.tool.name, '8801700000000', 'Report result', self.user)
 
     def test_cloud_api_body_sent_to_exact_mcp_tool(self):
         self.assertTrue(self.run_dispatch()['ok'])

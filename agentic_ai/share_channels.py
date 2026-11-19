@@ -11,6 +11,10 @@ CHANNELS = {'gmail': 'Gmail', 'outlook': 'Outlook', 'viber': 'Viber'}
 SUBJECT = 'BURO Insight AI report'
 
 
+def can_share(user, channel):
+    return user.is_authenticated and user.is_active and user.has_perm(f'agentic_ai.share_report_{channel}')
+
+
 def setting_keys(channel):
     prefix = f'MCP_{channel.upper()}_REPORT'
     return prefix + '_TOOL', prefix + '_RECIPIENTS'
@@ -58,6 +62,8 @@ def describe(channel, user=None):
         return {**detail, 'status': 'Recipient settings are invalid.'}
     if user is None:
         return {**detail, **config}
+    if not can_share(user, channel):
+        return {**detail, 'status': 'Your account does not have permission to share through this channel.'}
     if not config['tool'] or not config['recipients']:
         return {**detail, 'status': 'Configure a gateway tool and approved recipients in Integration settings.'}
     record = AgentTool.objects.filter(name=config['tool']).first()

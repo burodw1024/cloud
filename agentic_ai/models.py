@@ -311,4 +311,10 @@ class ReportRun(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [models.Index(fields=['user', '-created_at'], name='agentic_run_user_created')]
-        permissions = [('export_powerbi_snapshot', 'Export authorized Power BI report snapshots')]
+        permissions = [
+            ('export_powerbi_snapshot', 'Export authorized Power BI report snapshots'),
+            ('share_report_whatsapp', 'Share reports through WhatsApp'),
+            ('share_report_gmail', 'Share reports through Gmail'),
+            ('share_report_outlook', 'Share reports through Outlook'),
+            ('share_report_viber', 'Share reports through Viber'),
+        ]

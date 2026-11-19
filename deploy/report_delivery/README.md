@@ -33,7 +33,11 @@ Register the adapter's `/mcp` endpoint as Streamable HTTP in ContextForge.
 Restrict access to its delivery tools in the gateway. In Agentic **Integration
 settings**, discover and enable the selected tools for approved roles, then open
 **Report delivery**, enter each exact gateway tool name and an approved
-recipient list, and save. The **Check tool** action validates discovery and the
+recipient list, and save. A superuser must also grant the matching channel in **Report service access** to
+the approved role or user. Existing channel configuration and ContextForge tool
+roles remain required. After upgrading, existing non-superuser senders need this
+grant before they can send again.
+The **Check tool** action validates discovery and the
 input schema without sending. Verify each enabled channel with a non-sensitive
 report and an approved test recipient before rollout. Failed or uncertain sends
 require checking provider activity before another attempt.
