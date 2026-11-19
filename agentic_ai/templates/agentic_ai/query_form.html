@@ -224,7 +224,6 @@
         event.preventDefault();
         const button = form.querySelector('[type=submit]');
         if (button.disabled) return;
-        if (waBusy) return;
         const question = form.elements.message.value.trim();
         if (!question) return;
         window.BuroReportTemplates?.reset();
