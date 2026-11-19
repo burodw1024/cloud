@@ -1,6 +1,6 @@
 import json
 from unittest.mock import patch
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.test import TestCase
 from django.core.cache import cache
 from agentic_ai.models import AgentTool, AgentRunLog, AgentApprovalRequest
@@ -52,7 +52,44 @@ class WorkspaceTests(TestCase):
         self.assertEqual(response.context['capability_count'], 121)
         self.assertContains(response, 'Search capabilities')
         self.assertContains(response, 'My recent activity')
-        self.assertContains(response, 'My pending approvals')
+        self.assertNotContains(response, 'My pending approvals')
+
+    def test_navigation_and_direct_access_follow_staff_permissions(self):
+        self.client.force_login(self.user)
+        workspace_url = '/agentic/'
+        directory_url = '/agentic/data-access/directory/'
+        access_url = '/agentic/data-access/'
+        self.assertNotContains(self.client.get(workspace_url), 'aria-label="Administration"')
+        self.assertEqual(self.client.get(directory_url).status_code, 302)
+
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+        self.assertNotContains(self.client.get(workspace_url), 'aria-label="Administration"')
+        self.assertEqual(self.client.get(directory_url).status_code, 403)
+
+        self.user.user_permissions.add(Permission.objects.get(codename='manage_loan_directory'))
+        response = self.client.get(workspace_url)
+        self.assertContains(response, f'href="{directory_url}"')
+        self.assertNotContains(response, f'href="{access_url}"')
+        self.assertEqual(self.client.get(access_url).status_code, 403)
+
+        self.user.user_permissions.add(Permission.objects.get(codename='manage_loan_access'))
+        for url in (workspace_url, directory_url):
+            response = self.client.get(url)
+            self.assertContains(response, f'href="{directory_url}"')
+            self.assertContains(response, f'href="{access_url}"')
+
+    @patch('agentic_ai.workspace.gateway_enabled', return_value=True)
+    def test_personal_shortcuts_only_show_applicable_content(self, enabled):
+        self.client.force_login(self.user)
+        AgentRunLog.objects.create(user=self.user, user_query='My private question')
+        AgentRunLog.objects.create(user=User.objects.create_user('someone-else'),
+                                   user_query='Another employee question')
+        AgentApprovalRequest.objects.create(user=self.user, tool_name=self.tool.name, action_type='test')
+        response = self.client.get('/agentic/')
+        self.assertContains(response, 'href="#my-approvals"')
+        self.assertContains(response, 'data-previous-question="My private question"')
+        self.assertNotContains(response, 'Another employee question')
 
     @patch('agentic_ai.workspace.gateway_enabled', return_value=True)
     def test_catalog_serialization_does_not_execute_admin_supplied_markup(self, enabled):

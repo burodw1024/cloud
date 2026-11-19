@@ -1,7 +1,8 @@
+{% load workspace_nav %}
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Your organization, connected | BURO Insight AI</title>
+<title>{{ selected_module.name|default:"My workspace" }} | BURO Insight AI</title>
 <script>try{const theme=localStorage.getItem('buro-insight-theme');if(theme==='dark')document.documentElement.dataset.theme='dark';}catch(_){}</script>
 <style>
 :root {
@@ -30,16 +31,12 @@ button:disabled { cursor:wait; opacity:.6 }
 .brand-mark { display:grid; place-items:center; width:42px; height:44px; border-radius:14px 14px 14px 4px; background:#b8ebd6; color:#173e36; font-size:29px; font-weight:650; box-shadow:inset 0 1px 0 #ffffff66 }
 .brand-wordmark { font-size:20px; font-weight:700; line-height:1.25; letter-spacing:.02em }
 .brand-wordmark>span { display:block; color:#b7d6ca; font-size:14px; font-weight:500; letter-spacing:.025em }
-.brand small { display:block; font-size:8px; font-weight:500; letter-spacing:.15em; color:#7d9c99; margin-top:6px }
 .nav-label { font-size:9px; font-weight:650; letter-spacing:.19em; color:#73928e; margin:0 15px 15px }
 .side-nav { display:grid; gap:8px }
 .side-nav a { display:flex; align-items:center; gap:12px; padding:12px 15px; border-radius:10px; border:1px solid transparent; font-size:12px; transition:background .2s,transform .2s }
 .side-nav svg { width:18px; height:18px; flex:none }
 .side-nav a:hover { background:#ffffff09; transform:translateX(2px) }
 .side-nav .active { color:#d6f8e6; background:#2b5147; border:1px solid #5b8e733a; box-shadow:inset 3px 0 0 #b6e5bd }
-.side-note { margin-top:auto; padding:21px 16px; border:1px solid #3b5a52; border-radius:14px; background:linear-gradient(145deg,#25443d,#1b3733); font-size:11px; color:#9bbab0 }
-.side-note::before { content:'✧'; color:#c6e6bb; display:block; font-size:28px; margin-bottom:12px }
-.side-note strong { display:block; color:#e3f0dc; font-weight:550; font-size:13px; line-height:1.55; margin-bottom:8px }
 .workspace { width:100%; max-width:1520px; min-width:0; margin:auto; padding:0 45px 32px }
 .topbar { height:83px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:11px; color:var(--muted) }
 .topbar strong { color:var(--ink); font-weight:550 }
@@ -51,19 +48,6 @@ button:disabled { cursor:wait; opacity:.6 }
 .page-heading h1 { font-size:24px; font-weight:580; letter-spacing:-.045em; margin:0 0 2px }
 .page-heading p { margin:0; color:var(--muted); font-size:11px }
 .workspace-label { font-size:9px; border:1px solid var(--line); color:var(--muted); border-radius:20px; padding:5px 10px; white-space:nowrap }
-.hero { position:relative; isolation:isolate; overflow:hidden; min-height:272px; margin:0 0 27px; padding:30px 34px; border:1px solid #3d655b; border-radius:20px; background:var(--hero); box-shadow:inset 0 1px 0 #ffffff0c }
-.hero::before { content:''; position:absolute; z-index:-1; inset:0; opacity:.07; background-image:linear-gradient(#c0e1d0 1px,transparent 1px),linear-gradient(90deg,#c0e1d0 1px,transparent 1px); background-size:34px 34px; mask-image:linear-gradient(90deg,transparent 35%,black) }
-.hero::after { content:''; position:absolute; z-index:-1; width:400px; height:400px; right:-30px; top:-170px; background:radial-gradient(circle,#5a9e7750,transparent 65%); border-radius:50% }
-.eyebrow { display:inline-flex; align-items:center; gap:8px; color:#a8cbbc; font-size:8px; font-weight:600; letter-spacing:.17em; text-transform:uppercase; margin-bottom:13px }
-.eyebrow::before { content:''; width:5px; height:5px; background:#a1cf8a; border-radius:50% }
-.hero h2 { max-width:490px; font-size:clamp(30px,3vw,43px); color:#f5f8ed; font-weight:500; line-height:1.17; letter-spacing:-.045em; margin:0 0 14px }
-.hero h2 span { color:#bbdfbe; font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif; font-style:italic; font-weight:400; letter-spacing:-.035em }
-.hero p { max-width:395px; color:#b0c6bc; font-size:12px; line-height:1.9; margin:0 }
-.hero-art { position:absolute; width:355px; height:260px; top:5px; right:22px; pointer-events:none }
-.hero-art svg { width:100%; height:100%; overflow:visible }
-.hero-tag { position:absolute; right:30px; bottom:18px; color:#8daf9b; font-size:8px; letter-spacing:.1em; text-transform:uppercase }
-.float-main { animation:float-premium 8s ease-in-out infinite }
-.float-small { animation:float-premium 7s ease-in-out -3s infinite }
 .section-heading { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:0 1px 12px }
 .section-heading h2 { font-size:12px; font-weight:600; margin:0 }
 .subtle-label { color:var(--muted); font-size:10px }
@@ -128,14 +112,10 @@ tbody tr:hover { background:var(--soft) }
 @keyframes float-premium { 0%,100% { transform:translateY(0) } 50% { transform:translateY(-6px) } }
 @keyframes spin-premium { to { transform:rotate(360deg) } }
 @media(min-width:1600px) { .workspace { padding-inline:64px } }
-@media(max-width:1200px) { .hero-art { width:280px; right:0; top:25px } .hero p { max-width:340px } .hero h2 { font-size:37px; max-width:350px } .hero-tag { right:20px } }
-@media(max-width:1050px) { .app-shell { grid-template-columns:195px minmax(0,1fr) } .sidebar { padding:30px 17px } .workspace { padding-inline:25px } .hero { padding:28px; min-height:260px } .hero-art { width:230px; right:-35px; opacity:.45 } .hero h2,.hero p { position:relative; z-index:1 } .hero-tag { display:none } }
-@media(max-width:740px) { .app-shell { display:block } .sidebar { position:relative; height:auto; padding:15px 17px; flex-direction:row; align-items:center; justify-content:space-between; gap:10px; overflow:visible } .brand { padding:0; gap:9px } .brand-mark { width:32px; height:35px; font-size:23px; border-radius:11px 11px 11px 3px } .brand-wordmark { font-size:18px } .brand-wordmark>span { font-size:12px } .brand small,.nav-label,.side-note { display:none } .side-nav { display:flex; flex-wrap:wrap; gap:2px } .side-nav a { font-size:10px; padding:7px; gap:5px } .side-nav svg { width:14px; height:14px } .workspace { padding:0 17px 27px } .topbar { height:63px; font-size:10px } .profile { gap:7px } .profile>span:first-of-type { max-width:65px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } .theme-toggle { margin:0; width:29px; height:29px } .avatar { width:30px; height:30px } .page-heading { margin:22px 0 17px } .page-heading h1 { font-size:24px } .workspace-label { font-size:8px; padding:4px 8px } .hero { margin-bottom:23px; padding:27px 23px; border-radius:16px; min-height:253px } .hero h2 { font-size:35px; max-width:280px } .hero p { max-width:270px; font-size:11px } .hero-art { width:200px; right:-85px; top:15px; opacity:.15 } .hero::before { opacity:.035 } .examples { grid-template-columns:1fr; gap:9px; margin-bottom:21px } .example { display:grid; grid-template-columns:35px 1fr; column-gap:12px; padding:13px 15px; border-radius:11px } .example-icon { grid-row:span 2; margin:0 } .example strong { padding-right:10px } .example span:last-child { margin:0; padding-right:10px } .example::after { top:22px } .query-card { padding:19px; border-radius:14px } .composer-hint { max-width:140px; font-size:9px } .run-button { padding:10px 13px; font-size:11px } .bottom-note { flex-direction:column; gap:4px } .subtle-label { font-size:9px; text-align:right; max-width:120px } .result-heading { flex-wrap:wrap } .report-toolbar { gap:8px } .report-search { max-width:none } }
+@media(max-width:1050px) { .app-shell { grid-template-columns:195px minmax(0,1fr) } .sidebar { padding:30px 17px } .workspace { padding-inline:25px } }
+@media(max-width:740px) { .app-shell { display:block } .sidebar { position:relative; height:auto; padding:15px 17px; flex-direction:row; align-items:center; justify-content:space-between; gap:10px; overflow:visible } .brand { padding:0; gap:9px } .brand-mark { width:32px; height:35px; font-size:23px; border-radius:11px 11px 11px 3px } .brand-wordmark { font-size:18px } .brand-wordmark>span { font-size:12px } .brand small,.nav-label,.side-note { display:none } .side-nav { display:flex; flex-wrap:wrap; gap:2px } .side-nav a { font-size:10px; padding:7px; gap:5px } .side-nav svg { width:14px; height:14px } .workspace { padding:0 17px 27px } .topbar { height:63px; font-size:10px } .profile { gap:7px } .profile>span:first-of-type { max-width:65px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } .theme-toggle { margin:0; width:29px; height:29px } .avatar { width:30px; height:30px } .page-heading { margin:22px 0 17px } .page-heading h1 { font-size:24px } .workspace-label { font-size:8px; padding:4px 8px } .examples { grid-template-columns:1fr; gap:9px; margin-bottom:21px } .example { display:grid; grid-template-columns:35px 1fr; column-gap:12px; padding:13px 15px; border-radius:11px } .example-icon { grid-row:span 2; margin:0 } .example strong { padding-right:10px } .example span:last-child { margin:0; padding-right:10px } .example::after { top:22px } .query-card { padding:19px; border-radius:14px } .composer-hint { max-width:140px; font-size:9px } .run-button { padding:10px 13px; font-size:11px } .bottom-note { flex-direction:column; gap:4px } .subtle-label { font-size:9px; text-align:right; max-width:120px } .result-heading { flex-wrap:wrap } .report-toolbar { gap:8px } .report-search { max-width:none } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important } }
 
-.workspace-prompts { display:flex; flex-wrap:wrap; align-items:center; gap:12px 22px; margin:0 2px 24px; font-size:11px }
-.prompt-label,.section-kicker { color:var(--muted); font-size:8px; font-weight:650; letter-spacing:.14em }
-.workspace-prompts a { color:var(--green) }.workspace-prompts a:hover { text-decoration:underline }
 .capability-directory { margin-top:34px; scroll-margin-top:20px }.capability-directory .section-heading { align-items:center }
 .capability-directory h2 { font-size:20px; letter-spacing:-.035em; margin-top:5px }.directory-description { margin:6px 0 0; font-size:11px; color:var(--muted) }
 .directory-controls { margin:20px 0 17px }.capability-search { width:100%; background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:13px 16px; font-size:12px }
@@ -149,79 +129,91 @@ tbody tr:hover { background:var(--soft) }
 .directory-pagination { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; font-size:10px; color:var(--muted) }.directory-pagination button:disabled { cursor:default; opacity:.4 }.directory-pagination>div { display:flex; align-items:center; gap:8px }.directory-empty { border:1px dashed var(--line); border-radius:12px; padding:28px; color:var(--muted); text-align:center; font-size:12px }
 .personal-panels { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-top:29px }.personal-card { padding:22px; background:var(--surface); border:1px solid var(--line); border-radius:15px; scroll-margin-top:20px }.personal-empty { padding:20px 0 7px; color:var(--muted); font-size:11px }.activity-item { padding:12px 0; border-top:1px solid var(--line) }.activity-item p { margin:0 0 3px; font-size:11px; overflow-wrap:anywhere }.activity-item span { color:var(--muted); font-size:9px }
 @media(max-width:1100px) { .capability-grid { grid-template-columns:repeat(2,minmax(0,1fr)) } }
-@media(max-width:740px) { .sidebar { flex-direction:column; align-items:stretch; gap:13px }.brand { align-self:flex-start }.side-nav { flex-wrap:nowrap; overflow:auto; padding-bottom:2px }.side-nav a { white-space:nowrap; flex:none }.capability-grid,.personal-panels { grid-template-columns:1fr }.capability-directory h2 { font-size:18px }.directory-pagination { align-items:flex-start; flex-direction:column }.workspace-prompts { gap:10px 17px }.prompt-label { width:100% }.page-heading h1 { font-size:22px; line-height:1.25 }.page-heading .workspace-label { display:none } }
+@media(max-width:740px) { .sidebar { flex-direction:column; align-items:stretch; gap:13px }.brand { align-self:flex-start }.side-nav { flex-wrap:nowrap; overflow:auto; padding-bottom:2px }.side-nav a { white-space:nowrap; flex:none }.capability-grid,.personal-panels { grid-template-columns:1fr }.capability-directory h2 { font-size:18px }.directory-pagination { align-items:flex-start; flex-direction:column }.page-heading h1 { font-size:22px; line-height:1.25 }.page-heading .workspace-label { display:none } }
 
 .usage-panel { border:1px solid var(--line); border-radius:11px; background:var(--soft); margin-top:18px }.usage-panel summary { display:flex; flex-wrap:wrap; gap:7px 16px; justify-content:space-between; padding:13px 15px; cursor:pointer; font-size:11px }.usage-panel summary>span:last-child { color:var(--green); font-size:10px }.usage-body { padding:0 15px 15px }.usage-body>p { font-size:10px; color:var(--muted); line-height:1.8 }.usage-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:14px 0 }.usage-metrics>div { padding:13px; background:var(--surface); border:1px solid var(--line); border-radius:9px; min-width:0 }.usage-metrics span { display:block; color:var(--muted); font-size:9px }.usage-metrics strong { display:block; font-size:14px; font-weight:550; margin-top:5px; overflow-wrap:anywhere }.usage-panel .table-wrap { max-height:220px }@media(max-width:740px){.usage-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.skip-link { position:absolute; z-index:5; top:10px; left:12px; padding:9px 14px; border-radius:8px; background:var(--surface); transform:translateY(-180%) }
+.skip-link:focus { transform:none }
+.access-note { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px 15px; color:var(--muted); font-size:13px }
+.sidebar { gap:24px }
+.nav-label { text-transform:uppercase; margin-bottom:6px }
+.side-nav { gap:3px }
+.side-nav a { min-height:40px; justify-content:space-between; padding:8px 11px; font-size:13px; overflow-wrap:anywhere }
+.nav-count { flex:none; font-variant-numeric:tabular-nums; min-width:23px; padding:2px 5px; text-align:center; border-radius:6px; background:#ffffff16 }
+.chat-link { margin-top:auto; display:flex; justify-content:space-between; border-top:1px solid #ffffff24; padding:14px 11px 4px; font-size:13px }
+.sidebar a:focus-visible { outline:2px solid #b6e5bd; outline-offset:2px }
+.single-panel { grid-template-columns:1fr }
+.activity-item { display:flow-root }
+.activity-reuse { float:right; margin-left:10px }
+@media(max-width:740px) {
+ .sidebar { gap:10px }
+ .nav-section .nav-label { display:block; margin:0 0 2px }
+ .side-nav a { min-height:40px }
+ .chat-link { padding:8px 0 1px }
+}
 </style>
 {% include "agentic_ai/ui_head.html" %}
 </head>
-<body><div class="app-shell">
-<aside class="sidebar"><a class="brand" href="/agentic/"><span class="brand-mark">b</span><span class="brand-wordmark">BURO<span>Insight AI</span><small>AGENTIC WORKSPACE</small></span></a>
-<div><div class="nav-label">WORKSPACE</div><nav class="side-nav" aria-label="Workspace navigation">
-<a href="{% url 'agentic_ai:query_page' %}"{% if not selected_module %} class="active" aria-current="page"{% endif %}>✧ &nbsp; My workspace</a>
-<a href="#capabilities">Capabilities</a><a href="{% url 'agentic_ai:services' %}">Services</a><a href="#my-activity">My activity</a><a href="#my-approvals">My approvals{% if pending_approval_count %} · {{ pending_approval_count }}{% endif %}</a>
-{% for module in business_modules %}<a href="{% url 'agentic_ai:query_page' %}?module={{ module.slug|urlencode }}"{% if selected_module.slug == module.slug %} class="active" aria-current="page"{% endif %}>{{ module.name }}</a>{% endfor %}
-<a href="/">Main chat</a></nav></div>
-{% if user.is_staff %}<div><div class="nav-label">ADMINISTRATION</div><nav class="side-nav" aria-label="Administration">
-{% if perms.agentic_ai.add_businessmodule and perms.agentic_ai.change_businessmodule and perms.agentic_ai.change_agenttool %}<a href="{% url 'agentic_ai:modules' %}">Business modules</a>{% endif %}
-{% if perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}">Integration settings</a><a href="{% url 'agentic_ai:reporting_settings' %}">Reporting setup</a>{% endif %}
-{% if perms.agentic_ai.manage_loan_access %}<a href="{% url 'agentic_ai:data_access' %}">Data access</a>{% elif perms.agentic_ai.manage_loan_directory %}<a href="{% url 'agentic_ai:access_directory' %}">Branch directory</a>{% endif %}
-{% if perms.agentic_ai.view_agentrunlog %}<a href="{% url 'agentic_ai:dashboard' %}">User attempts</a><a href="{% url 'agentic_ai:performance' %}">Query performance</a>{% endif %}
-</nav></div>{% endif %}
-<div class="side-note"><strong>A little insight. A big difference.</strong>Explore reports through the tools available to your role.</div></aside>
-<main class="workspace"><header class="topbar"><div>Workspace &nbsp; / &nbsp; <strong>My workspace</strong></div><div class="profile"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">◐</button><span>{{ user.get_short_name|default:user.username }}</span><span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span></div></header>
-<div class="page-heading"><div><h1>{% if selected_module %}{{ selected_module.name }}{% else %}Your organization. Connected.{% endif %}</h1><p>{% if selected_module %}{{ selected_module.description }}{% else %}One workspace for the knowledge, data, and services you need.{% endif %}</p></div><span class="workspace-label">BURO INSIGHT AI</span></div>
-<section class="hero"><div class="eyebrow">One workspace. Your organization’s intelligence.</div><h2>Big questions.<br><span>One place to start.</span></h2><p>Find information, explore business data, and get help across BURO. Your assistant connects you to the capabilities available to your role.</p><div class="hero-art" aria-hidden="true">
-<svg viewBox="0 0 360 270" fill="none" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<linearGradient id="orb-body" x1="100" y1="35" x2="250" y2="215" gradientUnits="userSpaceOnUse"><stop stop-color="#d6edb8"/><stop offset=".45" stop-color="#a2cba0"/><stop offset="1" stop-color="#548f7a"/></linearGradient>
-<linearGradient id="orb-ring" x1="70" y1="70" x2="295" y2="210" gradientUnits="userSpaceOnUse"><stop stop-color="#ecf5ce"/><stop offset=".45" stop-color="#c1e0ad"/><stop offset="1" stop-color="#7cac86"/></linearGradient>
-<linearGradient id="card-surface" x1="70" y1="70" x2="220" y2="200" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity=".98"/><stop offset="1" stop-color="#f3f7e8" stop-opacity=".92"/></linearGradient>
-<linearGradient id="mint-cube" x1="250" y1="55" x2="292" y2="100" gradientUnits="userSpaceOnUse"><stop stop-color="#baf2dc"/><stop offset="1" stop-color="#6fc2a9"/></linearGradient>
-<filter id="material-shadow" x="-60%" y="-60%" width="220%" height="240%"><feDropShadow dx="0" dy="13" stdDeviation="12" flood-color="#091f1e" flood-opacity=".2"/></filter>
-<filter id="soft-floor" x="-50%" y="-100%" width="200%" height="300%"><feGaussianBlur stdDeviation="9"/></filter>
-</defs>
-<ellipse cx="190" cy="231" rx="104" ry="12" fill="#092a25" opacity=".15" filter="url(#soft-floor)"/>
-<g class="float-main">
-<circle cx="197" cy="124" r="69" fill="url(#orb-body)" filter="url(#material-shadow)"/>
-<ellipse cx="197" cy="125" rx="113" ry="35" transform="rotate(-37 197 125)" stroke="url(#orb-ring)" stroke-width="15"/>
-<path d="M104 176C128 189 198 164 252 122" stroke="#e9f3d4" stroke-opacity=".7" stroke-width="3" stroke-linecap="round"/>
-<circle cx="177" cy="94" r="21" fill="#eff6d4" opacity=".13"/>
-</g>
-<g class="float-small" filter="url(#material-shadow)">
-<g transform="translate(48 126) rotate(-9)"><rect width="133" height="88" rx="14" fill="url(#card-surface)" stroke="white" stroke-opacity=".85"/>
-<rect x="13" y="13" width="24" height="24" rx="8" fill="#e2efdb"/><path d="M20 29V23M25 29V19M30 29V25" stroke="#7fa180" stroke-width="2" stroke-linecap="round"/>
-<rect x="45" y="17" width="65" height="5" rx="2.5" fill="#8b9f83" opacity=".6"/><rect x="45" y="28" width="43" height="4" rx="2" fill="#d7e1cb"/>
-<rect x="13" y="53" width="73" height="4" rx="2" fill="#ccdabc"/><rect x="13" y="64" width="51" height="4" rx="2" fill="#dfe7d4"/>
-<circle cx="108" cy="60" r="12" fill="#d9f0e8"/><path d="m103 60 3 3 6-7" stroke="#6fab94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
-</g>
-<g class="float-small" transform="translate(255 36)"><path d="m0 14 24-13 24 13v28L24 56 0 42Z" fill="url(#mint-cube)" filter="url(#material-shadow)"/><path d="m0 14 24 14 24-14M24 28v28" stroke="#d8fff0" stroke-opacity=".6"/><path d="m11 20 24-13" stroke="#d8fff0" stroke-opacity=".4"/></g>
-<g transform="translate(265 185) rotate(13)" filter="url(#material-shadow)"><rect width="52" height="44" rx="13" fill="#fff" fill-opacity=".9" stroke="#fff"/><path d="m16 25 7-7 5 5 9-10M31 13h6v6" stroke="#94ae74" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></g>
-<circle cx="77" cy="65" r="5" fill="#a6c49a"/><circle cx="322" cy="142" r="4" fill="#bad0a0"/><path d="M97 39v12M91 45h12" stroke="#b3ce9e" stroke-width="2" stroke-linecap="round"/>
-</svg></div><span class="hero-tag" aria-hidden="true">Knowledge · Data · Services</span></section>
-<section class="workspace-prompts" aria-label="Get started"><span class="prompt-label">START WITH WHAT YOU NEED</span><a href="#agent-query-form">Ask a question <span aria-hidden="true">→</span></a><a href="#capabilities">Explore capabilities <span aria-hidden="true">→</span></a><a href="#my-activity">Pick up where you left off <span aria-hidden="true">→</span></a></section>
+<body><a class="skip-link" href="#workspace-main">Skip to workspace</a><div class="app-shell">
+{% admin_navigation as admin_links %}
+<aside class="sidebar">
+<a class="brand" href="{% url 'agentic_ai:query_page' %}"><span class="brand-mark" aria-hidden="true">b</span><span class="brand-wordmark">BURO<span>Insight AI</span></span></a>
+<div class="nav-section">
+<div class="nav-label">Workspace</div>
+<nav class="side-nav" aria-label="Workspace">
+<a href="{% url 'agentic_ai:query_page' %}"{% if not selected_module %} class="active" aria-current="page"{% endif %}>My workspace</a>
+{% if capability_count %}<a href="#capabilities">Capabilities <span class="nav-count">{{ capability_count }}</span></a>{% endif %}
+<a href="#my-activity">My activity</a>
+{% if show_approvals %}<a href="#my-approvals">My approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>{% endif %}
+{% if whatsapp.ready or reporting.configured or reporting.can_publish or admin_links %}<a href="{% url 'agentic_ai:services' %}">Services</a>{% endif %}
+</nav>
+</div>
+{% if business_modules %}
+<div class="nav-section">
+<div class="nav-label">My modules</div>
+<nav class="side-nav" aria-label="My modules">
+{% for module in business_modules %}<a href="{% url 'agentic_ai:query_page' %}?module={{ module.slug|urlencode }}"{% if selected_module.slug == module.slug %} class="active" aria-current="page"{% endif %}>{{ module.name }}<span class="nav-count">{{ module.count }}</span></a>{% endfor %}
+</nav>
+</div>
+{% endif %}
+{% if admin_links %}
+<div class="nav-section">
+<div class="nav-label">Administration</div>
+<nav class="side-nav" aria-label="Administration">{% include "agentic_ai/admin_nav_links.html" %}</nav>
+</div>
+{% endif %}
+<a class="chat-link" href="/">Main chat <span aria-hidden="true">↗</span></a>
+</aside>
+<main class="workspace" id="workspace-main" tabindex="-1"><header class="topbar"><div>Workspace &nbsp; / &nbsp; <strong>{{ selected_module.name|default:"My workspace" }}</strong></div><div class="profile"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">◐</button><span>{{ user.get_short_name|default:user.username }}</span><span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span></div></header>
+<div class="page-heading">
+<div><h1>{{ selected_module.name|default:"My workspace" }}</h1>
+<p>{{ selected_module.description|default:"Ask a question in Bangla or English and explore the tools available to your account." }}</p></div>
+</div>
+{% if not capability_count %}<p class="access-note">No capabilities are assigned in this workspace. Contact your administrator if you need access to a business tool.</p>{% endif %}
+{% include 'agentic_ai/query_form.html' %}
 {% if selected_module.questions %}<section class="card" aria-label="Module starter questions"><h2>Start with a question</h2><p>Choose an example, edit the details, then ask.</p>{% for question in selected_module.questions %}<p><button type="button" class="copy-button" data-module-question>{{ question }}</button></p>{% endfor %}</section>{% endif %}
 {% if own_loan_access %}<section class="personal-card" aria-label="My loan data access"><h2>My loan data access</h2><p>{{ own_loan_access.label }}</p>{% if own_loan_access.count %}<p>{{ own_loan_access.count }} active branch{{ own_loan_access.count|pluralize }} · {{ own_loan_access.codes }}{% if own_loan_access.more %}…{% endif %}</p>{% endif %}</section>
 {% endif %}
-{% include 'agentic_ai/query_form.html' %}
 {% include 'agentic_ai/production_reports.html' %}
-<section class="capability-directory" id="capabilities" aria-labelledby="capabilities-title">
-<div class="section-heading"><div><span class="section-kicker">DISCOVER YOUR WORKSPACE</span><h2 id="capabilities-title">The right capability. Within reach.</h2><p class="directory-description">Explore registered services available to your role. Choose one to prepare a question.</p></div><span class="workspace-label">{{ capability_count }} registered</span></div>
+{% if capability_count %}<section class="capability-directory" id="capabilities" aria-labelledby="capabilities-title">
+<div class="section-heading"><div><h2 id="capabilities-title">Available capabilities</h2><p class="directory-description">Choose a capability to start a question.</p></div></div>
 <div class="directory-controls"><label class="sr-only" for="capability-search">Search capabilities</label><input id="capability-search" class="capability-search" type="search" placeholder="Search capabilities, services, or topics…" autocomplete="off"><div class="category-list" id="category-list" role="group" aria-label="Capability categories"></div></div>
 <div class="capability-grid" id="capability-grid"></div><p class="directory-empty" id="directory-empty" hidden>No matching capabilities. Try another search or category.</p>
 <div class="directory-pagination"><span id="catalog-count" role="status" aria-live="polite"></span><div><button class="copy-button" type="button" id="catalog-prev">Previous</button> <span id="catalog-page"></span> <button class="copy-button" type="button" id="catalog-next">Next</button></div></div>
 <noscript><p>Enable JavaScript to browse and search your capability directory.</p>{% for tool in capabilities %}<p>{{ tool.title }} — {{ tool.category }}</p>{% empty %}<p>No capabilities are registered for your role yet. Ask an administrator to configure access.</p>{% endfor %}</noscript>
-</section>
-<div class="personal-panels">
-<section class="personal-card" id="my-activity" aria-labelledby="activity-title"><div class="section-heading"><h2 id="activity-title">My recent activity</h2><span class="subtle-label">Your last 5 requests</span></div>{% for activity in recent_activity %}<div class="activity-item"><p>{{ activity.user_query|truncatechars:125 }}</p><span>{{ activity.status|title }} · {{ activity.created_at|date:"M j, H:i" }}</span>{% if activity.usage_summary.model_calls %}<span class="activity-usage"> · {{ activity.usage_summary.total_tokens }} reported tokens{% if not activity.usage_summary.complete %} (incomplete){% endif %}{% if activity.usage_summary.cost_status == 'estimated' %} · Estimated {{ activity.usage_summary.estimated_cost }} {{ activity.usage_summary.currency }}{% elif activity.usage_summary.cost_status == 'partial_estimate' %} · Partial estimate {{ activity.usage_summary.estimated_cost }} {{ activity.usage_summary.currency }}{% else %} · Cost unconfigured{% endif %}</span>{% endif %}</div>{% empty %}<div class="personal-empty">Your next question is a fresh start.<br>Your requests will appear here after you refresh.</div>{% endfor %}</section>
-<section class="personal-card" id="my-approvals" aria-labelledby="approvals-title"><div class="section-heading"><h2 id="approvals-title">My pending approvals</h2><span class="workspace-label">{{ pending_approval_count }}</span></div>{% for approval in pending_approvals %}<div class="activity-item"><p>{{ approval.tool_name }}</p><span>Awaiting review · {{ approval.created_at|date:"M j, H:i" }}</span></div>{% empty %}<div class="personal-empty">Nothing waiting for review.<br>Requests that need approval will appear here.</div>{% endfor %}</section>
+</section>{% endif %}
+<div class="personal-panels{% if not show_approvals %} single-panel{% endif %}">
+<section class="personal-card" id="my-activity" aria-labelledby="activity-title"><div class="section-heading"><h2 id="activity-title">My recent activity</h2><span class="subtle-label">Your last 5 requests</span></div>{% for activity in recent_activity %}<div class="activity-item"><p>{{ activity.user_query|truncatechars:125 }}</p><button class="copy-button activity-reuse" type="button" hidden data-previous-question="{{ activity.user_query }}">Reuse question</button><span>{{ activity.status|title }} · {{ activity.created_at|date:"M j, H:i" }}</span>{% if activity.usage_summary.model_calls %}<span class="activity-usage"> · {{ activity.usage_summary.total_tokens }} reported tokens{% if not activity.usage_summary.complete %} (incomplete){% endif %}{% if activity.usage_summary.cost_status == 'estimated' %} · Estimated {{ activity.usage_summary.estimated_cost }} {{ activity.usage_summary.currency }}{% elif activity.usage_summary.cost_status == 'partial_estimate' %} · Partial estimate {{ activity.usage_summary.estimated_cost }} {{ activity.usage_summary.currency }}{% else %} · Cost unconfigured{% endif %}</span>{% endif %}</div>{% empty %}<div class="personal-empty">Your requests appear here when you return to the workspace.</div>{% endfor %}</section>
+{% if show_approvals %}<section class="personal-card" id="my-approvals" aria-labelledby="approvals-title"><div class="section-heading"><h2 id="approvals-title">My pending approvals</h2><span class="workspace-label">{{ pending_approval_count }}</span></div>{% for approval in pending_approvals %}<div class="activity-item"><p>{{ approval.tool_name }}</p><span>Awaiting review · {{ approval.created_at|date:"M j, H:i" }}</span></div>{% empty %}<div class="personal-empty">Nothing waiting for review.<br>Requests that need approval will appear here.</div>{% endfor %}</section>{% endif %}
 </div>
 <footer class="bottom-note"><span><span class="dot"></span>Capabilities follow your role and approval requirements.</span><span>BURO Insight AI · Agentic Intelligence Workspace</span></footer>
 </main></div>
 {{ capabilities|json_script:"workspace-capabilities" }}
 <script>
 (() => {
-const decoded=JSON.parse(document.getElementById('workspace-capabilities').textContent);
+const source=document.getElementById('workspace-capabilities');
+if(!document.getElementById('capability-grid'))return;
+const decoded=JSON.parse(source.textContent);
 const tools=Array.isArray(decoded)?decoded:[];
 const grid=document.getElementById('capability-grid'),search=document.getElementById('capability-search');
 const categories=document.getElementById('category-list'),empty=document.getElementById('directory-empty');
@@ -259,6 +251,17 @@ function render(){
 search.addEventListener('input',()=>{page=0;render();});previous.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});render();
 })();
 document.querySelectorAll('[data-module-question]').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById('agent-message');if(input.disabled)return;input.value=button.textContent;input.focus();input.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});}));
+document.querySelectorAll('[data-previous-question]').forEach(button=>{
+ const field=document.getElementById('agent-message');
+ button.hidden=false;
+ button.addEventListener('click',()=>{
+  if(field.disabled)return;
+  if(field.value.trim() && field.value!==button.dataset.previousQuestion &&
+     !window.confirm('Replace the question you are editing?'))return;
+  field.value=button.dataset.previousQuestion;
+  field.focus();
+ });
+});
 const themeButton=document.getElementById('theme-toggle');
 function syncThemeLabel(){const dark=document.documentElement.dataset.theme==='dark';themeButton.setAttribute('aria-label',dark?'Switch to light theme':'Switch to dark theme');themeButton.title=themeButton.getAttribute('aria-label');themeButton.setAttribute('aria-pressed',String(dark));}
 syncThemeLabel();
