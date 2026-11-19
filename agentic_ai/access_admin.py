@@ -180,8 +180,16 @@ def access_manager(request):
         if query:
             users = users.filter(username__icontains=query)
         page = Paginator(users, 25).get_page(request.GET.get('page'))
+        service_target, service_grants = None, []
+        if request.user.is_superuser and user_id:
+            from .report_service_access import service_grant_rows
+            service_target = get_user_model().objects.filter(pk=user_id, is_superuser=False).first()
+            if service_target:
+                service_grants = service_grant_rows(service_target)
         response = render(request, 'agentic_ai/data_access.html', {
             'form': form, 'users_page': page, 'query': query,
+            'service_target': service_target, 'service_grants': service_grants,
+            'services_saved': request.method == 'GET' and request.GET.get('services_saved') == '1',
             'saved': request.method == 'GET' and request.GET.get('saved') == '1',
             'events': LoanAccessEvent.objects.select_related('actor', 'subject')[:15],
             'zone_count': LoanZone.objects.filter(is_active=True).count(),
