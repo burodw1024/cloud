@@ -85,3 +85,45 @@ class ScheduledReportTests(TestCase):
         dispatch.assert_awaited_once()
         publish.assert_called_once()
         self.assertTrue(all(call.kwargs['scheduled'] for call in query.call_args_list))
+
+    def test_restart_marks_dispatched_delivery_uncertain_and_never_replays_it(self):
+        job = self.pending('gmail', 'approved@example.org')
+        self.assertEqual(schedules.claim_due().pk, job.pk)
+        self.assertTrue(schedules.begin_delivery(job))
+        self.assertFalse(schedules.begin_delivery(job))
+        schedules.reconcile_expired(timezone.now() + schedules.LEASE + timedelta(seconds=1))
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'failed')
+        self.assertTrue(job.outcome_uncertain)
+        with patch.object(schedules.whatsapp, 'dispatch', new_callable=AsyncMock) as send:
+            self.assertFalse(schedules.process_due())
+            send.assert_not_called()
+        self.assertEqual(schedules.health_counts()['uncertain'], 1)
+
+    def test_expired_claim_cannot_start_delivery(self):
+        job = self.pending()
+        schedules.claim_due()
+        ScheduledReport.objects.filter(pk=job.pk).update(
+            lease_expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertFalse(schedules.begin_delivery(job))
+        schedules.reconcile_expired(timezone.now())
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'failed')
+        self.assertFalse(job.outcome_uncertain)
+
+    def test_operations_review_requires_superuser_and_keeps_delivery_status(self):
+        job = self.pending('gmail', 'approved@example.org')
+        ScheduledReport.objects.filter(pk=job.pk).update(status='failed', outcome_uncertain=True)
+        url = reverse('agentic_ai:schedule_operations')
+        self.assertEqual(self.client.get(url).status_code, 403)
+        root = User.objects.create_superuser('scheduler-root')
+        self.client.force_login(root)
+        page = self.client.get(url)
+        self.assertContains(page, 'Verify delivery')
+        self.assertNotContains(page, job.recipient)
+        self.assertEqual(self.client.post(url, {'schedule_id': job.pk,
+            'reason': 'Confirmed receipt in the provider activity log'}).status_code, 302)
+        job.refresh_from_db()
+        self.assertIsNotNone(job.reviewed_at)
+        self.assertEqual(job.status, 'failed')
+        self.assertEqual(schedules.health_counts()['uncertain'], 0)

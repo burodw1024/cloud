@@ -2,18 +2,24 @@
 import asyncio
 import json
 import logging
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from asgiref.sync import async_to_sync
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.cache import cache
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.db.models import BooleanField, Case, Q, Value, When
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 
 from . import dashboard_studio, whatsapp
+from .access_admin import record_event
 from .api import _can_replay_result, record_report_result
 from .mcp_gateway import MAX_QUERY_CHARS, gateway_enabled, load_gateway_config, run_mcp_query
 from .models import ScheduledReport
@@ -23,6 +29,9 @@ from .superset_publisher import PublishError
 
 logger = logging.getLogger(__name__)
 DHAKA = ZoneInfo('Asia/Dhaka')
+LEASE = timedelta(seconds=90)
+OVERDUE = timedelta(minutes=5)
+HEARTBEAT_KEY = 'agentic:scheduled-reports:worker'
 DESTINATIONS = {'history': 'My report runs', 'superset': 'Publish a private Superset dashboard',
                 'powerbi': 'Prepare a Power BI workbook', 'whatsapp': 'WhatsApp', **CHANNELS}
 
@@ -94,20 +103,115 @@ def schedule_page(request):
     return response
 
 
-def process_due(stop_requested=lambda: False):
+def reconcile_expired(now):
+    """An abandoned dispatch is reviewed, never automatically dispatched again."""
+    stale = ScheduledReport.objects.filter(status='running').filter(
+        Q(lease_expires_at__lte=now) |
+        Q(lease_expires_at__isnull=True, started_at__lte=now - timedelta(minutes=45)) |
+        Q(lease_expires_at__isnull=True, started_at__isnull=True, run_at__lte=now - timedelta(minutes=45))
+    )
+    # Existing schedules from before phase tracking may already have dispatched.
+    possibly_sent = Q(delivery_started_at__isnull=False) | Q(lease_expires_at__isnull=True)
+    uncertain = stale.filter(possibly_sent).update(
+        status='failed', outcome_uncertain=True,
+        message='Worker interrupted after delivery may have started. Check the destination before scheduling again.')
+    interrupted = stale.exclude(possibly_sent).update(
+        status='failed', message='Worker interrupted before delivery started. Review the report run or schedule it again.')
+    if uncertain or interrupted:
+        logger.warning('Scheduled reports reconciled: %s uncertain, %s interrupted before delivery', uncertain, interrupted)
+
+
+def claim_due(exclude_users=()):
     now = timezone.now()
-    job = ScheduledReport.objects.filter(status='pending', run_at__lte=now).order_by('run_at', 'pk').first()
-    if not job or stop_requested():
-        return False
-    if not ScheduledReport.objects.filter(pk=job.pk, status='pending').update(status='running', started_at=now):
-        return False
+    job = (ScheduledReport.objects.filter(status='pending', run_at__lte=now)
+           .exclude(user_id__in=exclude_users).order_by('run_at', 'pk').first())
+    if job and ScheduledReport.objects.filter(pk=job.pk, status='pending').update(
+            status='running', started_at=now, lease_expires_at=now + LEASE):
+        job.started_at = now
+        return job
+    return None
+
+
+def renew_claims(job_ids, now):
+    ScheduledReport.objects.filter(pk__in=job_ids, status='running',
+                                   lease_expires_at__gt=now).update(lease_expires_at=now + LEASE)
+
+
+def begin_delivery(job):
+    now = timezone.now()
+    return bool(ScheduledReport.objects.filter(
+        pk=job.pk, status='running', lease_expires_at__gt=now, delivery_started_at__isnull=True,
+    ).update(delivery_started_at=now))
+
+
+def process_claimed(job, stop_requested):
     try:
         status, message = execute(job, stop_requested)
     except Exception as exc:
         logger.warning('Scheduled report %s could not complete (%s)', job.pk, type(exc).__name__)
         status, message = 'failed', 'Could not confirm completion. Check report history and delivery activity before scheduling again.'
-    ScheduledReport.objects.filter(pk=job.pk).update(status=status, message=message[:400])
+    # Commit the terminal state and its dispatch warning together.
+    ScheduledReport.objects.filter(pk=job.pk, status='running').update(
+        status=status, message=message[:400],
+        outcome_uncertain=Case(When(delivery_started_at__isnull=False, then=Value(status == 'failed')),
+                               default=Value(False), output_field=BooleanField()),
+    )
+
+
+def process_due(stop_requested=lambda: False):
+    if stop_requested():
+        return False
+    job = claim_due()
+    if not job:
+        return False
+    process_claimed(job, stop_requested)
     return True
+
+
+def health_counts(now=None):
+    now = now or timezone.now()
+    queue = ScheduledReport.objects
+    return {
+        'worker_alive': int(cache.get(HEARTBEAT_KEY) is not None),
+        'overdue': queue.filter(status='pending', run_at__lt=now - OVERDUE).count(),
+        'running': queue.filter(status='running').count(),
+        'needs_review': queue.filter(status='failed', reviewed_at__isnull=True).count(),
+        'uncertain': queue.filter(status='failed', outcome_uncertain=True, reviewed_at__isnull=True).count(),
+    }
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+@csrf_protect
+def schedule_operations(request):
+    if not request.user.is_active or not request.user.is_superuser:
+        raise PermissionDenied
+    error = ''
+    if request.method == 'POST':
+        identifier = request.POST.get('schedule_id', '')
+        reason = request.POST.get('reason', '').strip()
+        if not identifier.isascii() or not identifier.isdecimal() or len(identifier) > 18 or not 8 <= len(reason) <= 500:
+            error = 'Enter a review note of 8–500 characters.'
+        else:
+            with transaction.atomic():
+                job = ScheduledReport.objects.select_related('user').filter(pk=identifier, status='failed').first()
+                if job and ScheduledReport.objects.filter(
+                        pk=job.pk, status='failed', reviewed_at__isnull=True).update(reviewed_at=timezone.now()):
+                    record_event(request.user, job.user, 'scheduled_report_reviewed', reason,
+                                 {'schedule_id': job.pk, 'reviewed': False},
+                                 {'schedule_id': job.pk, 'reviewed': True})
+                    return redirect('agentic_ai:schedule_operations')
+            error = 'The schedule is no longer awaiting review.'
+    queue = ScheduledReport.objects.select_related('user').order_by('run_at', 'pk')
+    waiting = Q(status='pending', run_at__lt=timezone.now() - OVERDUE)
+    running = Q(status='running')
+    review = Q(status='failed', reviewed_at__isnull=True)
+    with timezone.override(DHAKA):
+        response = render(request, 'agentic_ai/scheduled_report_operations.html', {
+            'health': health_counts(), 'jobs': queue.filter(waiting | running | review)[:50], 'error': error,
+        })
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 def execute(job, stop_requested):
@@ -138,6 +242,8 @@ def execute(job, stop_requested):
     if destination == 'superset':
         if not dashboard_studio.permitted(user):
             return 'failed', 'Superset publishing permission changed. The report was saved.'
+        if stop_requested() or not begin_delivery(job):
+            return 'failed', 'The worker stopped before publishing. The report was saved.'
         reply = dashboard_studio.quick_publish(user, result['summary_token'])
         if json.loads(reply.content).get('ok'):
             return 'ready', 'Private dashboard published. Open it from My report runs.'
@@ -148,6 +254,8 @@ def execute(job, stop_requested):
             return 'failed', 'Delivery access or the approved recipient changed. The report was saved.'
         config = load_gateway_config()
         text = whatsapp.export_text(result, 'summary')
+        if stop_requested() or not begin_delivery(job):
+            return 'failed', 'The worker stopped before sending. The report was saved.'
         accepted = async_to_sync(asyncio.wait_for)(
             whatsapp.dispatch(config, settings['tool'], job.recipient, text, user, result, channel=destination),
             min(30, config['request_timeout']))

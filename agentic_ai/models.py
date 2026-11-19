@@ -332,6 +332,10 @@ class ScheduledReport(models.Model):
     recipient = models.CharField(max_length=254, blank=True)
     status = models.CharField(max_length=12, choices=STATUS, default='pending', db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
+    lease_expires_at = models.DateTimeField(null=True, blank=True)
+    delivery_started_at = models.DateTimeField(null=True, blank=True)
+    outcome_uncertain = models.BooleanField(default=False)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     report_run = models.ForeignKey(ReportRun, null=True, blank=True, on_delete=models.SET_NULL)
     message = models.CharField(max_length=400, blank=True)
 

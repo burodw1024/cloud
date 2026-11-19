@@ -1,0 +1,21 @@
+groups:
+  - name: agentic-scheduler
+    rules:
+      - alert: AgenticSchedulerHeartbeatMissing
+        expr: agentic_scheduler_worker_alive == 0 or agentic_scheduler_metrics_available == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: Agentic scheduler heartbeat or state is unavailable
+      - alert: AgenticSchedulerQueueOverdue
+        expr: agentic_scheduler_overdue > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: Agentic reports have been waiting for more than five minutes
+      - alert: AgenticSchedulerDeliveryNeedsReview
+        expr: agentic_scheduler_uncertain > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: Check provider activity before retrying any uncertain report delivery
