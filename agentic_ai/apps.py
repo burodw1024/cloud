@@ -8,3 +8,7 @@ class AgenticAiConfig(AppConfig):
 
     def ready(self):
         from . import checks  # noqa: F401
+        from django.apps import apps
+        if apps.is_installed('django_prometheus'):
+            from .scheduler_metrics import register
+            register()

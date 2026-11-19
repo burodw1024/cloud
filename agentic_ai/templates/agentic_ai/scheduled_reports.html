@@ -7,6 +7,7 @@
 </head><body>{% include 'agentic_ai/page_nav.html' %}
 <main class="studio-shell">
 <h1>Scheduled requests</h1>
+{% if user.is_superuser %}<p><a href="{% url 'agentic_ai:schedule_operations' %}">Scheduler operations</a></p>{% endif %}
 <p>Run a loan or savings report once at a future time. Use an explicit branch and report dates.</p>
 <div class="studio-grid">
 <section class="studio-card">

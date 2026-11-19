@@ -1,0 +1,27 @@
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scheduler operations · BURO Insight AI</title>
+{% include 'agentic_ai/ui_head.html' %}
+<link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}">
+</head><body>{% include 'agentic_ai/page_nav.html' %}
+<main class="studio-shell">
+<a href="{% url 'agentic_ai:schedule_page' %}">← Scheduled requests</a>
+<h1>Scheduler operations</h1>
+<p>Worker heartbeat {% if health.worker_alive %}current{% else %}missing{% endif %} · {{ health.overdue }} overdue · {{ health.running }} running · {{ health.needs_review }} need review · {{ health.uncertain }} with uncertain delivery</p>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<div class="studio-card studio-table-wrap">
+<table><thead><tr><th scope="col">Scheduled time (BDT)</th><th scope="col">Owner and destination</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead>
+<tbody>{% for job in jobs %}
+<tr><td>{{ job.run_at|date:"Y-m-d H:i" }}</td><td>{{ job.user.username }}<br>{{ job.destination|title }}</td>
+<td>{{ job.get_status_display }}{% if job.outcome_uncertain %} · Verify delivery{% endif %}<small>{{ job.message }}</small></td>
+<td>{% if job.status == 'failed' %}<form method="post">
+{% csrf_token %}<input type="hidden" name="schedule_id" value="{{ job.pk }}">
+<label for="review-{{ job.pk }}">Review note</label>
+<input id="review-{{ job.pk }}" name="reason" minlength="8" maxlength="500" required>
+<button type="submit">Mark reviewed</button>
+</form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4">No overdue, running, or unreviewed requests.</td></tr>{% endfor %}</tbody></table>
+</div>
+<p>Check the selected destination before marking an uncertain delivery reviewed. A review records what you found.</p>
+</main></body></html>
