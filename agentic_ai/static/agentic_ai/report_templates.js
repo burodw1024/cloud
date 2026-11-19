@@ -9,6 +9,20 @@
     const dashboardLink=$('open-superset-result');
     const reviewLink=$('review-superset-export');
     const publishStatus=$('superset-result-status');
+    const readyPrompt=$('report-ready-prompt');
+    const promptPreview=$('prompt-preview-report');
+    let promptedToken='';
+    function closePrompt() {
+        readyPrompt?.hidePopover?.();
+        if(readyPrompt)readyPrompt.hidden=true;
+    }
+    $('dismiss-report-ready')?.addEventListener('click', closePrompt);
+    $('prompt-publish-report')?.addEventListener('click', () => {
+        closePrompt();
+        publishButton.click();
+        publishStatus.focus();
+    });
+    promptPreview?.addEventListener('click', closePrompt);
     let publishToken='', resultVersion=0;
     const publishing=new Set();
     function configurePublishing(token) {
@@ -21,6 +35,13 @@
         dashboardLink.removeAttribute('href');
         if(token) guidedLink.href=guidedLink.dataset.studioUrl+'?report='+encodeURIComponent(token);
         else guidedLink.removeAttribute('href');
+        closePrompt();
+        if(token && token!==promptedToken && !publishing.has(token)) {
+            promptedToken=token;
+            promptPreview.href=guidedLink.href;
+            readyPrompt.hidden=false;
+            readyPrompt.showPopover?.();
+        }
         publishStatus.textContent=token
             ? 'Publish with the default template, or customize your dashboard first.'
             : 'This result has no exportable snapshot.';
@@ -28,6 +49,7 @@
     publishButton?.addEventListener('click', async () => {
         const token=publishToken, version=resultVersion;
         if(!token||publishing.has(token))return;
+        closePrompt();
         publishing.add(token);
         publishButton.disabled=true;
         reviewLink.hidden=true;
@@ -49,7 +71,9 @@
             if(!['https:','http:'].includes(url.protocol))throw new Error('The dashboard returned an invalid URL.');
             dashboardLink.href=url.href;
             dashboardLink.hidden=false;
+            const focused=document.activeElement===publishButton||document.activeElement===publishStatus;
             publishButton.hidden=true;
+            if(focused)dashboardLink.focus();
             publishStatus.textContent=result.message+(result.fallback?' The default template did not fit this result, so comparison was used.':'');
         } catch(error) {
             if(version===resultVersion)publishStatus.textContent=error.message||'Superset publishing could not complete.';

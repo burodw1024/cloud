@@ -1,4 +1,4 @@
-{% load static %}<link rel="stylesheet" href="{% static 'agentic_ai/report_templates.css' %}">
+{% load static %}<link rel="stylesheet" href="{% static 'agentic_ai/report_templates.css' %}?v=3">
 <section id="report-templates" class="report-templates" data-default="{{ reporting.default_template|default:'comparison' }}" hidden aria-labelledby="report-layout-heading">
 <header><div><span class="template-kicker">YOUR RESULT / YOUR LAYOUT</span><h4 id="report-layout-heading">Choose a report template</h4></div><button type="button" id="print-current-report" class="copy-button">Print report</button></header>
 {% if reporting.can_publish %}
@@ -9,7 +9,16 @@
 <a id="open-superset-result" target="_blank" rel="noopener noreferrer" hidden>Open dashboard in Superset ↗</a>
 <a id="review-superset-export" href="{% url 'agentic_ai:analytics' %}" hidden>Review dashboard exports</a>
 </div>
-<p id="superset-result-status" class="result-details" role="status"></p>
+<p id="superset-result-status" class="result-details" role="status" tabindex="-1"></p>
+<aside id="report-ready-prompt" class="report-ready-prompt" popover="auto" hidden aria-labelledby="report-ready-heading">
+  <button type="button" id="dismiss-report-ready" class="copy-button" aria-label="Dismiss report prompt">×</button>
+  <h5 id="report-ready-heading">Report ready</h5>
+  <p>Publish a private Superset dashboard with the default template, or customize it first.</p>
+  <div class="report-publishing-actions">
+    <button type="button" id="prompt-publish-report" class="run-button">Publish private report</button>
+    <a id="prompt-preview-report">Choose a template &amp; preview</a>
+  </div>
+</aside>
 </section>
 {% endif %}
 <div class="report-template-choices" role="group" aria-label="Report template">
@@ -20,4 +29,4 @@
 <div id="report-template-heading" hidden><h4>Authorized report snapshot</h4><div id="report-template-facts" class="report-template-facts"></div><p id="report-template-scope"></p></div>
 <div id="template-comparison" hidden><label for="template-measure">Compare field</label><select id="template-measure"></select><div id="template-bars"></div><p class="result-details">First 20 displayed rows, in their returned order. Values are not summed or inferred.</p></div>
 </section>
-<script src="{% static 'agentic_ai/report_templates.js' %}?v=2"></script>
+<script src="{% static 'agentic_ai/report_templates.js' %}?v=3"></script>
