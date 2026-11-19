@@ -1,9 +1,63 @@
-/* Presentation of already returned values only: no tool, SQL, or publication calls. */
+/* Display controls and explicit Superset publication for the current result. */
 (() => {
     const root=document.getElementById('report-templates');
     if(!root)return;
     const $=id=>document.getElementById(id);
     let report=null,body=null,layout=root.dataset.default||'comparison';
+    const publishButton=$('quick-superset-publish');
+    const guidedLink=$('generate-superset-report');
+    const dashboardLink=$('open-superset-result');
+    const reviewLink=$('review-superset-export');
+    const publishStatus=$('superset-result-status');
+    let publishToken='', resultVersion=0;
+    const publishing=new Set();
+    function configurePublishing(token) {
+        if(!publishButton)return;
+        publishToken=token;
+        resultVersion++;
+        publishButton.hidden=guidedLink.hidden=!token;
+        publishButton.disabled=publishing.has(token);
+        dashboardLink.hidden=reviewLink.hidden=true;
+        dashboardLink.removeAttribute('href');
+        if(token) guidedLink.href=guidedLink.dataset.studioUrl+'?report='+encodeURIComponent(token);
+        else guidedLink.removeAttribute('href');
+        publishStatus.textContent=token
+            ? 'Publish with the default template, or customize your dashboard first.'
+            : 'This result has no exportable snapshot.';
+    }
+    publishButton?.addEventListener('click', async () => {
+        const token=publishToken, version=resultVersion;
+        if(!token||publishing.has(token))return;
+        publishing.add(token);
+        publishButton.disabled=true;
+        reviewLink.hidden=true;
+        publishStatus.textContent='Building and publishing your private dashboard…';
+        try {
+            const csrf=document.querySelector('#agent-query-form [name="csrfmiddlewaretoken"]').value;
+            const response=await fetch(publishButton.dataset.endpoint, {
+                method:'POST', credentials:'same-origin',
+                headers:{'Content-Type':'application/json','X-CSRFToken':csrf},
+                body:JSON.stringify({action:'quick_publish', report_token:token}),
+            });
+            const result=await response.json();
+            if(version!==resultVersion)return;
+            if(!response.ok||!result.ok){
+                reviewLink.hidden=!result.export_id;
+                throw new Error(result.error||'Superset publishing could not complete.');
+            }
+            const url=new URL(result.url);
+            if(!['https:','http:'].includes(url.protocol))throw new Error('The dashboard returned an invalid URL.');
+            dashboardLink.href=url.href;
+            dashboardLink.hidden=false;
+            publishButton.hidden=true;
+            publishStatus.textContent=result.message+(result.fallback?' The default template did not fit this result, so comparison was used.':'');
+        } catch(error) {
+            if(version===resultVersion)publishStatus.textContent=error.message||'Superset publishing could not complete.';
+        } finally {
+            publishing.delete(token);
+            if(token===publishToken)publishButton.disabled=false;
+        }
+    });
     const numeric=value=>{
         if(typeof value!=='number' && (typeof value!=='string'||! /^-?\d+(?:\.\d+)?$/.test(value)))return null;
         const n=Number(value);return Number.isFinite(n)?n:null;
@@ -34,18 +88,11 @@
     $('template-measure').addEventListener('change',chart);
     $('print-current-report').addEventListener('click',()=>window.print());
     window.BuroReportTemplates={
-        reset(){report=null;body=null;root.hidden=true;$('template-bars').replaceChildren();const link=$('generate-superset-report');if(link){link.hidden=true;link.removeAttribute('href');$('superset-result-status').textContent='';}},
+        reset(){report=null;body=null;root.hidden=true;$('template-bars').replaceChildren();configurePublishing('');},
         show(value,response){
             if(!value||!Array.isArray(value.columns)||!Array.isArray(value.rows))return;
             report=value;body=response;root.hidden=false;
-            const link=$('generate-superset-report');
-            if(link){
-                const token=typeof body.summary_token==='string'?body.summary_token:'';
-                link.hidden=!token;
-                if(token)link.href=link.dataset.studioUrl+'?report='+encodeURIComponent(token);
-                else link.removeAttribute('href');
-                $('superset-result-status').textContent=token?'Preview this report, choose a template, then explicitly create a private Superset snapshot.':'This result has no supported export snapshot. Run a structured report with supported numeric fields.';
-            }
+            configurePublishing(typeof body.summary_token==='string'?body.summary_token:'');
             $('report-template-facts').replaceChildren();
             [report.rows.length+' displayed rows',report.columns.length+' fields',report.report_date||body.plan?.params?.report_date||body.plan?.params?.reportDate||'Date not provided'].forEach(text=>{const item=document.createElement('span');item.textContent=text;$('report-template-facts').append(item);});
             $('report-template-scope').textContent=(typeof report.scope==='string'?report.scope:'Displayed authorized rows only.')+(report.truncated?' The source result is limited.':'');

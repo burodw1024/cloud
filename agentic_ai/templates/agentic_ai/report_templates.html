@@ -1,14 +1,23 @@
 {% load static %}<link rel="stylesheet" href="{% static 'agentic_ai/report_templates.css' %}">
 <section id="report-templates" class="report-templates" data-default="{{ reporting.default_template|default:'comparison' }}" hidden aria-labelledby="report-layout-heading">
 <header><div><span class="template-kicker">YOUR RESULT / YOUR LAYOUT</span><h4 id="report-layout-heading">Choose a report template</h4></div><button type="button" id="print-current-report" class="copy-button">Print report</button></header>
+{% if reporting.can_publish %}
+<section class="report-publishing" aria-label="Superset publishing">
+<div class="report-publishing-actions">
+<button type="button" id="quick-superset-publish" class="run-button" data-endpoint="{% url 'agentic_ai:dashboard_publish_api' %}" hidden>Publish private Superset report</button>
+<a id="generate-superset-report" data-studio-url="{% url 'agentic_ai:analytics' %}" hidden>Choose a template &amp; preview</a>
+<a id="open-superset-result" target="_blank" rel="noopener noreferrer" hidden>Open dashboard in Superset ↗</a>
+<a id="review-superset-export" href="{% url 'agentic_ai:analytics' %}" hidden>Review dashboard exports</a>
+</div>
+<p id="superset-result-status" class="result-details" role="status"></p>
+</section>
+{% endif %}
 <div class="report-template-choices" role="group" aria-label="Report template">
 <button type="button" data-report-template="table"><strong>Source table</strong><small>Every returned field. Original row order.</small></button>
 <button type="button" data-report-template="comparison"><strong>Table + comparisons</strong><small>Compare one numeric field across displayed rows.</small></button>
 <button type="button" data-report-template="management"><strong>Management report pack</strong><small>A report header, scope notes and comparison.</small></button></div>
 <p id="report-template-notice" class="result-details" role="status"></p>
-<div class="report-service-actions"><a href="{% url 'agentic_ai:services' %}">Report services & setup</a>
-{% if reporting.can_publish %}<a id="generate-superset-report" data-studio-url="{% url 'agentic_ai:analytics' %}" hidden>Generate Superset report →</a><p id="superset-result-status" class="result-details"></p>{% else %}<p class="result-details">Superset publishing requires a publishing permission. Open Report services to see available options.</p>{% endif %}</div>
 <div id="report-template-heading" hidden><h4>Authorized report snapshot</h4><div id="report-template-facts" class="report-template-facts"></div><p id="report-template-scope"></p></div>
 <div id="template-comparison" hidden><label for="template-measure">Compare field</label><select id="template-measure"></select><div id="template-bars"></div><p class="result-details">First 20 displayed rows, in their returned order. Values are not summed or inferred.</p></div>
 </section>
-<script src="{% static 'agentic_ai/report_templates.js' %}"></script>
+<script src="{% static 'agentic_ai/report_templates.js' %}?v=2"></script>

@@ -81,6 +81,6 @@ values can select supported icons. Other rows use the branch icon. The browser
 requests tiles for the displayed viewport. Use an internal service approved for
 the locations being mapped.
 
-From the result choose **Generate Superset report**, then **Satellite icon map**.
+From the result choose **Choose a template & preview**, then **Satellite icon map**.
 Check the coordinates in the preview, publish a private snapshot, and verify
 the imagery, markers, labels, and source table in Superset as the mapped user.
