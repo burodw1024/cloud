@@ -80,11 +80,33 @@ def remember_report(user, result):
     encoded = json.dumps(projected, ensure_ascii=False, allow_nan=False)
     if len(encoded.encode()) > 100000:
         return result
+    # Branch coordinates belong to the dashboard projection and never go to the summary model.
+    map_report = None
+    if (str(report.get('level', '')).upper() == 'BRANCH' and 'BRANCHCODE' in columns
+            and getattr(user, 'is_staff', False) and user.has_perm('agentic_ai.publish_dashboard')):
+        from .superset_publisher import coordinate_fields, number
+        coordinates = coordinate_fields(report['columns'])
+        lat, lon = coordinates.values()
+        if lat and lon:
+            icons = {'pin', 'branch', 'person', 'warning', 'circle', 'square', 'diamond', 'triangle'}
+            icon = next((c for c in report['columns'] if c.lower() in {'icon', 'icon_type', 'marker_icon'}), None)
+            map_rows = []
+            for display_row, raw_row in zip(projected['rows'], report['rows']):
+                y, x = number(raw_row.get(lat)), number(raw_row.get(lon))
+                marker = str(raw_row.get(icon, '')).lower()
+                map_rows.append({**display_row, 'LATITUDE': str(y) if y is not None else None,
+                                 'LONGITUDE': str(x) if x is not None else None,
+                                 'MARKER_ICON': marker if marker in icons else 'branch'})
+            map_report = {**projected, 'columns': [*columns, 'LATITUDE', 'LONGITUDE', 'MARKER_ICON'],
+                          'rows': map_rows}
+            if len(json.dumps(map_report, ensure_ascii=False).encode()) > 100000:
+                map_report = None
     token = secrets.token_urlsafe(32)
     cache.set('agentic:summary:' + token, {
         'user_id': user.pk, 'tool': result['tool'], 'plan': result.get('plan', {}),
         'loan_access': result.get('loan_access'),
         'report': projected,
+        **({'dashboard_map_report': map_report} if map_report else {}),
     }, TTL)
     return {**result, 'summary_token': token}
 

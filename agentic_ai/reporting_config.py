@@ -11,7 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from .models import ReportingConnection
 
-TEMPLATES = [('table', 'Source table'), ('comparison', 'Table + comparisons'), ('management', 'Management report pack')]
+from .report_catalog import DESIGNS, TEMPLATES
 
 
 def _cipher(secret):
@@ -48,8 +48,9 @@ def workspace_settings(user):
         public_url = origin(config.get('PUBLIC_URL') or config.get('URL',''), config.get('ALLOW_HTTP',False)) if config.get('URL') else ''
     except (forms.ValidationError,ValueError):
         public_url = ''
+    default = config.get('DEFAULT_TEMPLATE', 'comparison')
     return {'configured': bool(public_url), 'url': public_url,
-            'default_template': config.get('DEFAULT_TEMPLATE', 'comparison'),
+            'default_template': default if default in DESIGNS else 'comparison',
             'can_publish': user.is_staff and user.has_perm('agentic_ai.publish_dashboard'),
             'templates': TEMPLATES}
 

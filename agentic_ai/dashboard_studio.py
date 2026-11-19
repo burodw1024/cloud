@@ -12,6 +12,7 @@ from django.views.decorators.csrf import csrf_protect
 
 from .api import _can_replay_result
 from .models import DashboardExport
+from .report_catalog import CATALOG, satellite_tiles
 from .superset_publisher import PublishError, configuration, specification, publish, remove
 
 
@@ -73,7 +74,7 @@ def studio(request):
         ready = False
     result = render(request, 'agentic_ai/dashboard_studio.html', {
         'readiness': readiness, 'publishing_ready':ready, 'report_token': token if token is not None else request.session.get('dashboard_report_token', ''),
-        'reporting':workspace_settings(request.user), 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
+        'reporting':workspace_settings(request.user), 'catalog': CATALOG, 'satellite_ready': bool(satellite_tiles()), 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
     result['Cache-Control'] = 'no-store'
     return result
 
@@ -93,7 +94,7 @@ def dashboard_api(request):
         action = body.get('action')
         if action not in {'preview', 'publish', 'delete', 'open'}:
             raise PublishError('Choose preview, publish, open or delete.')
-        allowed = {'action', 'title', 'dimension', 'metrics', 'template', 'report_token'} if action == 'preview' else {'action', 'export_id'}
+        allowed = {'action', 'title', 'dimension', 'secondary_dimension', 'metrics', 'template', 'report_token'} if action == 'preview' else {'action', 'export_id'}
         if set(body) - allowed:
             raise PublishError('Unexpected dashboard parameters. Report data and SQL cannot be submitted.')
         if action == 'preview':
@@ -107,14 +108,16 @@ def dashboard_api(request):
             if 'report_token' in body and not isinstance(body['report_token'], str):
                 raise PublishError('Choose a valid report snapshot.')
             saved = source_report(request, body.get('report_token'))
-            spec = specification(saved['report'], body.get('title', 'Report dashboard'),
-                                 body.get('dimension'), body.get('metrics'), body.get('template','comparison'))
+            template = body.get('template', 'comparison')
+            report = saved.get('dashboard_map_report', saved['report']) if template == 'satellite' else saved['report']
+            spec = specification(report, body.get('title', 'Report dashboard'),
+                                 body.get('dimension'), body.get('metrics'), template, body.get('secondary_dimension'))
             source = {k: v for k, v in saved.items() if k in {'tool', 'plan', 'loan_access'}}
             source['report_token'] = saved['report_token']
             export = DashboardExport.objects.create(user=request.user, title=spec['title'],
                                                      specification=spec, source=source)
             return response({'ok': True, 'export_id': str(export.pk), 'specification': spec,
-                             'sample': saved['report']['rows'][:5]})
+                             'sample': report['rows'][:5]})
         try:
             identifier = uuid.UUID(str(body.get('export_id', '')))
         except ValueError:
@@ -159,7 +162,9 @@ def dashboard_api(request):
             return response({'ok': False, 'error': 'This export was already requested. Review its recorded status.'}, 409)
         export.status = 'creating'
         try:
-            publish(export, saved['report'], config,
+            report = (saved.get('dashboard_map_report', saved['report'])
+                      if export.specification.get('template') == 'satellite' else saved['report'])
+            publish(export, report, config,
                     lambda: current_authorization(request.user.pk, saved))
         except Exception as exc:
             export.status = 'failed'

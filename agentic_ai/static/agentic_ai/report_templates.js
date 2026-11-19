@@ -51,7 +51,7 @@
             $('report-template-scope').textContent=(typeof report.scope==='string'?report.scope:'Displayed authorized rows only.')+(report.truncated?' The source result is limited.':'');
             $('template-measure').replaceChildren();
             fields().forEach(key=>{const option=document.createElement('option');option.value=key;option.textContent=key.replace(/_/g,' ');$('template-measure').append(option);});
-            if(!['table','comparison','management'].includes(layout))layout='table';
+            if(!['table','comparison','management'].includes(layout))layout='comparison';
             apply();
         }
     };

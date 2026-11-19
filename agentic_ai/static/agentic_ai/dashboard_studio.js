@@ -6,6 +6,8 @@
   const preview = document.getElementById('studio-preview');
   const options = document.getElementById('studio-options');
   const dimension = document.getElementById('studio-dimension');
+  const secondary = document.getElementById('studio-secondary');
+  const currentTemplate = () => form.elements['studio-template'].value;
   const metrics = document.getElementById('studio-metrics');
   let exportId = null, lastTemplate = null;
   let busy = false;
@@ -29,27 +31,37 @@
     if (busy) return;
     busy = true; status.textContent = message; status.dataset.error = 'false';
     document.querySelector('.studio-preview').setAttribute('aria-busy', 'true');
-    document.querySelectorAll('button').forEach(button => button.disabled = true);
+    const controls = [...form.querySelectorAll('input:not([type="hidden"]), select'),
+      ...document.querySelectorAll('button')].filter(control => !control.disabled);
+    controls.forEach(control => { control.disabled = true; });
     try { await action(); }
     catch (error) { status.textContent = error.message || 'Dashboard service unavailable.'; status.dataset.error = 'true'; }
     finally {
       busy = false;
       document.querySelector('.studio-preview').setAttribute('aria-busy', 'false');
-      document.querySelectorAll('button').forEach(button => button.disabled = false);
+      controls.forEach(control => { control.disabled = false; });
       publish.disabled = !exportId || publish.dataset.unavailable === 'true';
     }
   }
   function invalidate() { exportId = null; publish.disabled = true; }
   form.addEventListener('input', invalidate);
-  form.addEventListener('change', invalidate);
+  form.addEventListener('change', event => {
+    invalidate();
+    if (event.target.name === 'studio-template') {
+      options.hidden = true;
+      preview.hidden = true;
+      status.textContent = 'Generate a preview for the selected template.';
+    }
+  });
   form.addEventListener('submit', event => {
     event.preventDefault();
     perform('Designing your dashboard…', async () => {
       invalidate();
-      const payload = {action: 'preview', title: document.getElementById('dashboard-title').value, template:document.getElementById('studio-template').value};
+      const payload = {action: 'preview', title: document.getElementById('dashboard-title').value, template:currentTemplate()};
       if (form.dataset.reportToken) payload.report_token = form.dataset.reportToken;
-      if (!options.hidden && document.getElementById('studio-template').value === lastTemplate) {
+      if (!options.hidden && currentTemplate() === lastTemplate) {
         payload.dimension = dimension.value;
+        if (currentTemplate() === 'heatmap') payload.secondary_dimension = secondary.value;
         payload.metrics = [...metrics.querySelectorAll('input:checked')].map(input => input.value);
       }
       const result = await api(payload), spec = result.specification;
@@ -64,25 +76,45 @@
       dimension.firstChild.value = '';
       spec.dimensions.forEach(field => { const option = node('option', spec.labels[field] || field); option.value = field; dimension.append(option); });
       dimension.value = spec.dimension || '';
+      secondary.replaceChildren(...spec.dimensions.map(field => {
+        const option = node('option', spec.labels[field] || field);
+        option.value = field;
+        return option;
+      }));
+      secondary.value = spec.secondary_dimension || '';
+      document.getElementById('studio-secondary-field').hidden = spec.template !== 'heatmap';
+      document.getElementById('studio-measure-field').hidden = spec.metric_limit === 0;
+      document.getElementById('studio-measure-legend').textContent = spec.template === 'satellite'
+        ? 'Marker size (optional)' : 'Measures · choose up to ' + spec.metric_limit;
       metrics.replaceChildren();
       spec.measures.forEach(field => {
-        const label = node('label'), input = node('input'); input.type = 'checkbox'; input.value = field;
-        input.checked = spec.metrics.includes(field); label.append(input, document.createTextNode(' ' + (spec.labels[field] || field))); metrics.append(label);
-      });
-      const charts = document.getElementById('studio-chart-cards'); charts.replaceChildren();
-      spec.metrics.forEach(metric => {
-        const card = node('div', undefined, 'studio-chart'); card.append(node('strong', (spec.labels[metric] || metric) + ' · sample rows'));
-        const maximum = Math.max(...result.sample.map(row => Math.abs(Number(row[metric])) || 0), 1);
-        result.sample.forEach((row, index) => {
-          const item = node('div', undefined, 'studio-bar');
-          const track = node('div'), bar = node('i'); bar.style.width = (Math.abs(Number(row[metric]) || 0) / maximum * 100) + '%';
-          track.append(bar); item.append(node('span', String(row[spec.dimension] ?? 'Row') + ' · ' + (index + 1)), track, node('span', String(row[metric] ?? '—'))); card.append(item);
+        const label = node('label'), input = node('input');
+        input.type = spec.metric_limit === 1 && spec.template !== 'satellite' ? 'radio' : 'checkbox';
+        input.name = 'studio-measure';
+        input.value = field;
+        input.checked = spec.metrics.includes(field);
+        if (spec.template === 'satellite') input.addEventListener('change', () => {
+          if (input.checked) metrics.querySelectorAll('input:checked').forEach(other => {
+            if (other !== input) other.checked = false;
+          });
         });
-        card.append(node('p', 'Preview uses up to five rows. Bar lengths show magnitude; labels preserve signed values.'));
-        charts.append(card);
+        label.append(input, document.createTextNode(' ' + (spec.labels[field] || field)));
+        metrics.append(label);
       });
+      const charts = document.getElementById('studio-chart-cards');
+      const selected = form.querySelector('[name="studio-template"]:checked').closest('label');
+      const card = node('div', undefined, 'studio-chart design-summary');
+      card.append(selected.querySelector('.design-swatch').cloneNode(true));
+      const details = node('div');
+      details.append(node('strong', selected.querySelector('strong').textContent),
+        node('p', spec.charts.length + ' dashboard panels · source table included'));
+      card.append(details);
+      charts.replaceChildren(card);
       const table = node('table'), header = node('tr');
-      const fields = spec.metrics.length ? [...new Set([spec.dimension, ...spec.metrics].filter(Boolean))] : Object.keys(spec.labels);
+      const fields = spec.template === 'table' ? Object.keys(spec.labels)
+        : [...new Set([spec.dimension, spec.secondary_dimension, ...Object.values(spec.map_columns),
+          ...spec.metrics].filter(Boolean))];
+      if (!fields.length) fields.push(...Object.keys(spec.labels));
       fields.forEach(field => header.append(node('th', spec.labels[field] || field))); table.append(header);
       result.sample.forEach(row => { const tr = node('tr'); fields.forEach(field => tr.append(node('td', String(row[field] ?? '—')))); table.append(tr); });
       document.getElementById('studio-sample').replaceChildren(table);
