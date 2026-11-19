@@ -1,9 +1,10 @@
 from unittest.mock import patch
 from django.contrib.auth.models import User, Permission
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.core.cache import cache
 from agentic_ai.models import ReportingConnection, LoanAccessEvent
-from agentic_ai.reporting_config import ReportingForm, save, current, initial
+from agentic_ai.reporting_config import ReportingForm, save, current, initial, workspace_settings
+from agentic_ai.report_catalog import satellite_tiles
 from agentic_ai.superset_publisher import specification, PublishError, configuration
 from .test_dashboard_studio import REPORT
 
@@ -89,6 +90,35 @@ class ReportingSetupTests(TestCase):
             self.assertEqual(spec['template'],choice)
             self.assertNotIn('SUM',str(spec))
         with self.assertRaises(PublishError):specification(REPORT,'Report',template='arbitrary-sql')
+
+    @override_settings(AGENTIC_SATELLITE_TILE_URL='https://tiles.internal/{z}/{x}/{y}.png',
+                       AGENTIC_SATELLITE_TILE_ATTRIBUTION='Deployment imagery')
+    def test_saved_map_background_overrides_deployment_and_preserves_other_settings(self):
+        self.persist(map_background='custom', map_tile_url='/tiles/{z}/{x}/{y}.jpg',
+                     map_tile_attribution='Licensed imagery')
+        self.assertEqual(satellite_tiles(current()), {
+            'tile_url': '/tiles/{z}/{x}/{y}.jpg', 'tile_attribution': 'Licensed imagery',
+        })
+        self.assertTrue(workspace_settings(self.admin)['map_imagery_configured'])
+        self.assertContains(self.client.get('/agentic/reporting-settings/'), '/tiles/{z}/{x}/{y}.jpg')
+        self.persist(password='', database_password='', version=initial()['version'])
+        self.assertEqual(initial()['map_background'], 'custom')
+        self.persist(map_background='grid', password='', database_password='', version=initial()['version'])
+        self.assertEqual(satellite_tiles(current()), {})
+        self.assertNotIn('MAP_TILE_URL', current())
+        self.assertEqual(current()['PASSWORD'], 'service-secret')
+        self.persist(map_background='deployment', version=initial()['version'])
+        self.assertEqual(satellite_tiles(current())['tile_attribution'], 'Deployment imagery')
+
+    def test_browser_tile_urls_reject_embedded_credentials_and_mixed_content(self):
+        for url in ('//tiles.internal/{z}/{x}/{y}', 'https://user:pass@tiles.internal/{z}/{x}/{y}',
+                    'https://tiles.internal/{z}/{x}/{y}?key=secret',
+                    'http://tiles.internal/{z}/{x}/{y}', '/tiles/{z}/{x}', '/\\tiles/{z}/{x}/{y}'):
+            with self.subTest(url=url):
+                form = ReportingForm(self.values(map_background='custom', map_tile_url=url,
+                                                 map_tile_attribution='Provider'))
+                self.assertFalse(form.is_valid())
+                self.assertIn('map_tile_url', form.errors)
 
     def test_direct_postgres_staging_binds_values_and_uses_generated_identifiers(self):
         from unittest.mock import MagicMock

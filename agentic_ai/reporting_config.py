@@ -11,7 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from .models import ReportingConnection
 
-from .report_catalog import DESIGNS, TEMPLATES
+from .report_catalog import DESIGNS, TEMPLATES, satellite_tiles, valid_tile_url
 
 
 def _cipher(secret):
@@ -52,7 +52,7 @@ def workspace_settings(user):
     return {'configured': bool(public_url), 'url': public_url,
             'default_template': default if default in DESIGNS else 'comparison',
             'can_publish': user.is_staff and user.has_perm('agentic_ai.publish_dashboard'),
-            'templates': TEMPLATES}
+            'templates': TEMPLATES, 'map_imagery_configured': bool(satellite_tiles(config))}
 
 
 def origin(value, allow_http):
@@ -82,6 +82,16 @@ class ReportingForm(forms.Form):
     user_mappings = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows':4}), label='Employee → Superset user ID', help_text='One per line: employee_code=Superset_user_ID. Each employee needs a different Superset account.')
     private_access_verified = forms.BooleanField(required=False, label='I verified that unrelated Superset users cannot access these report snapshots')
     default_template = forms.ChoiceField(choices=TEMPLATES, initial='comparison', label='Default report template')
+    map_background = forms.ChoiceField(required=False, initial='deployment', label='Map background', choices=[
+        ('deployment', 'Use deployment settings (grid if unset)'),
+        ('grid', 'Offline coordinate grid'),
+        ('custom', 'Approved satellite imagery'),
+    ])
+    map_tile_url = forms.CharField(required=False, max_length=1500, label='Satellite XYZ tile URL',
+        help_text='Use a browser-accessible HTTPS URL or a Superset-relative path such as /tiles/satellite/{z}/{x}/{y}.jpg. '
+                  'For paid or authenticated imagery, use an approved internal proxy that holds the provider credentials.')
+    map_tile_attribution = forms.CharField(required=False, max_length=300, label='Imagery attribution',
+        help_text='Enter the provider’s required attribution as plain text.')
     version = forms.CharField(widget=forms.HiddenInput)
 
     def clean(self):
@@ -91,6 +101,14 @@ class ReportingForm(forms.Form):
             data['service_url'] = origin(url, data.get('allow_http'))
         if data.get('public_url'):
             data['public_url'] = origin(data['public_url'], data.get('allow_http'))
+        if data.get('map_background') == 'custom':
+            tile_url = data.get('map_tile_url', '')
+            if not valid_tile_url(tile_url):
+                self.add_error('map_tile_url', 'Enter an HTTP(S) or same-origin XYZ URL containing {z}, {x} and {y}, without credentials, query strings or fragments.')
+            elif tile_url.startswith('http:') and (data.get('public_url') or data.get('service_url') or '').startswith('https:'):
+                self.add_error('map_tile_url', 'Use HTTPS or a same-origin path when Superset is served over HTTPS.')
+            if not data.get('map_tile_attribution'):
+                self.add_error('map_tile_attribution', 'Provide the attribution required by the imagery provider.')
         mappings = {}
         for line in data.get('user_mappings', '').splitlines():
             if not line.strip(): continue
@@ -119,6 +137,8 @@ def initial():
             'schema':cfg.get('SCHEMA','agentic'), 'private_access_verified':cfg.get('PRIVATE_ACCESS_VERIFIED',False),
             'user_mappings':'\n'.join(f'{k}={v}' for k,v in cfg.get('USERNAMES',{}).items()),
             'default_template':cfg.get('DEFAULT_TEMPLATE','comparison'),
+            'map_background':cfg.get('MAP_BACKGROUND', 'deployment'),
+            'map_tile_url':cfg.get('MAP_TILE_URL', ''), 'map_tile_attribution':cfg.get('MAP_TILE_ATTRIBUTION', ''),
             'version':record.updated_at.isoformat() if record else 'new'}
 
 
@@ -153,6 +173,15 @@ def save(actor, data):
             'ALLOW_HTTP':data.get('allow_http',False), 'USERNAME':data.get('username',''),
             'DATABASE_ID':data.get('database_id'), 'SCHEMA':data['schema'], 'USERNAMES':data['mappings'],
             'PRIVATE_ACCESS_VERIFIED':data.get('private_access_verified',False), 'DEFAULT_TEMPLATE':data['default_template']}
+        if data.get('map_background'):
+            config['MAP_BACKGROUND'] = data['map_background']
+            if data['map_background'] == 'custom':
+                config['MAP_TILE_URL'] = data['map_tile_url']
+                config['MAP_TILE_ATTRIBUTION'] = data['map_tile_attribution']
+        else:
+            for key in ('MAP_BACKGROUND', 'MAP_TILE_URL', 'MAP_TILE_ATTRIBUTION'):
+                if key in old:
+                    config[key] = old[key]
         if old.get('CA_BUNDLE'):
             config['CA_BUNDLE'] = old['CA_BUNDLE']
         if old.get('DATABASE_ALIAS'):
@@ -168,4 +197,5 @@ def save(actor, data):
         record.encrypted_credentials = _cipher(settings.SECRET_KEY).encrypt(json.dumps(secret).encode()).decode()
         record.save()
         record_event(actor,None,'reporting_configured','Reporting setup saved.',
-                     {'configured':bool(old.get('URL'))},{'configured':bool(config['URL']),'template':data['default_template']})
+                     {'configured':bool(old.get('URL'))},{'configured':bool(config['URL']),'template':data['default_template'],
+                     'map_background':config.get('MAP_BACKGROUND', 'deployment')})

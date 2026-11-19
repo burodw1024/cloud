@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_protect
 
 from .api import _can_replay_result
 from .models import DashboardExport
-from .report_catalog import CATALOG, satellite_tiles
+from .report_catalog import CATALOG
 from .superset_publisher import PublishError, configuration, specification, publish, remove
 
 
@@ -74,7 +74,7 @@ def studio(request):
         ready = False
     result = render(request, 'agentic_ai/dashboard_studio.html', {
         'readiness': readiness, 'publishing_ready':ready, 'report_token': token if token is not None else request.session.get('dashboard_report_token', ''),
-        'reporting':workspace_settings(request.user), 'catalog': CATALOG, 'satellite_ready': bool(satellite_tiles()), 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
+        'reporting':workspace_settings(request.user), 'catalog': CATALOG, 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
     result['Cache-Control'] = 'no-store'
     return result
 
