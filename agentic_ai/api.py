@@ -133,6 +133,17 @@ def agentic_query_api(request):
                   "answer": "The request failed unexpectedly. Ask an administrator to review the attempt. No automatic retry was sent."}
     from .bangla_summary import remember_report
     result = remember_report(request.user, result)
+    if result.get('summary_token') and result.get('report_context'):
+        from .models import ReportRun
+        from django.db import DatabaseError
+        try:
+            run = ReportRun.objects.create(user=request.user, snapshot_token=result['summary_token'],
+                question=query, source={'tool': result['tool'], 'plan': {'intent': result.get('plan', {}).get('intent')},
+                                       'loan_access': result.get('loan_access')},
+                context=result['report_context'])
+            result['report_run_id'] = str(run.pk)
+        except DatabaseError:
+            logger.exception("Unable to save report run metadata")
     request.session['dashboard_report_token'] = result.get('summary_token')
     status = result.pop("http_status", 200)
     try:

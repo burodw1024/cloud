@@ -295,3 +295,19 @@ class DashboardExport(models.Model):
     class Meta:
         ordering = ['-created_at']
         permissions = [('publish_dashboard', 'Export authorized report snapshots to private Superset dashboards')]
+
+
+class ReportRun(models.Model):
+    """Personal history metadata. Report rows remain in the short-lived cache."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    snapshot_token = models.CharField(max_length=128, unique=True)
+    question = models.TextField()
+    source = models.JSONField(default=dict)
+    context = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['user', '-created_at'], name='agentic_run_user_created')]

@@ -347,6 +347,7 @@ class PublisherTests(TestCase):
         layout = json.loads(put['position_json'])
         self.assertEqual(layout['CHART-31']['meta']['chartId'], 31)
         self.assertIn('limited', layout['NOTICE']['meta']['code'])
+        self.assertIn('Displayed rows: 2', layout['NOTICE']['meta']['code'])
         client.close.assert_called_once()
 
     @patch.object(publisher, 'stage')

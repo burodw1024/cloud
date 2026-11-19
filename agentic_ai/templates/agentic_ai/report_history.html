@@ -1,0 +1,84 @@
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My report runs · BURO Insight AI</title>
+{% include 'agentic_ai/ui_head.html' %}
+<link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}">
+<link rel="stylesheet" href="{% static 'agentic_ai/report_history.css' %}">
+</head><body>{% include 'agentic_ai/page_nav.html' %}
+<main class="studio-shell report-history">
+{% if access_revoked %}
+<h1>Report access has changed</h1><p>This report is unavailable under your current permissions.</p>
+<p><a href="{% url 'agentic_ai:report_history' %}">Back to my report runs</a></p>
+{% elif run %}
+<a href="{% url 'agentic_ai:report_history' %}">← My report runs</a>
+<h1>Report run</h1>
+<p class="run-question">{{ run.question }}</p>
+<div class="history-actions">
+<a href="{% url 'agentic_ai:query_page' %}?reuse={{ run.pk }}#agent-query-form">Reuse question</a>
+{% if report and can_publish %}<a href="{% url 'agentic_ai:analytics' %}?report={{ run.snapshot_token|urlencode }}">Choose a template &amp; preview</a>{% endif %}
+</div>
+<section class="studio-card">
+<h2>Source and scope</h2>
+<dl class="history-facts">
+<div><dt>Source tool</dt><dd>{{ run.context.source|default:"Unavailable" }}</dd></div>
+<div><dt>Report date</dt><dd>{{ run.context.report_date|default:"Unavailable" }}</dd></div>
+<div><dt>Run time</dt><dd>{{ run.created_at|date:"Y-m-d H:i T" }}</dd></div>
+<div><dt>Displayed rows</dt><dd>{{ run.context.displayed_rows }}{% if run.context.source_rows != None %} of {{ run.context.source_rows }} reported{% endif %}{% if run.context.limited %} · Limited result{% endif %}</dd></div>
+{% for label,value in run.context.scope.items %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+{% for label,value in run.context.filters.items %}<div><dt>Filter · {{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+</dl>
+</section>
+{% if can_publish %}
+<section class="studio-card">
+<h2>Superset dashboards</h2>
+<form id="history-export-actions" data-endpoint="{% url 'agentic_ai:dashboard_publish_api' %}">{% csrf_token %}
+<p id="history-export-status" role="status"></p>
+{% for export in exports %}
+<div class="history-export"><div><strong>{{ export.title }}</strong><div>{{ export.get_status_display }}</div>
+{% if export.status == 'failed' %}<p>{{ export.error }}</p><a href="{% url 'agentic_ai:analytics' %}">Review in export library</a>{% endif %}
+{% if export.status == 'creating' %}<p>Refresh this page to check publication progress.</p>{% endif %}
+{% if export.status == 'pending' and report %}<a href="{% url 'agentic_ai:analytics' %}?report={{ run.snapshot_token|urlencode }}">Continue in the builder</a>{% endif %}</div>
+{% if export.status == 'ready' %}<button type="button" data-open-export="{{ export.pk }}">Open in Superset</button>{% endif %}
+</div>
+{% empty %}<p>No dashboard has been created for this run.</p>{% endfor %}
+</form>
+</section>
+{% endif %}
+<section class="studio-card">
+<h2>Report snapshot</h2>
+{% if report %}
+<div class="studio-table-wrap" tabindex="0" role="region" aria-label="Cached report snapshot">
+<table><thead><tr>{% for column in report.columns %}<th scope="col">{{ column }}</th>{% endfor %}</tr></thead>
+<tbody>{% for row in table_rows %}<tr>{% for value in row %}<td>{{ value|default_if_none:"—" }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+</div>
+{% else %}
+<p>The temporary report rows have expired. Reuse your question to run a fresh report. Published dashboards remain available while you have access.</p>
+{% endif %}
+</section>
+{% else %}
+<h1>My report runs</h1>
+<p>Reopen your structured results, check source and scope, or find a dashboard you published.</p>
+<form method="get" class="history-search"><label for="history-search">Search your questions</label><div><input id="history-search" name="q" type="search" maxlength="150" value="{{ search }}"><button type="submit">Search</button></div></form>
+<div class="history-list">
+{% for item in runs %}
+<article class="studio-card">
+<h2><a href="{% url 'agentic_ai:report_run' item.pk %}">{{ item.question|truncatechars:160 }}</a></h2>
+<p>{{ item.created_at|date:"M j, Y · H:i" }} · {{ item.context.displayed_rows }} rows{% if item.context.limited %} · Limited result{% endif %}</p>
+<div class="history-actions">
+{% if 'ready' in item.dashboard_statuses %}<span class="studio-pill">Dashboard ready</span>{% endif %}
+{% if 'creating' in item.dashboard_statuses %}<span class="studio-pill">Publishing</span>{% endif %}
+{% if 'failed' in item.dashboard_statuses %}<span class="studio-pill">Needs review</span>{% endif %}
+</div>
+</article>
+{% empty %}<p>{% if search %}No available runs match your search.{% else %}Your report runs will appear here after you get a structured result.{% endif %}</p>{% endfor %}
+</div>
+{% if page.has_other_pages %}<nav class="history-actions" aria-label="Report history pages">
+{% if page.has_previous %}<a href="?q={{ search|urlencode }}&amp;page={{ page.previous_page_number }}">Previous</a>{% endif %}
+<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+{% if page.has_next %}<a href="?q={{ search|urlencode }}&amp;page={{ page.next_page_number }}">Next</a>{% endif %}
+</nav>{% endif %}
+{% endif %}
+</main>
+{% if run and can_publish %}<script src="{% static 'agentic_ai/report_history.js' %}" defer></script>{% endif %}
+</body></html>

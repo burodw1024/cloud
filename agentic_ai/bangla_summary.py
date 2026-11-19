@@ -108,7 +108,8 @@ def remember_report(user, result):
         'report': projected,
         **({'dashboard_map_report': map_report} if map_report else {}),
     }, TTL)
-    return {**result, 'summary_token': token}
+    from .report_context import report_context
+    return {**result, 'summary_token': token, 'report_context': report_context(projected, result['tool'])}
 
 
 def summary_config():
