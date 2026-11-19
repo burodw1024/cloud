@@ -311,3 +311,4 @@ class ReportRun(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [models.Index(fields=['user', '-created_at'], name='agentic_run_user_created')]
+        permissions = [('export_powerbi_snapshot', 'Export authorized Power BI report snapshots')]

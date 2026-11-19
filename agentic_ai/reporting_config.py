@@ -41,6 +41,20 @@ def current():
     return config
 
 
+def report_server_url(value, allow_http=False):
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.port == 0
+                or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or '\\' in value or any(ord(char) < 33 or ord(char) == 127 for char in value)):
+            raise ValueError
+    except ValueError:
+        raise forms.ValidationError('Enter a Report Server web portal URL without credentials, a query string or a fragment.') from None
+    if parsed.scheme == 'http' and not allow_http:
+        raise forms.ValidationError('Use HTTPS or explicitly allow HTTP for the trusted internal Report Server.')
+    return value.rstrip('/')
+
+
 def workspace_settings(user):
     record = ReportingConnection.objects.filter(pk=1).first()
     config = record.configuration if record else getattr(settings, 'AGENTIC_SUPERSET', {})
@@ -49,10 +63,19 @@ def workspace_settings(user):
     except (forms.ValidationError,ValueError):
         public_url = ''
     default = config.get('DEFAULT_TEMPLATE', 'comparison')
+    powerbi_url = ''
+    if config.get('POWERBI_PORTAL_URL'):
+        try:
+            powerbi_url = report_server_url(config['POWERBI_PORTAL_URL'], config.get('POWERBI_ALLOW_HTTP', False))
+        except forms.ValidationError:
+            pass
+    can_export_powerbi = (config.get('POWERBI_MODE') == 'manual' and user.is_active
+                          and user.has_perm('agentic_ai.export_powerbi_snapshot'))
     return {'configured': bool(public_url), 'url': public_url,
             'default_template': default if default in DESIGNS else 'comparison',
             'can_publish': user.is_staff and user.has_perm('agentic_ai.publish_dashboard'),
-            'templates': TEMPLATES, 'map_imagery_configured': bool(satellite_tiles(config))}
+            'templates': TEMPLATES, 'map_imagery_configured': bool(satellite_tiles(config)),
+            'powerbi': {'enabled': can_export_powerbi, 'portal_url': powerbi_url if can_export_powerbi else ''}}
 
 
 def origin(value, allow_http):
@@ -92,6 +115,12 @@ class ReportingForm(forms.Form):
                   'For paid or authenticated imagery, use an approved internal proxy that holds the provider credentials.')
     map_tile_attribution = forms.CharField(required=False, max_length=300, label='Imagery attribution',
         help_text='Enter the provider’s required attribution as plain text.')
+    powerbi_mode = forms.ChoiceField(required=False, initial='disabled', label='Power BI handoff', choices=[
+        ('disabled', 'Disabled'), ('manual', 'Enable authorized workbook downloads'),
+    ], help_text='Grant the Power BI snapshot export permission to the approved users or groups.')
+    powerbi_portal_url = forms.URLField(required=False, max_length=500, label='Power BI Report Server portal URL',
+        help_text='Optional until the server is installed. Enter the browser portal, for example https://powerbi.internal/reports.')
+    powerbi_allow_http = forms.BooleanField(required=False, label='Allow HTTP for this trusted internal Power BI Report Server')
     version = forms.CharField(widget=forms.HiddenInput)
 
     def clean(self):
@@ -109,6 +138,11 @@ class ReportingForm(forms.Form):
                 self.add_error('map_tile_url', 'Use HTTPS or a same-origin path when Superset is served over HTTPS.')
             if not data.get('map_tile_attribution'):
                 self.add_error('map_tile_attribution', 'Provide the attribution required by the imagery provider.')
+        if data.get('powerbi_portal_url'):
+            try:
+                data['powerbi_portal_url'] = report_server_url(data['powerbi_portal_url'], data.get('powerbi_allow_http'))
+            except forms.ValidationError as exc:
+                self.add_error('powerbi_portal_url', exc)
         mappings = {}
         for line in data.get('user_mappings', '').splitlines():
             if not line.strip(): continue
@@ -139,6 +173,8 @@ def initial():
             'default_template':cfg.get('DEFAULT_TEMPLATE','comparison'),
             'map_background':cfg.get('MAP_BACKGROUND', 'deployment'),
             'map_tile_url':cfg.get('MAP_TILE_URL', ''), 'map_tile_attribution':cfg.get('MAP_TILE_ATTRIBUTION', ''),
+            'powerbi_mode':cfg.get('POWERBI_MODE', 'disabled'), 'powerbi_portal_url':cfg.get('POWERBI_PORTAL_URL', ''),
+            'powerbi_allow_http':cfg.get('POWERBI_ALLOW_HTTP', False),
             'version':record.updated_at.isoformat() if record else 'new'}
 
 
@@ -182,6 +218,13 @@ def save(actor, data):
             for key in ('MAP_BACKGROUND', 'MAP_TILE_URL', 'MAP_TILE_ATTRIBUTION'):
                 if key in old:
                     config[key] = old[key]
+        if data.get('powerbi_mode'):
+            config.update(POWERBI_MODE=data['powerbi_mode'], POWERBI_PORTAL_URL=data.get('powerbi_portal_url', ''),
+                          POWERBI_ALLOW_HTTP=data.get('powerbi_allow_http', False))
+        else:
+            for key in ('POWERBI_MODE', 'POWERBI_PORTAL_URL', 'POWERBI_ALLOW_HTTP'):
+                if key in old:
+                    config[key] = old[key]
         if old.get('CA_BUNDLE'):
             config['CA_BUNDLE'] = old['CA_BUNDLE']
         if old.get('DATABASE_ALIAS'):
@@ -198,4 +241,5 @@ def save(actor, data):
         record.save()
         record_event(actor,None,'reporting_configured','Reporting setup saved.',
                      {'configured':bool(old.get('URL'))},{'configured':bool(config['URL']),'template':data['default_template'],
-                     'map_background':config.get('MAP_BACKGROUND', 'deployment')})
+                     'map_background':config.get('MAP_BACKGROUND', 'deployment'),
+                     'powerbi_mode':config.get('POWERBI_MODE', 'disabled')})
