@@ -25,3 +25,33 @@ workbook would require a stable, accessible data source and its own permissions.
 Validate deployment with a non-sensitive report and a restricted test folder.
 Check that the workbook opens, the imported data types and scope are correct,
 and Report Server permissions match the intended audience.
+
+## Publish a shared Detail table
+
+Create **BURO Reports** in the Report Server portal. Give a dedicated Windows
+account **Publisher** on that folder and give the intended audience **Browser**
+access. The published report embeds every row of the authorized result and
+stays in Report Server until removed. Everyone with access to the folder can
+see those rows. If a report should no longer be shared, remove it in the
+Report Server portal.
+
+Set these environment variables on both the BURO web container and the
+scheduler. Supply the password from the deployment's secret settings.
+
+| Variable | Value |
+| --- | --- |
+| `AGENTIC_POWERBI_PUBLISH_USER` | Windows publishing account, such as `FileServer\buro-publisher` |
+| `AGENTIC_POWERBI_PUBLISH_PASSWORD` | Windows account password |
+| `AGENTIC_POWERBI_PUBLISH_FOLDER` | Report Server folder path, defaults to `/BURO Reports` |
+| `AGENTIC_POWERBI_SOAP_URL` | Optional Report Server web service URL, including `/ReportService2010.asmx`, if the default `/ReportServer/ReportService2010.asmx` was customized. Use the same origin as the portal. |
+
+Publishing uses Windows NTLM authentication through curl. Use the trusted
+internal portal URL configured in Reporting setup. Apply Django migrations,
+keep **Power BI handoff** enabled, and grant both **Download Power BI workbooks**
+and **Publish Power BI Report Server reports** through **Report service access**.
+
+Open a structured result from **My report runs** and choose **Publish to Power BI
+Report Server** while the snapshot is available. For scheduled runs, choose
+**Publish a shared Power BI Detail table**. The report run links to the published
+report after Report Server confirms the upload. If confirmation times out, look
+for `BURO-<run UUID>` in the target folder before creating another run.

@@ -213,6 +213,44 @@ class StudioTests(TestCase):
             self.assertEqual(self.post(payload).status_code, 403)
         publish.assert_called_once()
 
+    @patch('agentic_ai.api.execute_query')
+    @patch.object(studio, 'publish')
+    def test_icon_map_demo_uses_synthetic_coordinates_and_publishes_the_icon_map(self, publish, execute):
+        prompt = {'message': 'Generate a dummy report to test Superset Icon Map'}
+        reply = self.client.post('/agentic/api/query/', prompt)
+        self.assertEqual(reply.status_code, 200, reply.content)
+        result = reply.json()
+        execute.assert_not_called()
+        self.assertEqual(len(result['raw']['structuredContent']['rows']), 5)
+        self.assertTrue(result['report_run_id'])
+        token = result['summary_token']
+        page = self.client.get('/agentic/analytics/', {'report': token})
+        self.assertContains(page, 'value="satellite" checked')
+
+        def complete(export, report, config, authorize):
+            self.assertTrue(authorize())
+            _, chart, options, _, _ = list(publisher.chart_specs(
+                export.specification, report['columns'], config))[-1]
+            self.assertEqual(chart, 'buro_icon_map')
+            self.assertIn('latitude_column', options)
+            self.assertIn('longitude_column', options)
+            self.assertIn('icon_column', options)
+            self.assertEqual(report['rows'][0]['MARKER_ICON'], 'branch')
+            export.status = 'ready'
+            export.dashboard_id = 50
+            export.save()
+
+        publish.side_effect = complete
+        self.config['DEFAULT_TEMPLATE'] = 'comparison'
+        reply = self.post({'action': 'quick_publish', 'report_token': token})
+        self.assertEqual(reply.status_code, 200, reply.content)
+        self.assertEqual(reply.json()['template'], 'satellite')
+        publish.assert_called_once()
+        other = get_user_model().objects.create_user('demo-without-publish')
+        self.client.force_login(other)
+        self.assertEqual(self.client.post('/agentic/api/query/', prompt).status_code, 403)
+        execute.assert_not_called()
+
     @patch.object(studio, 'publish', side_effect=RuntimeError('sensitive connection detail'))
     def test_quick_publish_fallback_and_partial_failure_are_recorded_once(self, publish):
         self.config['DEFAULT_TEMPLATE'] = 'satellite'

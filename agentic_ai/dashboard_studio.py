@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_protect
 
-from .api import _can_replay_result
+from .api import ICON_MAP_DEMO, _can_replay_result
 from .models import DashboardExport
 from .report_catalog import CATALOG, DESIGNS
 from .superset_publisher import PublishError, configuration, specification, publish, remove
@@ -61,13 +61,17 @@ def studio(request):
     if request.method != 'GET':
         return response({'ok': False, 'error': 'GET required.'}, 405)
     token = request.GET.get('report')
-    if token is not None:
+    demo = False
+    if token is not None or request.session.get('dashboard_report_token'):
         try:
-            source_report(request, token)
+            saved = source_report(request, token)
+            demo = saved.get('tool') == ICON_MAP_DEMO
         except PublishError as exc:
-            return response({'ok': False, 'error': str(exc)}, 400)
+            if token is not None:
+                return response({'ok': False, 'error': str(exc)}, 400)
         except PermissionError as exc:
-            return response({'ok': False, 'error': str(exc)}, 403)
+            if token is not None:
+                return response({'ok': False, 'error': str(exc)}, 403)
     from .reporting_config import workspace_settings
     readiness = 'Ready to create private dashboards.'
     ready = True
@@ -76,9 +80,12 @@ def studio(request):
     except PublishError as exc:
         readiness = str(exc)
         ready = False
+    reporting = workspace_settings(request.user)
+    if demo:
+        reporting['default_template'] = 'satellite'
     result = render(request, 'agentic_ai/dashboard_studio.html', {
         'readiness': readiness, 'publishing_ready':ready, 'report_token': token if token is not None else request.session.get('dashboard_report_token', ''),
-        'reporting':workspace_settings(request.user), 'catalog': CATALOG, 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
+        'reporting': reporting, 'demo': demo, 'catalog': CATALOG, 'exports': DashboardExport.objects.filter(user=request.user)[:50]})
     result['Cache-Control'] = 'no-store'
     return result
 
@@ -122,18 +129,19 @@ def quick_publish(user, token):
     identifier = uuid.uuid5(uuid.NAMESPACE_URL, f'agentic:quick-publish:{user.pk}:{token}')
     export = DashboardExport.objects.filter(pk=identifier, user=user).first()
     if export is None:
-        template = config.get('DEFAULT_TEMPLATE', 'comparison')
+        demo = saved.get('tool') == ICON_MAP_DEMO
+        template = 'satellite' if demo else config.get('DEFAULT_TEMPLATE', 'comparison')
         if not isinstance(template, str) or template not in DESIGNS:
             template = 'comparison'
         report = report_for_template(saved, template)
         date = report.get('report_date')
-        title = 'Report snapshot'
+        title = ICON_MAP_DEMO if demo else 'Report snapshot'
         if isinstance(date, str) and re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', date):
             title = f'{title} · {date}'
         try:
             spec = specification(report, title, template=template)
         except PublishError:
-            if template == 'comparison':
+            if demo or template == 'comparison':
                 raise
             spec = specification(saved['report'], title, template='comparison')
             spec['fallback'] = True
