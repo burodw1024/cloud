@@ -18,7 +18,7 @@
 </label>
 {% endfor %}
 </div></fieldset>
-<label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="My report dashboard">
+<label for="dashboard-title">Dashboard title</label><input id="dashboard-title" maxlength="150" required value="{% if demo %}Superset Icon Map demo{% else %}My report dashboard{% endif %}">
 <div id="studio-options" hidden><label for="studio-dimension">Row label</label><select id="studio-dimension"></select><div id="studio-secondary-field" hidden><label for="studio-secondary">Second category</label><select id="studio-secondary"></select></div><fieldset id="studio-measure-field"><legend id="studio-measure-legend">Measures</legend><div id="studio-metrics"></div></fieldset></div>
 <button type="submit" class="studio-primary">Generate preview →</button></form>
 <div class="studio-note"><strong>Designed around your data</strong><p>Every dashboard includes a source table. Line and area templates follow displayed row order. Heatmaps and maps require compatible report fields. Map dashboards require the BURO Icon Map in Superset.</p></div>

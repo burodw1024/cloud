@@ -17,6 +17,40 @@ MAX_BODY_BYTES = 65536
 RATE_LIMIT = 20
 IDEMPOTENCY_TTL = 2400
 
+ICON_MAP_DEMO = 'Superset Icon Map demo'
+ICON_MAP_DEMO_QUERY = re.compile(
+    r'(?:please )?(?:(?:generate|create|show)(?: me)? (?:a )?)?'
+    r'(?:(?:dummy|demo|sample|test) report (?:to test |for )?)?'
+    r'(?:superset )?icon map(?: (?:demo|test|report))?[.!]?',
+    re.IGNORECASE,
+)
+
+
+def icon_map_demo(user):
+    from .dashboard_studio import permitted
+    if not permitted(user):
+        return {
+            'ok': False, 'http_status': 403,
+            'error': 'Superset dashboard publishing permission is required for the Icon Map demo.',
+        }
+    columns = ['BRANCHCODE', 'ZONECODE', 'LATITUDE', 'LONGITUDE', 'MARKER_ICON']
+    points = [
+        ('DEMO-01', 'Demo Central', 23.81, 90.41, 'branch'),
+        ('DEMO-02', 'Demo East', 22.36, 91.79, 'pin'),
+        ('DEMO-03', 'Demo East', 24.89, 91.87, 'diamond'),
+        ('DEMO-04', 'Demo West', 24.37, 88.60, 'circle'),
+        ('DEMO-05', 'Demo West', 22.82, 89.55, 'triangle'),
+    ]
+    return {
+        'ok': True, 'tool': ICON_MAP_DEMO, 'plan': {'intent': 'icon_map_demo'},
+        'answer': 'Generated five synthetic map points. Publish to Superset to test the Satellite icon map.',
+        'raw': {'structuredContent': {
+            'columns': columns, 'rows': [dict(zip(columns, point)) for point in points],
+            'level': 'BRANCH', 'row_count': len(points),
+            'scope': 'Synthetic coordinates and branch labels for testing.',
+        }},
+    }
+
 
 def execute_query(**kwargs):
     # Avoid loading local integrations merely to validate an HTTP request.
@@ -32,6 +66,9 @@ def _can_replay_result(user, result):
     tool_name = result.get("tool")
     if not tool_name:
         return True
+    if tool_name == ICON_MAP_DEMO and result.get('plan', {}).get('intent') == 'icon_map_demo':
+        from .dashboard_studio import permitted
+        return permitted(user)
     from .loan_access import protected_tools, current_access
     if (tool_name in protected_tools() or result.get('loan_access')) and not current_access(user, result.get('loan_access')):
         return False
@@ -138,7 +175,10 @@ def agentic_query_api(request):
         logger.error("Agent execution cache is unavailable")
         return _response({"ok": False, "error": "Request coordination is unavailable; no tool was executed."}, 503)
     try:
-        result = execute_query(user=request.user, query=query, session_id=request.session.session_key)
+        if ICON_MAP_DEMO_QUERY.fullmatch(' '.join(query.split())):
+            result = icon_map_demo(request.user)
+        else:
+            result = execute_query(user=request.user, query=query, session_id=request.session.session_key)
     except Exception as exc:
         from .audit import write_agent_log
         write_agent_log(user=request.user, query=query, intent="execution_failed", status="failed",
