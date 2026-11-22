@@ -302,6 +302,7 @@ class ReportRun(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    powerbi_report_url = models.URLField(max_length=1000, blank=True)
     snapshot_token = models.CharField(max_length=128, unique=True)
     question = models.TextField()
     source = models.JSONField(default=dict)
@@ -313,6 +314,7 @@ class ReportRun(models.Model):
         indexes = [models.Index(fields=['user', '-created_at'], name='agentic_run_user_created')]
         permissions = [
             ('export_powerbi_snapshot', 'Export authorized Power BI report snapshots'),
+            ('publish_powerbi_report', 'Publish Power BI Report Server reports'),
             ('share_report_whatsapp', 'Share reports through WhatsApp'),
             ('share_report_gmail', 'Share reports through Gmail'),
             ('share_report_outlook', 'Share reports through Outlook'),

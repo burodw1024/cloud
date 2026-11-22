@@ -23,6 +23,7 @@ from .access_admin import record_event
 from .api import _can_replay_result, record_report_result
 from .mcp_gateway import MAX_QUERY_CHARS, gateway_enabled, load_gateway_config, run_mcp_query
 from .models import ScheduledReport
+from .powerbi_publish import PublicationError, publish_run, publishing_config
 from .reporting_config import workspace_settings
 from .share_channels import CHANNELS, describe
 from .superset_publisher import PublishError
@@ -33,7 +34,8 @@ LEASE = timedelta(seconds=90)
 OVERDUE = timedelta(minutes=5)
 HEARTBEAT_KEY = 'agentic:scheduled-reports:worker'
 DESTINATIONS = {'history': 'My report runs', 'superset': 'Publish a private Superset dashboard',
-                'powerbi': 'Prepare a Power BI workbook', 'whatsapp': 'WhatsApp', **CHANNELS}
+                'powerbi': 'Prepare a Power BI workbook',
+                'powerbi_publish': 'Publish a shared Power BI Detail table', 'whatsapp': 'WhatsApp', **CHANNELS}
 
 
 def delivery_status(user, destination):
@@ -48,6 +50,8 @@ def available_destinations(user):
     choices = [('history', DESTINATIONS['history'])]
     if workspace_settings(user)['powerbi']['enabled']:
         choices.append(('powerbi', DESTINATIONS['powerbi']))
+    if publishing_config(user):
+        choices.append(('powerbi_publish', DESTINATIONS['powerbi_publish']))
     if dashboard_studio.permitted(user):
         try:
             dashboard_studio.configuration(user)
@@ -239,6 +243,12 @@ def execute(job, stop_requested):
         return 'ready', 'Power BI workbook available in My report runs for 30 minutes. Publish from Desktop.'
     if stop_requested():
         return 'failed', 'Report saved. Delivery was interrupted by a release; review it in My report runs.'
+    if destination == 'powerbi_publish':
+        try:
+            publish_run(user, job.report_run, before_upload=lambda: not stop_requested() and begin_delivery(job))
+        except PublicationError as exc:
+            return 'failed', str(exc)
+        return 'ready', 'Power BI report published. Open it from My report runs.'
     if destination == 'superset':
         if not dashboard_studio.permitted(user):
             return 'failed', 'Superset publishing permission changed. The report was saved.'

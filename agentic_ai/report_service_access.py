@@ -14,6 +14,7 @@ from .access_admin import record_event
 SERVICE_PERMISSIONS = {
     'schedule_report': 'Schedule reports',
     'publish_dashboard': 'Publish private Superset dashboards',
+    'publish_powerbi_report': 'Publish Power BI Report Server reports',
     'export_powerbi_snapshot': 'Download Power BI workbooks',
     'share_report_whatsapp': 'Send through WhatsApp',
     'share_report_gmail': 'Send through Gmail',

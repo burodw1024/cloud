@@ -11,6 +11,7 @@ from .reporting_admin import reporting_settings
 from .report_service_access import service_access
 from .report_history import report_history, report_run
 from .powerbi import powerbi_export
+from .powerbi_publish import powerbi_publish
 from .scheduled_reports import schedule_operations, schedule_page
 from .services import services_page, check_whatsapp
 
@@ -29,6 +30,7 @@ urlpatterns = [
     path("reports/", report_history, name="report_history"),
     path("reports/<uuid:run_id>/", report_run, name="report_run"),
     path("reports/<uuid:run_id>/power-bi/", powerbi_export, name="powerbi_export"),
+    path("reports/<uuid:run_id>/power-bi/publish/", powerbi_publish, name="powerbi_publish"),
     path("analytics/", studio, name="analytics"),
     path("api/dashboards/", dashboard_api, name="dashboard_publish_api"),
     path("service-access/", service_access, name="service_access"),

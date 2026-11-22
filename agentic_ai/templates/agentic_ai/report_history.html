@@ -21,7 +21,15 @@
 {% if powerbi.enabled %}
 <section class="studio-card">
 <h2>Power BI Report Server</h2>
-<p>Open the workbook in Power BI Desktop for Report Server, then save or publish from Desktop.</p>
+{% if run.powerbi_report_url and can_publish_powerbi %}
+<a href="{{ run.powerbi_report_url }}" target="_blank" rel="noopener noreferrer">Open published Power BI report</a>
+{% elif report and can_publish_powerbi %}
+<form method="post" action="{% url 'agentic_ai:powerbi_publish' run.pk %}">
+{% csrf_token %}
+<p>The Detail table is visible to everyone with access to the publishing folder.</p>
+<button type="submit">Publish to Power BI Report Server</button>
+</form>
+{% endif %}
 <div class="history-actions">
 {% if report %}<a href="{% url 'agentic_ai:powerbi_export' run.pk %}">Download Power BI workbook</a>{% endif %}
 {% if powerbi.portal_url %}<a href="{{ powerbi.portal_url }}" target="_blank" rel="noopener noreferrer">Open Report Server ↗</a>{% endif %}
