@@ -19,7 +19,7 @@
 <section class="service-card"><span class="service-state">{% if channel.ready %}Configured{% else %}Unavailable{% endif %}</span>
 <h2>{{ channel.label }}</h2><p>{{ channel.status }}</p>
 <p>In Share this result, select the channel and an approved recipient, then preview and confirm the message.</p>
-{% if user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}#report-delivery-channels">Configure report delivery</a>{% endif %}
+{% if channel.key == 'telegram' %}<p>Telegram sends a Bangla preview and a sign-in link. Supported branch and zone reports include a chart.</p>{% elif user.is_staff and perms.agentic_ai.add_agenttool and perms.agentic_ai.change_agenttool and perms.chat.change_systemsetting %}<a href="{% url 'agentic_ai:setup' %}#report-delivery-channels">Configure report delivery</a>{% endif %}
 </section>
 {% endfor %}
 </div></main>

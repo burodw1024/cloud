@@ -139,7 +139,9 @@ def remember_result(user, result):
         return
     whatsapp_ready = bool(availability(user)['recipients'])
     other_ready = any(describe(channel, user)['ready'] for channel in CHANNELS)
-    if not whatsapp_ready and not other_ready:
+    from . import telegram
+    telegram_ready = bool(result.get('report_run_id') and telegram.describe(user)['ready'])
+    if not whatsapp_ready and not other_ready and not telegram_ready:
         return
     token = uuid.uuid4().hex
     cache.set(f'agentic:whatsapp:result:{user.pk}:{token}', result.copy(), TTL)
@@ -147,6 +149,8 @@ def remember_result(user, result):
         result['whatsapp_result_id'] = token
     if other_ready:
         result['share_result_id'] = token
+    if telegram_ready:
+        result['telegram_result_id'] = token
 
 
 async def dispatch(config, name, recipient, text, user, source_result=None, channel="whatsapp"):
@@ -201,9 +205,10 @@ def whatsapp_api(request, channel="whatsapp"):
         return reply({'ok': False, 'error': 'Authentication required.'}, 401)
     if request.method != 'POST':
         return reply({'ok': False, 'error': 'POST required.'}, 405)
-    if channel not in ('whatsapp', *CHANNELS):
+    from . import telegram
+    if channel not in ('whatsapp', 'telegram', *CHANNELS):
         return reply({'ok': False, 'error': 'Unknown sharing channel.'}, 404)
-    label = CHANNELS.get(channel, 'WhatsApp')
+    label = 'Telegram' if channel == 'telegram' else CHANNELS.get(channel, 'WhatsApp')
     dispatched = False
     try:
         if len(request.body) > 8192:
@@ -211,7 +216,10 @@ def whatsapp_api(request, channel="whatsapp"):
         body = json.loads(request.body)
         if not isinstance(body, dict):
             raise ValueError('Expected a JSON object.')
-        config = availability(request.user) if channel == 'whatsapp' else describe(channel, request.user)
+        if channel == 'telegram':
+            config = telegram.describe(request.user)
+        else:
+            config = availability(request.user) if channel == 'whatsapp' else describe(channel, request.user)
         recipient, token, mode = body.get('recipient'), body.get('result_id'), body.get('mode')
         if not config['tool'] or recipient not in config['recipients']:
             return reply({'ok': False, 'error': 'Recipient or delivery tool is not authorized.'}, 403)
@@ -222,14 +230,23 @@ def whatsapp_api(request, channel="whatsapp"):
             raise ValueError('Result expired. Run the question again before sending.')
         if not _can_replay_result(request.user, result):
             return reply({'ok': False, 'error': 'You no longer have access to this result.'}, 403)
-        text = export_text(result, mode)
+        payload = None
+        if channel == 'telegram':
+            if mode != 'summary':
+                raise ValueError('Telegram supports summary sharing only.')
+            payload = telegram.preview(request.user, result, recipient)
+            text = payload[0]
+        else:
+            text = export_text(result, mode)
+        preview_content = payload if payload else text
         preview_key = 'agentic:share:preview:' + hashlib.sha256(
-            f'{request.user.pk}:{channel}:{token}:{recipient}:{mode}:{config["tool"]}:{text}'.encode()).hexdigest()
+            f'{request.user.pk}:{channel}:{token}:{recipient}:{mode}:{config["tool"]}:{preview_content}'.encode()).hexdigest()
         if body.get('action') == 'preview':
             if channel != 'whatsapp':
                 cache.set(preview_key, True, TTL)
             return reply({'ok': True, 'text': text, 'characters': len(text),
-                          'subject': SUBJECT if channel in {'gmail', 'outlook'} else ''})
+                          'subject': SUBJECT if channel in {'gmail', 'outlook'} else '',
+                          **({'report_url': payload[1], 'includes_chart': bool(payload[2])} if payload else {})})
         if body.get('action') != 'send' or body.get('confirmed') is not True:
             raise ValueError('Preview and confirm the message before sending.')
         if channel != 'whatsapp' and not cache.get(preview_key):
@@ -241,12 +258,16 @@ def whatsapp_api(request, channel="whatsapp"):
         audit = AgentRunLog.objects.create(user=request.user, user_query=f'{label} {mode} export',
             selected_tool=config['tool'], detected_intent=f'{channel}_export', status='failed', risk_level='high',
             tool_input={'mode': mode, 'recipient_suffix': recipient[-4:], 'result_id': token},
-            error_message='Dispatch pending; check gateway before retrying.')
-        gateway = load_gateway_config()
-        dispatched = True
-        extra = {} if channel == 'whatsapp' else {'channel': channel}
-        output = async_to_sync(asyncio.wait_for)(
-            dispatch(gateway, config['tool'], recipient, text, request.user, result, **extra), gateway['request_timeout'])
+            error_message=f'Dispatch pending; check {label} before retrying.' if channel == 'telegram'
+            else 'Dispatch pending; check gateway before retrying.')
+        if channel == 'telegram':
+            output = telegram.dispatch(request.user, result, recipient, payload)
+        else:
+            gateway = load_gateway_config()
+            dispatched = True
+            extra = {} if channel == 'whatsapp' else {'channel': channel}
+            output = async_to_sync(asyncio.wait_for)(
+                dispatch(gateway, config['tool'], recipient, text, request.user, result, **extra), gateway['request_timeout'])
         audit.status = 'success' if output.get('ok') else ('approval_required' if output.get('approval_required') else 'failed')
         audit.error_message = '' if output.get('ok') else output.get('error', output.get('answer', ''))
         if output.get('ok'):

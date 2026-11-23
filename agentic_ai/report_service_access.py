@@ -20,6 +20,7 @@ SERVICE_PERMISSIONS = {
     'share_report_gmail': 'Send through Gmail',
     'share_report_outlook': 'Send through Outlook',
     'share_report_viber': 'Send through Viber',
+    'share_report_telegram': 'Send through Telegram',
 }
 
 

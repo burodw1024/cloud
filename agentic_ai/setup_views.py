@@ -124,8 +124,10 @@ def query_page(request):
             run = ReportRun.objects.filter(pk=run_id, user=request.user).first()
             if run and _can_replay_result(request.user, run.source):
                 question = run.question
+    from .telegram import describe as telegram_status
     channels = [{'key': 'whatsapp', 'label': 'WhatsApp', **whatsapp_status}]
     channels.extend(describe(channel, request.user) for channel in CHANNELS)
+    channels.append(telegram_status(request.user))
     response = render(request, "agentic_ai/ask.html", {**workspace, "whatsapp": whatsapp_status,
                       "share_channels": [channel for channel in channels if channel['ready']], "draft_question": question,
                       'reporting':workspace_settings(request.user), 'own_loan_access': own_access_summary(request.user) if workspace.get('has_loan_capabilities') else None})

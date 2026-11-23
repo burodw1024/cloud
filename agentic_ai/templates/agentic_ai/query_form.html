@@ -258,7 +258,7 @@
                     : 'The server returned HTTP '+response.status+'. Check the run log before retrying.');
             }
             const body = await response.json();
-            window.BuroReportShare?.setResult({whatsapp: body.whatsapp_result_id, other: body.share_result_id});
+            window.BuroReportShare?.setResult({whatsapp: body.whatsapp_result_id, other: body.share_result_id, telegram: body.telegram_result_id});
             renderUsage(body.usage,body.replayed);
             const answer = body.answer ?? body.error ?? 'No response was returned.';
             copyText = typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);

@@ -319,6 +319,7 @@ class ReportRun(models.Model):
             ('share_report_gmail', 'Share reports through Gmail'),
             ('share_report_outlook', 'Share reports through Outlook'),
             ('share_report_viber', 'Share reports through Viber'),
+            ('share_report_telegram', 'Share reports through Telegram'),
         ]
 
 

@@ -6,7 +6,7 @@ from django.core.cache import cache
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_protect
 
-from . import whatsapp
+from . import telegram, whatsapp
 from .share_channels import CHANNELS, describe
 from .dashboard_studio import permitted, response
 from .reporting_config import workspace_settings
@@ -33,7 +33,8 @@ def services_page(request):
             status = str(exc)
     result = render(request, 'agentic_ai/services.html', {
         'whatsapp': whatsapp.settings_status(request.user),
-        'share_channels': [describe(channel, request.user) for channel in CHANNELS], 'reporting': reporting,
+        'share_channels': [*(describe(channel, request.user) for channel in CHANNELS), telegram.describe(request.user)],
+        'reporting': reporting,
         'superset_status': status, 'superset_ready': ready})
     result['Cache-Control'] = 'no-store'
     return result

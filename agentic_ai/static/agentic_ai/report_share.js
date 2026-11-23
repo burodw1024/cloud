@@ -4,7 +4,7 @@
     const channel = document.getElementById('report-share-channel');
     const panels = [...root.querySelectorAll('[data-share-channel]')];
     let result = {}, generation = 0;
-    const tokenFor = key => key === 'whatsapp' ? result.whatsapp : result.other;
+    const tokenFor = key => result[key] || (key !== 'whatsapp' && key !== 'telegram' ? result.other : null);
 
     for (const panel of panels) {
         const key = panel.dataset.shareChannel;
@@ -77,6 +77,8 @@
                     pending = payload;
                     destination.textContent = 'Review message for ' + recipient.selectedOptions[0].textContent.trim();
                     message.textContent = (data.subject ? 'Subject: ' + data.subject + '\n\n' : '') + data.text;
+                    if (data.report_url) message.textContent += '\n\nOpen full report: ' + data.report_url;
+                    if (data.includes_chart) message.textContent += '\nA chart image will be attached.';
                     preview.hidden = false;
                     destination.focus();
                     status.textContent = '';

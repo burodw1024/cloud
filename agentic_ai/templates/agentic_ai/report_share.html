@@ -15,11 +15,11 @@
   <div data-share-channel="{{ channel.key }}" data-share-endpoint="{% if channel.key == 'whatsapp' %}{% url 'agentic_ai:whatsapp_api' %}{% else %}{% url 'agentic_ai:report_share_api' channel.key %}{% endif %}"{% if channel.key == 'whatsapp' %} id="whatsapp-actions"{% endif %} hidden>
     <label for="{% if channel.key == 'whatsapp' %}whatsapp-recipient{% else %}share-{{ channel.key }}-recipient{% endif %}">Recipient</label>
     <select id="{% if channel.key == 'whatsapp' %}whatsapp-recipient{% else %}share-{{ channel.key }}-recipient{% endif %}">
-      {% for recipient in channel.recipients %}<option value="{{ recipient }}">{% if channel.key == 'whatsapp' %}+{% endif %}{{ recipient }}</option>{% endfor %}
+      {% for recipient in channel.recipients %}<option value="{{ recipient }}">{% if channel.key == 'whatsapp' %}+{% endif %}{% if channel.key == 'telegram' %}My private Telegram chat{% else %}{{ recipient }}{% endif %}</option>{% endfor %}
     </select>
     <div class="report-publishing-actions">
       <button type="button" class="copy-button" data-share-preview="summary">Preview summary</button>
-      <button type="button" class="copy-button" data-share-preview="full">Preview full result</button>
+      {% if channel.key != 'telegram' %}<button type="button" class="copy-button" data-share-preview="full">Preview full result</button>{% endif %}
     </div>
     <div class="share-message-preview" data-share-preview-panel hidden>
       <h4 data-share-destination tabindex="-1"></h4>
@@ -33,5 +33,5 @@
   </div>
   {% endfor %}
 </section>
-<script src="{% static 'agentic_ai/report_share.js' %}?v=2"></script>
+<script src="{% static 'agentic_ai/report_share.js' %}?v=3"></script>
 {% endif %}
