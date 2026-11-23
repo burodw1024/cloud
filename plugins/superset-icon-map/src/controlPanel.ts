@@ -156,7 +156,7 @@ const controlPanel: ControlPanelConfig = {
               default: false,
               renderTrigger: true,
               description: t(
-                'Show the 64 district boundaries. Hover over a district to see its name.',
+                'Show the 64 district boundaries. Zoom in to see district names, or hover over a district.',
               ),
             },
           },

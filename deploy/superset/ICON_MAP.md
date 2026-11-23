@@ -88,7 +88,7 @@ the imagery, markers, labels, and source table in Superset as the mapped user.
 ### Bangladesh district boundaries
 
 New Agentic Satellite icon map exports open at the Bangladesh extent with all
-64 district outlines. Hover over a district to see its name. The district
+64 district outlines. Zoom in to see district names, or hover over a district. The district
 boundaries are included in the Icon Map build and work with configured imagery
 or the offline grid. The imagery setting still controls the basemap and its credit.
 
