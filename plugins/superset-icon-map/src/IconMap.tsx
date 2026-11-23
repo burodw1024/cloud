@@ -226,17 +226,31 @@ export default function IconMap(props: IconMapProps) {
         fillColor: '#d4ebe8',
         fillOpacity: template ? 0.06 : 0.45,
       },
-      onEachFeature(feature, layer) {
+    }).addTo(instance);
+    const syncDistrictLabels = () => {
+      const showNames = instance.getZoom() >= 8;
+      districts.eachLayer(layer => {
+        if (!(layer instanceof L.Polygon) || !layer.feature) return;
+        if (layer.getTooltip()?.options.permanent === showNames) return;
+        layer.unbindTooltip();
+        const feature = layer.feature;
         const label = document.createElement('span');
         label.textContent = feature.properties.name;
-        layer.bindTooltip(label, { sticky: true });
-      },
-    }).addTo(instance);
+        layer.bindTooltip(label, {
+          permanent: showNames,
+          sticky: !showNames,
+          direction: showNames ? 'center' : 'auto',
+        });
+      });
+    };
     instance.fitBounds(districts.getBounds(), {
       padding: [24, 24],
       animate: false,
     });
+    syncDistrictLabels();
+    instance.on('zoomend', syncDistrictLabels);
     return () => {
+      instance.off('zoomend', syncDistrictLabels);
       districts.remove();
     };
   }, [props.showBangladeshDistricts, template, model]);

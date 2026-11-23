@@ -134,6 +134,13 @@ try {
     assert.equal(mount.querySelectorAll('.leaflet-marker-icon').length, 2);
     assert(mount.querySelectorAll('img.leaflet-tile').length > 0);
     assert.match(mount.textContent, /Bangladesh ADM2: geoBoundaries/);
+    assert.equal(mount.querySelectorAll('.leaflet-tooltip').length, 0);
+    act(() => {
+      mount.querySelector('.leaflet-control-zoom-in').dispatchEvent(
+        new dom.window.MouseEvent('click', {bubbles: true, shiftKey: true}),
+      );
+    });
+    assert(mount.querySelectorAll('.leaflet-tooltip').length > 0);
     act(() => { ReactDOM.render(React.createElement(Component, props), mount); });
     assert.equal(mount.querySelectorAll('.leaflet-overlay-pane path').length, 0);
   });
