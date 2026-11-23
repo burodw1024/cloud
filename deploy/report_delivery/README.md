@@ -46,3 +46,35 @@ Compatible gateway adapters may be used instead. Gmail and Outlook tools must
 accept `to`, `subject`, and `body`. Viber tools must accept `receiver`, `type`,
 and `text`. Return `{"accepted": true}` only after the provider acknowledges
 acceptance.
+
+## Twilio WhatsApp and SMS
+
+Set these secrets and sender values on the report delivery adapter. Use
+international sender numbers with a leading plus sign.
+
+| Adapter variable | Value |
+| --- | --- |
+| `TWILIO_ACCOUNT_SID` | Twilio account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_WHATSAPP_FROM` | Configured WhatsApp sender number |
+| `TWILIO_SMS_FROM` | SMS-enabled Twilio number |
+
+Restart the adapter, refresh its upstream tools in ContextForge, and discover
+them in Agentic. In **Integration settings → WhatsApp result sharing**, save the
+exact discovered name for `deliver_twilio_whatsapp_report` and your approved
+recipient numbers. To use Meta again, select your Meta tool in the same setting.
+In **Report delivery → Twilio SMS**, save the discovered name for
+`deliver_twilio_sms_report` and approved phone numbers. Grant WhatsApp or
+Twilio SMS access to the intended users or roles under **Report service access**.
+
+The Twilio tools send an actual report summary of up to 1,600 characters.
+Twilio's guided WhatsApp trial can send its sample templates from the Console.
+For custom report text, enable custom messaging on the Twilio account and send
+within the 24-hour window after the recipient messages your WhatsApp sender.
+This adapter sends free-form text. Scheduled WhatsApp messages outside that
+window require a separate approved-template integration. SMS sender and
+destination requirements depend on the recipient country.
+
+Use the message SID in Agentic's send response or audit record to check
+delivery in Twilio Messaging Logs. A successful send through the tool confirms
+provider acceptance.

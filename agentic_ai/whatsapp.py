@@ -16,7 +16,7 @@ from .api import _can_replay_result
 from .mcp_gateway import (_allowed, _decision, _failure, _validator, discover_tools,
                           gateway_enabled, load_gateway_config, mcp_http_client)
 from .models import AgentRunLog, AgentTool
-from .share_channels import CHANNELS, SUBJECT, accepted_delivery, can_share, delivery_arguments, describe
+from .share_channels import CHANNELS, SUBJECT, accepted_delivery, can_share, delivery_arguments, describe, is_twilio_delivery_tool
 
 TTL = 900
 
@@ -60,7 +60,7 @@ def settings_status(user):
         message = 'Your role is not authorized for the WhatsApp tool.'
     else:
         return {**config, 'ready': True,
-                'status': 'Local settings ready. Run a question to preview a message. Meta authentication and delivery are not verified.'}
+                'status': 'Local settings ready. Run a question to preview a message. Provider authentication and delivery are not verified.'}
     # Do not expose recipient numbers to unauthorized users.
     return {'tool': config['tool'], 'recipients': [], 'ready': False, 'status': message}
 
@@ -70,18 +70,20 @@ def availability(user):
     return {'tool': status['tool'], 'recipients': status['recipients']} if status['ready'] else {'tool': '', 'recipients': []}
 
 
-def text_arguments(schema, recipient, text):
+def text_arguments(schema, recipient, text, tool_name=''):
+    if is_twilio_delivery_tool(tool_name) and len(text) > 1600:
+        raise ValueError('Twilio WhatsApp supports up to 1,600 characters. Send a shorter summary.')
     if not {'messaging_product', 'to', 'type', 'text'} <= set(schema.get('properties', {})):
         raise ValueError('The WhatsApp service must declare messaging_product, to, type and text. Ask an administrator to register a text-message tool; a template-only tool cannot send report text.')
     arguments = {'messaging_product': 'whatsapp', 'to': recipient, 'type': 'text', 'text': {'body': text}}
     try:
         _validator(schema).validate(arguments)
     except Exception:
-        raise ValueError('This WhatsApp tool does not accept report text. Configure a Cloud API text-message tool; a hello_world-only template cannot send the report.') from None
+        raise ValueError('This WhatsApp tool does not accept report text. Configure a compatible text-message tool; a hello_world-only template cannot send the report.') from None
     return arguments
 
 
-def accepted_message_id(data):
+def accepted_message_id(data, provider="Meta"):
     """Read common MCP/HTTP wrappers without treating tool success as delivery."""
     for _ in range(8):
         if isinstance(data, str):
@@ -92,7 +94,12 @@ def accepted_message_id(data):
         elif isinstance(data, dict):
             if data.get('isError') or data.get('error') or data.get('success') is False:
                 return None
-            messages = data.get('messages')
+            if provider == 'Twilio' and data.get('provider') == 'Twilio':
+                sid = data.get('message_id')
+                if data.get('accepted') is True and isinstance(sid, str) and re.fullmatch(r'(?:SM|MM)[0-9a-fA-F]{32}', sid):
+                    return sid
+                return None
+            messages = data.get('messages') if provider == 'Meta' else None
             if isinstance(messages, list):
                 for message in messages:
                     identifier = message.get('id') if isinstance(message, dict) else None
@@ -102,7 +109,8 @@ def accepted_message_id(data):
             if 'structuredContent' in data:
                 data = data['structuredContent']
             elif isinstance(data.get('content'), list) and len(data['content']) == 1:
-                data = data['content'][0].get('text')
+                item = data['content'][0]
+                data = item.get('text') if isinstance(item, dict) else None
             else:
                 data = next((data[key] for key in ('result', 'data', 'body') if key in data), None)
         else:
@@ -161,7 +169,7 @@ async def dispatch(config, name, recipient, text, user, source_result=None, chan
             tool = next((t for t in tools if t.name == name), None)
             if tool is None:
                 raise ValueError('The configured delivery tool is not available on this gateway.')
-            arguments = (text_arguments(tool.inputSchema, recipient, text) if channel == 'whatsapp'
+            arguments = (text_arguments(tool.inputSchema, recipient, text, name) if channel == 'whatsapp'
                          else delivery_arguments(channel, tool.inputSchema, recipient, text))
             if source_result is not None and not await sync_to_async(_can_replay_result)(user, source_result):
                 return {'ok': False, 'http_status': 403, 'error': 'Report access changed before sharing. Nothing was sent.'}
@@ -180,7 +188,12 @@ async def dispatch(config, name, recipient, text, user, source_result=None, chan
             data = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             if data.get('isError'):
                 return {'ok': False, 'error': 'Delivery tool reported an error. Check ContextForge logs before retrying.'}
-            if channel != 'whatsapp' and accepted_delivery(data):
+            if channel in {'whatsapp', 'sms'}:
+                sid = accepted_message_id(data, 'Twilio')
+                if sid:
+                    return {'ok': True, 'message_id': sid, 'provider': 'Twilio',
+                            'message': 'Twilio accepted the message. Delivery is not yet confirmed.'}
+            if channel not in {'whatsapp', 'sms'} and accepted_delivery(data):
                 return {'ok': True, 'message': f'{CHANNELS[channel]} accepted the message. Delivery is not yet confirmed.'}
             identifier = accepted_message_id(data) if channel == 'whatsapp' else None
             if identifier:
@@ -250,8 +263,10 @@ def whatsapp_api(request, channel="whatsapp"):
         audit.status = 'success' if output.get('ok') else ('approval_required' if output.get('approval_required') else 'failed')
         audit.error_message = '' if output.get('ok') else output.get('error', output.get('answer', ''))
         if output.get('ok'):
-            audit.tool_output_summary = ('Meta accepted message: ' + str(output.get('message_id', 'not supplied'))
-                                         if channel == 'whatsapp' else f'{label} accepted the message.')
+            provider = output.get('provider', 'Meta' if channel == 'whatsapp' else label)
+            identifier = output.get('message_id')
+            audit.tool_output_summary = (f'{provider} accepted message: {identifier}' if identifier
+                                         else f'{provider} accepted the message.')
         audit.save(update_fields=['status', 'error_message', 'tool_output_summary'])
         if output.get('answer') and not output.get('message'):
             output['message'] = output['answer']

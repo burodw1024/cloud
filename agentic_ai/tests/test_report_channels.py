@@ -39,6 +39,8 @@ class ReportChannelsTests(TestCase):
         self.token = result['share_result_id']
 
     def recipient(self, channel):
+        if channel == 'sms':
+            return '15551234567'
         return 'subscriber123=' if channel == 'viber' else 'approved@example.org'
 
     def post(self, channel, **overrides):
@@ -56,13 +58,14 @@ class ReportChannelsTests(TestCase):
                 self.assertEqual(self.post(channel, recipient='unapproved@example.org').status_code, 403)
                 preview = self.post(channel).json()
                 self.assertIn('Authorized report', preview['text'])
-                self.assertEqual(bool(preview['subject']), channel != 'viber')
+                self.assertEqual(bool(preview['subject']), channel in {'gmail', 'outlook'})
                 self.assertEqual(self.post(channel, action='send', confirmed=True).status_code, 200)
                 self.assertEqual(self.post(channel, action='send', confirmed=True).status_code, 409)
-        self.assertEqual(dispatch.await_count, 3)
-        self.assertEqual(AgentRunLog.objects.filter(status='success').count(), 3)
+        self.assertEqual(dispatch.await_count, len(CHANNELS))
+        self.assertEqual(AgentRunLog.objects.filter(status='success').count(), len(CHANNELS))
 
     def test_role_changes_and_sender_tools_hidden_from_planner(self):
+        AgentTool.objects.create(name='delivery-deliver-twilio-whatsapp-report', allowed_roles=['share'])
         self.assertEqual(mcp_gateway._authorized_names(self.user), {self.report.name})
         self.assertContains(self.client.get('/agentic/'), 'id="share-gmail-recipient"')
         self.report.is_active = False

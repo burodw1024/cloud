@@ -228,6 +228,18 @@ class GatewayDispatchTests(TestCase):
         self.assertEqual(result['message_id'], 'wamid.accepted')
         self.assertIn('Delivery is not yet confirmed', result['message'])
 
+    def test_twilio_acceptance_returns_sid_but_does_not_claim_delivery(self):
+        sid = 'SM' + 'a' * 32
+        payload = {'provider': 'Twilio', 'accepted': True, 'message_id': sid}
+        self.session.call_tool.return_value = self.SimpleNamespace(model_dump=lambda **kwargs: {
+            'structuredContent': payload})
+        result = self.run_dispatch()
+        self.assertEqual(result['message_id'], sid)
+        self.assertEqual(result['provider'], 'Twilio')
+        self.assertIn('Delivery is not yet confirmed', result['message'])
+        for invalid in ({**payload, 'accepted': False}, {**payload, 'message_id': 'invalid'}):
+            self.assertIsNone(wa.accepted_message_id(invalid, 'Twilio'))
+
     def test_unverified_acceptance_and_wrapped_errors_are_not_success(self):
         for payload in ({'messages': [True]}, {'messages': [{'status': 'ok'}]},
                         {'error': {'message': 'Rejected'}, 'messages': [{'id': 'wamid.bad'}]},
