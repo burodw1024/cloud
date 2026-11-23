@@ -210,7 +210,8 @@ def chart_specs(spec, fields, config=None):
         location = {key: value for key, value in location.items() if value is not None}
         tiles = satellite_tiles(config)
         yield 'Satellite icon map', 'buro_icon_map', {
-            **tiles, **location, 'icon_type': 'branch', 'show_legend': True, 'row_limit': MAX_ROWS,
+            **tiles, **location, 'icon_type': 'branch', 'show_legend': True,
+            'show_bangladesh_districts': True, 'row_limit': MAX_ROWS,
         }, list(dict.fromkeys(location.values())), []
     for metric in ([] if template == 'satellite' else spec['metrics']):
         column = physical[metric]

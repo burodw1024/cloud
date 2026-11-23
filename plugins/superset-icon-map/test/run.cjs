@@ -97,6 +97,7 @@ try {
   Object.defineProperty(global, 'navigator', {value: dom.window.navigator, configurable: true});
   Object.defineProperty(dom.window.HTMLElement.prototype, 'clientWidth', {get() { return 800; }});
   Object.defineProperty(dom.window.HTMLElement.prototype, 'clientHeight', {get() { return 400; }});
+  dom.window.SVGSVGElement.prototype.createSVGRect = () => ({});
   // React 16's scheduler otherwise keeps Node 24's MessageChannel alive after tests.
   global.MessageChannel = undefined;
   const React = require('react');
@@ -123,6 +124,18 @@ try {
     act(() => { mount.querySelector('.buro-map-legend button').click(); });
     assert.equal(mount.querySelectorAll('.leaflet-marker-icon').length, 1);
     assert.match(mount.textContent, /1 plotted locations/);
+  });
+  check('Bangladesh overlay renders all 64 districts over tiles and can be disabled', () => {
+    const props = {...options, width: 800, height: 500, rows,
+      tileTemplate: '/tiles/{z}/{x}/{y}.png'};
+    act(() => { ReactDOM.render(React.createElement(Component, {...props, showBangladeshDistricts: true}), mount); });
+    const boundaries = mount.querySelectorAll('.leaflet-overlay-pane path');
+    assert.equal(boundaries.length, 64);
+    assert.equal(mount.querySelectorAll('.leaflet-marker-icon').length, 2);
+    assert(mount.querySelectorAll('img.leaflet-tile').length > 0);
+    assert.match(mount.textContent, /Bangladesh ADM2: geoBoundaries/);
+    act(() => { ReactDOM.render(React.createElement(Component, props), mount); });
+    assert.equal(mount.querySelectorAll('.leaflet-overlay-pane path').length, 0);
   });
   check('empty data and unmount clean up markers and map instance', () => {
     act(() => { ReactDOM.render(React.createElement(Component, {...options, width: 800, height: 500, rows: []}), mount); });

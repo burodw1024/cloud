@@ -32,3 +32,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 No geographic boundary or tile data is bundled. A configured tile service has
 its own license and attribution requirements. The default coordinate grid
 makes no external requests.
+
+## Bangladesh district boundaries
+
+Bangladesh ADM2 by [geoBoundaries](https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM2/),
+licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+The bundled geometry comes from the [Bangladesh Locations Dataset mirror](https://github.com/HedaetShahriar/bangladesh-locations-dataset/blob/0d3116a7f59be5b2450742432805df2ab505043e/data/exports/geojson/boundaries/districts.geojson).
+Only the district name and geometry are retained. Coordinates are rounded to four decimal places.

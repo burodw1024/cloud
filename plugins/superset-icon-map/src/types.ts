@@ -17,4 +17,5 @@ export type IconMapFormData = QueryFormData & {
   tile_attribution?: string;
   show_legend?: boolean;
   show_labels?: boolean;
+  show_bangladesh_districts?: boolean;
 };

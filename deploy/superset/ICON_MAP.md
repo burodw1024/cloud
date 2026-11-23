@@ -84,3 +84,13 @@ the locations being mapped.
 From the result choose **Choose a template & preview**, then **Satellite icon map**.
 Check the coordinates in the preview, publish a private snapshot, and verify
 the imagery, markers, labels, and source table in Superset as the mapped user.
+
+### Bangladesh district boundaries
+
+New Agentic Satellite icon map exports open at the Bangladesh extent with all
+64 district outlines. Hover over a district to see its name. The district
+boundaries are included in the Icon Map build and work with configured imagery
+or the offline grid. The imagery setting still controls the basemap and its credit.
+
+To update a saved chart after deploying this build, open the chart in Superset,
+select **Customize → Map background → Show Bangladesh districts**, and save.
