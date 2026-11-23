@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './style.css';
+import bangladeshDistricts from './bangladeshDistricts';
 import { DataRow, MapOptions, MapPoint, prepareMap, tileUrl } from './model';
 
 export interface IconMapProps extends MapOptions {
@@ -13,6 +14,7 @@ export interface IconMapProps extends MapOptions {
   tileAttribution?: string;
   showLegend?: boolean;
   showLabels?: boolean;
+  showBangladeshDistricts?: boolean;
 }
 
 const PATHS = {
@@ -170,7 +172,6 @@ export default function IconMap(props: IconMapProps) {
       zoomControl: false,
       attributionControl: true,
       worldCopyJump: false,
-      preferCanvas: true,
     }).setView([0, 0], 2);
     L.control.zoom({ position: 'bottomright' }).addTo(instance);
     L.control
@@ -211,6 +212,32 @@ export default function IconMap(props: IconMapProps) {
     setHidden(new Set());
     if (map.current) fit(map.current, model.points);
   }, [model]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !props.showBangladeshDistricts) return undefined;
+    const districts = L.geoJSON(bangladeshDistricts, {
+      attribution: 'Bangladesh ADM2: geoBoundaries (CC BY 4.0)',
+      style: {
+        color: template ? '#ffe082' : '#28676d',
+        weight: 1.5,
+        fillColor: '#d4ebe8',
+        fillOpacity: template ? 0.06 : 0.45,
+      },
+      onEachFeature(feature, layer) {
+        const label = document.createElement('span');
+        label.textContent = feature.properties.name;
+        layer.bindTooltip(label, { sticky: true });
+      },
+    }).addTo(instance);
+    instance.fitBounds(districts.getBounds(), {
+      padding: [24, 24],
+      animate: false,
+    });
+    return () => {
+      districts.remove();
+    };
+  }, [props.showBangladeshDistricts, template, model]);
 
   useEffect(() => {
     markers.current?.clearLayers();

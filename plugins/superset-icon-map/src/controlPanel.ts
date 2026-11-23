@@ -144,9 +144,23 @@ const controlPanel: ControlPanelConfig = {
       ],
     },
     {
-      label: t('On-prem map tiles (optional)'),
+      label: t('Map background'),
       expanded: false,
       controlSetRows: [
+        [
+          {
+            name: 'show_bangladesh_districts',
+            config: {
+              type: 'CheckboxControl',
+              label: t('Show Bangladesh districts'),
+              default: false,
+              renderTrigger: true,
+              description: t(
+                'Show the 64 district boundaries. Hover over a district to see its name.',
+              ),
+            },
+          },
+        ],
         [
           {
             name: 'tile_url',

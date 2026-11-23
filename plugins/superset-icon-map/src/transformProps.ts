@@ -29,5 +29,6 @@ export default function transformProps(chartProps: ChartProps): IconMapProps {
     tileAttribution: form.tile_attribution || '',
     showLegend: form.show_legend !== false,
     showLabels: form.show_labels === true,
+    showBangladeshDistricts: form.show_bangladesh_districts === true,
   };
 }
