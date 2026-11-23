@@ -12,7 +12,7 @@ KEY = 'buro_icon_map'
 def register(source):
     if KEY in source or 'BuroIconMapPlugin' in source:
         raise ValueError('Icon Map is already registered; start from the clean pinned upstream source.')
-    marker = "import { isFeatureEnabled, FeatureFlag, Preset } from '@superset-ui/core';"
+    marker = "import { FilterPlugins } from 'src/constants';"
     if source.count(marker) != 1 or source.count('plugins: [') != 1:
         raise ValueError('Unexpected MainPreset structure; refuse to patch a different Superset version.')
     return source.replace(marker, marker+"\nimport BuroIconMapPlugin from '../BuroIconMap';").replace(

@@ -221,6 +221,8 @@ export default function IconMap(props: IconMapProps) {
       style: {
         color: template ? '#ffe082' : '#28676d',
         weight: 1.5,
+        // Keep the geographic overlay legible against both basemaps.
+        // eslint-disable-next-line theme-colors/no-literal-colors
         fillColor: '#d4ebe8',
         fillOpacity: template ? 0.06 : 0.45,
       },

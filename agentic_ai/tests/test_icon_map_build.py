@@ -11,9 +11,14 @@ SPEC.loader.exec_module(build)
 
 class IconMapBuildTests(unittest.TestCase):
     def test_registration_adds_one_chart_without_replacing_existing_plugins(self):
-        source = "import { isFeatureEnabled, FeatureFlag, Preset } from '@superset-ui/core';\nplugins: [new ExistingPlugin()],"
+        source = "import { FilterPlugins } from 'src/constants';\nplugins: [new ExistingPlugin()],"
         result = build.register(source)
         self.assertIn("new BuroIconMapPlugin().configure({ key: 'buro_icon_map' })", result)
+        self.assertIn(
+            "import { FilterPlugins } from 'src/constants';\n"
+            "import BuroIconMapPlugin from '../BuroIconMap';",
+            result,
+        )
         self.assertIn('new ExistingPlugin()', result)
         self.assertEqual(result.count("key: 'buro_icon_map'"), 1)
         with self.assertRaises(ValueError):
