@@ -210,10 +210,10 @@ def setup_page(request):
             if tool is None:
                 return _reply({"ok": False, "error": "Configured tool is absent from the connected gateway. Discover tools and check the exact name."}, 400)
             try:
-                text_arguments(tool.inputSchema, config['recipients'][0], 'Configuration check')
+                text_arguments(tool.inputSchema, config['recipients'][0], 'Configuration check', tool.name)
             except ValueError as exc:
                 return _reply({'ok': False, 'error': str(exc)}, 400)
-            return _reply({"ok": True, "message": "Gateway tool and text input schema checked. No message sent. Meta token, request-body mapping, and delivery remain unverified."})
+            return _reply({"ok": True, "message": "Gateway tool and text input schema checked. No message sent. Provider credentials, request-body mapping, and delivery remain unverified."})
         if action == "save_summary":
             from urllib.parse import urlsplit
             base, model = body.get("base", ""), body.get("model", "")

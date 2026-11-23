@@ -7,8 +7,14 @@ from django.core.validators import validate_email
 
 from chat.dynamic_config import get_setting
 
-CHANNELS = {'gmail': 'Gmail', 'outlook': 'Outlook', 'viber': 'Viber'}
+CHANNELS = {'gmail': 'Gmail', 'outlook': 'Outlook', 'viber': 'Viber', 'sms': 'Twilio SMS'}
 SUBJECT = 'BURO Insight AI report'
+TWILIO_TOOLS = ('deliver-twilio-whatsapp-report', 'deliver-twilio-sms-report')
+
+
+def is_twilio_delivery_tool(name):
+    normalized = name.replace('_', '-')
+    return any(normalized == tool or normalized.endswith('-' + tool) for tool in TWILIO_TOOLS)
 
 
 def can_share(user, channel):
@@ -29,11 +35,16 @@ def recipient_list(channel, values):
         if channel == 'viber':
             if not re.fullmatch(r'[A-Za-z0-9_+/=-]{1,254}', value):
                 raise ValueError('Use Viber bot subscriber IDs.')
+        elif channel == 'sms':
+            if not re.fullmatch(r'\+?[1-9][0-9]{7,14}', value):
+                raise ValueError('Use international phone numbers including the country code.')
         else:
             try:
                 validate_email(value)
             except ValidationError:
                 raise ValueError('Enter a valid email address per line.') from None
+    if channel == 'sms':
+        values = [value.lstrip('+') for value in values]
     return list(dict.fromkeys(values))
 
 
@@ -75,8 +86,14 @@ def describe(channel, user=None):
 def delivery_arguments(channel, schema, recipient, text):
     from .mcp_gateway import _validator
 
-    arguments = ({'receiver': recipient, 'type': 'text', 'text': text} if channel == 'viber'
-                 else {'to': recipient, 'subject': SUBJECT, 'body': text})
+    if channel == 'viber':
+        arguments = {'receiver': recipient, 'type': 'text', 'text': text}
+    elif channel == 'sms':
+        if len(text) > 1600:
+            raise ValueError('Twilio SMS supports up to 1,600 characters. Send a shorter summary.')
+        arguments = {'to': recipient, 'body': text}
+    else:
+        arguments = {'to': recipient, 'subject': SUBJECT, 'body': text}
     if not set(arguments) <= set(schema.get('properties', {})):
         raise ValueError(f'The {CHANNELS[channel]} gateway tool does not declare the required delivery fields.')
     try:

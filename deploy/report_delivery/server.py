@@ -116,6 +116,50 @@ def deliver_viber_report(receiver: str, type: str, text: str) -> dict:
     return outcome('Viber', send)
 
 
+def twilio_report(channel, to, body):
+    try:
+        account = secret('TWILIO_ACCOUNT_SID')
+        sender = secret(f'TWILIO_{channel.upper()}_FROM')
+        if (not re.fullmatch(r'AC[0-9a-fA-F]{32}', account)
+                or not re.fullmatch(r'[1-9][0-9]{7,14}', to)
+                or not re.fullmatch(r'\+[1-9][0-9]{7,14}', sender)):
+            raise ValueError('Invalid Twilio sender or recipient configuration.')
+        prefix = 'whatsapp:' if channel == 'whatsapp' else ''
+        with httpx.Client(timeout=httpx.Timeout(12, connect=4), follow_redirects=False) as client:
+            response = client.post(
+                f'https://api.twilio.com/2010-04-01/Accounts/{account}/Messages.json',
+                auth=(account, secret('TWILIO_AUTH_TOKEN')),
+                data={'From': prefix + sender, 'To': prefix + '+' + to, 'Body': body},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        sid = payload.get('sid')
+        if (isinstance(sid, str) and re.fullmatch(r'(?:SM|MM)[0-9a-fA-F]{32}', sid)
+                and payload.get('status') in {'accepted', 'queued', 'sending', 'sent', 'delivered', 'read'}
+                and payload.get('error_code') is None):
+            return {'accepted': True, 'provider': 'Twilio', 'message_id': sid}
+    except (httpx.HTTPError, ValueError, TypeError, AttributeError):
+        pass
+    return {'accepted': False, 'error': 'Twilio acceptance could not be confirmed. Check Messaging Logs before retrying.'}
+
+
+@mcp.tool()
+def deliver_twilio_whatsapp_report(messaging_product: str, to: str, type: str, text: dict[str, str]) -> dict:
+    """Send a reviewed WhatsApp report through the configured Twilio sender."""
+    body = text.get('body', '')
+    if messaging_product != 'whatsapp' or type != 'text' or not body.strip() or len(body) > 1600:
+        return {'accepted': False, 'error': 'Twilio supports WhatsApp report text up to 1,600 characters.'}
+    return twilio_report('whatsapp', to, body)
+
+
+@mcp.tool()
+def deliver_twilio_sms_report(to: str, body: str) -> dict:
+    """Send a reviewed SMS report through the configured Twilio sender."""
+    if not body.strip() or len(body) > 1600:
+        return {'accepted': False, 'error': 'Twilio supports SMS report text up to 1,600 characters.'}
+    return twilio_report('sms', to, body)
+
+
 mcp_app = mcp.streamable_http_app()
 
 

@@ -115,17 +115,18 @@ def _allowed(record, user, user_roles=None):
 def _authorized_names(user):
     if not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
         return set()
-    from .share_channels import outbound_tool_names
+    from .share_channels import is_twilio_delivery_tool, outbound_tool_names
     sharing_tools = outbound_tool_names()
     roles = set(get_user_role_names(user))
     return {record.name for record in AgentTool.objects.filter(is_active=True).select_related('module').only("name", "is_active", "allowed_roles", "module__is_active")
-            if record.name not in sharing_tools and _allowed(record, user, roles)}
+            if record.name not in sharing_tools and not is_twilio_delivery_tool(record.name)
+            and _allowed(record, user, roles)}
 
 
 def _decision(user, name, arguments, tool=None, backend_arguments=None):
     if tool is not None:
-        from .share_channels import outbound_tool_names
-        if name in outbound_tool_names():
+        from .share_channels import is_twilio_delivery_tool, outbound_tool_names
+        if name in outbound_tool_names() or is_twilio_delivery_tool(name):
             return {"ok": False, "status": "blocked", "code": "permission_denied", "http_status": 403,
                     "answer": "Use the report sharing panel to preview and confirm delivery."}
     # Read roles and activation again after the model responds.

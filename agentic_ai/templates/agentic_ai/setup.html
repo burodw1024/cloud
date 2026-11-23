@@ -84,7 +84,7 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <label for="whatsapp-recipients">Allowed recipient numbers (one per line)</label>
 <textarea id="whatsapp-recipients" rows="5" style="width:100%" placeholder="8801XXXXXXXXX">{{ whatsapp_recipients }}</textarea>
 <small>Use international numbers. All roles authorized for this tool can select these recipients. Obtain recipient opt-in.</small>
-<p>The tool must accept <code>{"messaging_product":"whatsapp","to":"…","type":"text","text":{"body":"…"}}</code>. A hello_world-only template tool cannot send arbitrary results. Free-form text requires an open 24-hour customer-service window. Full results above 4,096 characters are blocked rather than truncated.</p>
+<p>The tool must accept <code>{"messaging_product":"whatsapp","to":"…","type":"text","text":{"body":"…"}}</code>. For Twilio, use the discovered name for <code>deliver_twilio_whatsapp_report</code>. Configure the Twilio credentials in the report delivery adapter. Twilio trial templates cannot carry custom reports. Free-form text requires an open 24-hour customer-service window. Use a summary of up to 1,600 characters for Twilio or up to 4,096 for Meta.</p>
 <button id="save-whatsapp" type="button">Save WhatsApp settings</button>
 <button id="check-whatsapp" type="button">Check WhatsApp settings</button>
 </section>
@@ -95,9 +95,9 @@ body{font:16px/1.6 system-ui,sans-serif;color:#183247;background:#f3f7fa;margin:
 <summary>{{ channel.label }}</summary>
 <label for="{{ channel.key }}-report-tool">Exact ContextForge tool name</label>
 <input id="{{ channel.key }}-report-tool" data-channel-tool maxlength="150" value="{{ channel.tool }}">
-<label for="{{ channel.key }}-report-recipients">{% if channel.key == 'viber' %}Allowed bot subscriber IDs{% else %}Allowed email addresses{% endif %} (one per line)</label>
+<label for="{{ channel.key }}-report-recipients">{% if channel.key == 'viber' %}Allowed bot subscriber IDs{% elif channel.key == "sms" %}Allowed international phone numbers{% else %}Allowed email addresses{% endif %} (one per line)</label>
 <textarea id="{{ channel.key }}-report-recipients" data-channel-recipients rows="4">{{ channel.recipient_text }}</textarea>
-<p>{% if channel.key == 'viber' %}Use subscriber IDs from your Viber bot. The tool accepts receiver, type and text.{% else %}The tool accepts to, subject and body for the configured mailbox.{% endif %}</p>
+<p>{% if channel.key == 'viber' %}Use subscriber IDs from your Viber bot. The tool accepts receiver, type and text.{% elif channel.key == "sms" %}Use the discovered name for <code>deliver_twilio_sms_report</code>. The tool accepts to and body. Use a short summary of up to 1,600 characters.{% else %}The tool accepts to, subject and body for the configured mailbox.{% endif %}</p>
 <button type="button" data-channel-action="save_report_channel">Save {{ channel.label }}</button>
 <button type="button" data-channel-action="check_report_channel">Check {{ channel.label }} tool</button>
 </details>
