@@ -1,3 +1,9 @@
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+STATIC_URL = "/static/"
+
 SECRET_KEY = "isolated-mcp-tests"
 INSTALLED_APPS = ["django.contrib.auth", "django.contrib.contenttypes", "agentic_ai"]
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
@@ -14,4 +20,5 @@ ROOT_URLCONF = "agentic_ai.tests.urls"
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True,
+              "DIRS": [BASE_DIR / "chat" / "templates"],
               "OPTIONS": {"context_processors": ["django.contrib.auth.context_processors.auth", "django.template.context_processors.request"]}}]
