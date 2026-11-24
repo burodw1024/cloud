@@ -1,0 +1,37 @@
+{% extends "chat/portal_base.html" %}
+{% block content %}
+  <h1>Choose an assistant</h1>
+  <div class="portal-grid">
+    {% if not user.is_authenticated or perms.openai_policy.use_policy_ai %}
+      <a class="portal-card" href="{% url 'openai_policy:chat' %}">
+        <h2>Policy AI <span aria-hidden="true">↗</span></h2>
+        <p>Ask questions about policies, procedures and guidance.</p>
+      </a>
+    {% endif %}
+    <a class="portal-card" href="{% url 'agentic_ai:query_page' %}">
+      <h2>Agentic AI <span aria-hidden="true">↗</span></h2>
+      <p>Explore your business modules, query data and run reports.</p>
+    </a>
+    <a class="portal-card" href="{% url 'index' %}">
+      <h2>Main chat <span aria-hidden="true">↗</span></h2>
+      <p>Open the BURO chat workspace for documents, notices and other requests.</p>
+    </a>
+  </div>
+  {% if service_links or user.is_staff %}
+    <section class="portal-section">
+      <h2>Quick links</h2>
+      <ul class="portal-links">
+        {% for label, url in service_links %}
+          <li><a href="{{ url }}">{{ label }} <span aria-hidden="true">↗</span></a></li>
+        {% endfor %}
+        {% if user.is_staff %}<li><a href="{% url 'admin:index' %}">Administration</a></li>{% endif %}
+        {% if user.is_staff and user.username == 'root_123' %}
+          <li><a href="{% url 'admin_tools_settings' %}">URL settings</a></li>
+        {% endif %}
+        {% if user.is_staff and perms.agentic_ai.manage_loan_access %}
+          <li><a href="{% url 'agentic_ai:data_access' %}">User access</a></li>
+        {% endif %}
+      </ul>
+    </section>
+  {% endif %}
+{% endblock %}

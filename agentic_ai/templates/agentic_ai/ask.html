@@ -183,9 +183,11 @@ tbody tr:hover { background:var(--soft) }
 <nav class="side-nav" aria-label="Administration">{% include "agentic_ai/admin_nav_links.html" %}</nav>
 </div>
 {% endif %}
-<a class="chat-link" href="/">Main chat <span aria-hidden="true">↗</span></a>
+<a class="chat-link" href="/">App menu <span aria-hidden="true">↗</span></a>
+{% url 'portal_docs' as documentation_url %}
+{% if documentation_url %}<a class="chat-link" href="{{ documentation_url }}">Documentation</a>{% endif %}
 </aside>
-<main class="workspace" id="workspace-main" tabindex="-1"><header class="topbar"><div>Workspace &nbsp; / &nbsp; <strong>{{ selected_module.name|default:"My workspace" }}</strong></div><div class="profile"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">◐</button><span>{{ user.get_short_name|default:user.username }}</span><span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span></div></header>
+<main class="workspace" id="workspace-main" tabindex="-1"><header class="topbar"><div>Workspace &nbsp; / &nbsp; <strong>{{ selected_module.name|default:"My workspace" }}</strong></div><div class="profile"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">◐</button>{% include "chat/account_menu.html" %}</div></header>
 <div class="page-heading">
 <div><h1>{{ selected_module.name|default:"My workspace" }}</h1>
 <p>{{ selected_module.description|default:"Ask a question in Bangla or English and explore the tools available to your account." }}</p></div>

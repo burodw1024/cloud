@@ -46,6 +46,14 @@ def normalize(payload):
             if len(value) > limit or any(ord(c) < 32 for c in value):
                 raise ValueError(f'Row {index}: invalid {key}.')
             values[key] = value
+        mobile = next((row[key] for key in ('MOBILENO', 'MOBILE_NO', 'MOBILE_NUMBER') if key in row), None)
+        if mobile is not None:
+            if type(mobile) not in (str, int):
+                raise ValueError(f'Row {index}: mobile number must be a string or integer.')
+            mobile = str(mobile).strip()
+            if len(mobile) > 32 or any(ord(char) < 32 for char in mobile):
+                raise ValueError(f'Row {index}: invalid mobile number.')
+            values['MOBILENO'] = mobile
         # Legacy five-column feeds used BRANCH as the code. Never truncate it.
         if 'SITECODE' not in row and len(values['BRANCH']) > 32:
             raise ValueError(f'Row {index}: provide SITECODE when BRANCH contains a location name.')
@@ -145,7 +153,11 @@ def _sync_row(row, config, active, password_hash):
             profile.branch_code = row['BRANCH']
         else:
             profile.branch_code = row['SITECODE'] if row['EMP_WORKSPACE'].casefold() == 'branch' else ''
-        profile.save(update_fields=['branch_code'])
+        profile_fields = ['branch_code']
+        if 'MOBILENO' in row:
+            profile.mobile_number = row['MOBILENO']
+            profile_fields.append('mobile_number')
+        profile.save(update_fields=profile_fields)
         entry = entry or EmployeeDirectoryEntry(user=user)
         entry.employee_id, entry.employee_code = row['EMPLOYEEID'], row['EMPLOYEECODE']
         entry.employee_name, entry.branch, entry.status = row['EMPLOYEENAME'], row['BRANCH'], row['EMPSTATUS']

@@ -23,6 +23,8 @@ class UserProfile(models.Model):
     branch_code = models.CharField(max_length=32, blank=True, default="")
     allowed_branch_codes = models.TextField(blank=True, default="")
     department = models.CharField(max_length=64, blank=True, default="")
+    designation = models.CharField(max_length=255, blank=True)
+    mobile_number = models.CharField(max_length=32, blank=True)
 
     def allowed_branches_set(self):
         codes = []

@@ -726,6 +726,7 @@
       .bubble{font-size:13.5px; padding:12px 13px;}
     }
   </style>
+{% include "chat/portal_head.html" %}
 </head>
 <body>
 <div class="app">
@@ -782,17 +783,8 @@
         </div>
 
         <div class="authArea">
-          <span class="pill">/api/auto/ask</span>
-          {% if request.user.is_authenticated %}
-            <a class="pill primaryPill" href="{% url 'agentic_ai:query_page' %}">Data assistant</a>
-            <span class="pill userPill" title="Logged in user">
-              <span class="statusDot ok"></span>
-              {{ request.user.username }}
-            </span>
-            <form action="{% url 'logout' %}" method="post" style="display:inline">{% csrf_token %}<button class="pill primaryPill" type="submit">Logout</button></form>
-          {% else %}
-            <a class="pill primaryPill" href="/login/">Login</a>
-          {% endif %}
+          <a class="pill primaryPill" href="/">App menu</a>
+          {% include "chat/account_menu.html" %}
         </div>
       </div>
 

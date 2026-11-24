@@ -1,13 +1,13 @@
 {% load static %}
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Report service access · BURO Insight AI</title>
+<title>App and messaging grants · BURO Insight AI</title>
 {% include 'agentic_ai/ui_head.html' %}
 <link rel="stylesheet" href="{% static 'agentic_ai/dashboard_studio.css' %}">
 </head><body>
 {% include 'agentic_ai/page_nav.html' %}
 <main class="studio-shell studio-card">
-<h1>Report service access</h1>
+<h1>App and messaging grants</h1>
 <p>Grant a service to a Django role or to one user. Role members inherit its grants. Clearing a direct user grant leaves inherited grants in effect.</p>
 <form method="get">
 <label for="grant-kind">Grant to</label>
@@ -26,7 +26,7 @@
 <form method="post">
 {% csrf_token %}
 <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="name" value="{{ name }}">
-<fieldset><legend>Service grants</legend>
+<fieldset><legend>Policy AI, reporting and messaging</legend>
 {% for key,label,checked,inherited in services %}
 <label><input type="checkbox" name="permissions" value="{{ key }}"{% if checked %} checked{% endif %}> {{ label }}{% if inherited %} · Inherited from a role{% endif %}</label>
 {% endfor %}

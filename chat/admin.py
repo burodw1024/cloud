@@ -65,7 +65,14 @@ class SystemSettingAdmin(admin.ModelAdmin):
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.contrib import messages
 from django.shortcuts import redirect
-from .models import EmployeeSyncSettings, EmployeeDirectoryEntry
+from .models import EmployeeSyncSettings, EmployeeDirectoryEntry, UserProfile
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'designation')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name')
+    autocomplete_fields = ('user',)
 
 
 class EmployeeRootAdmin(admin.ModelAdmin):

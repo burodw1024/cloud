@@ -4,8 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}BURO Insight AI{% endblock %}</title>
+    {% include "chat/portal_head.html" %}
 </head>
 <body>
+<header class="portal-bar">
+    <a class="portal-brand" href="{% url 'portal' %}">BURO Insight AI</a>
+    <nav aria-label="Main menu">
+        <a href="{% url 'portal' %}">Apps</a>
+        <a href="{% url 'portal_docs' %}">Documentation</a>
+        {% include "chat/account_menu.html" %}
+    </nav>
+</header>
 {% block content %}{% endblock %}
 </body>
 </html>

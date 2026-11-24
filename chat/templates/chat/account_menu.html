@@ -1,0 +1,23 @@
+{% if request.user.is_authenticated %}
+  {% with account=request.user employee=request.user.employee_directory profile=request.user.profile %}
+    {% firstof employee.employee_name account.get_full_name account.username as account_name %}
+    <details class="portal-account">
+      <summary aria-label="Connected account for {{ account_name }}">
+        <span class="portal-avatar" aria-hidden="true">{{ account_name|first|upper }}</span>
+        <span>{{ account_name }}</span>
+      </summary>
+      <div class="portal-account-panel">
+        <dl>
+          <dt>Name</dt><dd>{{ account_name }}</dd>
+          <dt>Designation</dt><dd>{% firstof profile.designation employee.designation "Not provided" %}</dd>
+          <dt>Mobile number</dt><dd>{{ profile.mobile_number|default:"Not provided" }}</dd>
+        </dl>
+        <form action="{% url 'logout' %}" method="post">{% csrf_token %}
+          <button type="submit">Log out</button>
+        </form>
+      </div>
+    </details>
+  {% endwith %}
+{% else %}
+  <a class="portal-sign-in" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">Log in</a>
+{% endif %}

@@ -1,15 +1,17 @@
-"""Superuser administration for named reporting and delivery permissions."""
+"""Superuser administration for app, reporting and delivery permissions."""
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 
 from .access_admin import record_event
+from .share_channels import CHANNELS
 
 SERVICE_PERMISSIONS = {
     'schedule_report': 'Schedule reports',
@@ -17,15 +19,18 @@ SERVICE_PERMISSIONS = {
     'publish_powerbi_report': 'Publish Power BI Report Server reports',
     'export_powerbi_snapshot': 'Download Power BI workbooks',
     'share_report_whatsapp': 'Send through WhatsApp',
-    'share_report_gmail': 'Send through Gmail',
-    'share_report_outlook': 'Send through Outlook',
-    'share_report_viber': 'Send through Viber',
-    'share_report_sms': 'Send through Twilio SMS',
+    **{f'share_report_{channel}': f'Send through {label}' for channel, label in CHANNELS.items()},
 }
 
 
+POLICY_PERMISSION = 'use_policy_ai'
+
+
 def service_permission_queryset():
-    return Permission.objects.filter(content_type__app_label='agentic_ai', codename__in=SERVICE_PERMISSIONS)
+    return Permission.objects.filter(
+        Q(content_type__app_label='agentic_ai', codename__in=SERVICE_PERMISSIONS)
+        | Q(content_type__app_label='openai_policy', content_type__model='policyaipermission', codename=POLICY_PERMISSION)
+    )
 
 
 def service_grant_rows(target, kind='user'):
@@ -34,7 +39,10 @@ def service_grant_rows(target, kind='user'):
     direct = set(grants.filter(pk__in=permissions).values_list('codename', flat=True))
     inherited = (set(permissions.filter(group__user=target).values_list('codename', flat=True))
                  if kind == 'user' else set())
-    return [(key, label, key in direct, key in inherited) for key, label in SERVICE_PERMISSIONS.items()]
+    labels = {POLICY_PERMISSION: 'Use Policy AI', **SERVICE_PERMISSIONS}
+    available = set(permissions.values_list('codename', flat=True))
+    return [(key, label, key in direct, key in inherited)
+            for key, label in labels.items() if key in available]
 
 
 @staff_member_required(login_url='/login/')
@@ -58,7 +66,7 @@ def service_access(request):
     if request.method == 'POST' and target:
         selected = set(values.getlist('permissions'))
         reason = values.get('reason', '').strip()
-        if selected - set(SERVICE_PERMISSIONS) or not 8 <= len(reason) <= 500:
+        if selected - set(permissions.values_list('codename', flat=True)) or not 8 <= len(reason) <= 500:
             error = 'Choose valid grants and enter a reason of 8–500 characters.'
         elif kind == 'user' and target.is_superuser:
             error = 'Superusers already have these permissions.'

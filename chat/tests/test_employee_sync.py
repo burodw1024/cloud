@@ -31,6 +31,16 @@ class EmployeeSyncTests(TestCase):
         self.assertEqual(list(user.groups.all()), [custom])
         self.assertEqual(User.objects.count(), 1)
 
+    def test_optional_mobile_preserves_manual_value_when_omitted(self):
+        self.row['MOBILE_NO'] = '01700123456'
+        self.sync()
+        user = User.objects.get(username='0012')
+        self.assertEqual(user.profile.mobile_number, '01700123456')
+        del self.row['MOBILE_NO']
+        self.sync()
+        user.refresh_from_db()
+        self.assertEqual(user.profile.mobile_number, '01700123456')
+
     def test_status_disables_and_reactivates(self):
         self.sync()
         self.row['EMPSTATUS'] = 'Resigned'

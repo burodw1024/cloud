@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BURO Insight AI{% endblock %}</title>
+  {% include "chat/portal_head.html" %}
+</head>
+<body class="portal-body">
+  <header class="portal-bar">
+    <a class="portal-brand" href="{% url 'portal' %}"><span aria-hidden="true">b</span> BURO Insight AI</a>
+    <nav aria-label="Main menu">
+      <a href="{% url 'portal' %}">Apps</a>
+      <a href="{% url 'portal_docs' %}">Documentation</a>
+      {% include "chat/account_menu.html" %}
+    </nav>
+  </header>
+  <main class="portal-main">{% block content %}{% endblock %}</main>
+</body>
+</html>

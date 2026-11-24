@@ -111,7 +111,7 @@ System Settings | {{ site_title|default:"Django site admin" }}
     <div class="settings-header">
         <h1>System Settings</h1>
         <div class="settings-help">
-            Manage runtime URLs, Qdrant collections, NiFi endpoints, and the active Ollama model.
+            Manage app menu links, runtime URLs, Qdrant collections, NiFi endpoints, and the active Ollama model.
             Changing <strong>Ollama LLM Model</strong> updates the central model setting for the chat application.
         </div>
     </div>
@@ -158,7 +158,7 @@ System Settings | {{ site_title|default:"Django site admin" }}
                                 </select>
                             {% else %}
                                 <input
-                                    type="text"
+                                    type="{% if row.input_type == 'url' %}url{% else %}text{% endif %}"
                                     name="{{ row.key }}"
                                     value="{{ row.value }}"
                                     class="settings-input"

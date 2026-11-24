@@ -1,9 +1,11 @@
 # project/urls.py
 from django.contrib import admin
 from .health import live, ready
+from chat import portal, views as chat_views
 from django.urls import path, include
 #from chat.views import upload_jsonl
 from django.contrib.auth import views as auth_views
+from django.views.decorators.cache import never_cache
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -20,11 +22,15 @@ urlpatterns = [
 
 
 
+    path("", portal.home, name="portal"),
+    path("documentation/", portal.documentation, name="portal_docs"),
+    path("chat/", never_cache(chat_views.index), name="index"),
+
     # All chat / api / admin-tools routing
     path("", include("chat.urls")),
 
     # JSONL upload (staff-only, API-style)
-    path("api/files/upload", include("chat.urls")),
+    path("api/files/upload", include(("chat.urls", "legacy_chat"))),
 
    #added new app for conversational chatting
    path("workflow/", include("workflows.urls")),

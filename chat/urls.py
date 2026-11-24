@@ -2,7 +2,6 @@
 
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.views import LoginView, LogoutView
 
 from . import views
 from .views_land_law import land_law_page, land_law_ask
@@ -61,12 +60,6 @@ from .zypl_cashflow_batch_views import (
 urlpatterns = [
 
     # ------------------------------------------------------------------
-    # Login / Logout
-    # ------------------------------------------------------------------
-    path("login/", LoginView.as_view(template_name="registration/login.html"), name="login"),
-    path("logout/", LogoutView.as_view(next_page="/login/"), name="logout"),
-
-    # ------------------------------------------------------------------
     # Land Law RAG
     # ------------------------------------------------------------------
     path("land-law/", land_law_page, name="land_law_page"),
@@ -108,11 +101,6 @@ urlpatterns = [
         zypl_cashflow_score_file_from_uploaded_file_api,
         name="zypl_cashflow_score_file_from_uploaded_file_api",
     ),
-
-    # ------------------------------------------------------------------
-    # Main Chat Page
-    # ------------------------------------------------------------------
-    path("", views.index, name="index"),
 
     # ------------------------------------------------------------------
     # Main Chat APIs

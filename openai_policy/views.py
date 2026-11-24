@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from chat.dynamic_config import get_int_setting, get_setting
 
@@ -85,10 +86,12 @@ def error_response(exc):
 def compat_upload(f): return UploadFile(file=io.BytesIO(f.read()), filename=f.name, content_type=getattr(f, "content_type", "") or "application/octet-stream")
 
 @chat_permission_required
+@never_cache
 @require_GET
 def chat_page(request): return render(request, "openai_policy/chat.html")
 
 @admin_permission_required
+@never_cache
 @require_GET
 def studio_page(request): return render(request, "openai_policy/studio.html")
 

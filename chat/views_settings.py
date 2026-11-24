@@ -4,7 +4,7 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -17,6 +17,7 @@ from chat.dynamic_config import (
     get_setting,
 )
 from chat.models import SystemSetting
+from chat.portal import SERVICE_LINKS, validate_service_url
 
 
 # ---------------------------------------------------------------------
@@ -81,6 +82,16 @@ AI_PROVIDER_CHOICES = [
 # ---------------------------------------------------------------------
 
 MANAGED_SETTINGS = [
+    {
+        "key": key,
+        "label": f"{label} URL",
+        "description": "HTTP or HTTPS link shown to signed-in users in the app menu.",
+        "input_type": "url",
+        "default": "",
+        "group": "App menu links",
+    }
+    for key, label in SERVICE_LINKS.items()
+] + [
     {
         "key": "AGENT_PLANNER_MODEL",
         "label": "Agent Planner Model (Ollama)",
@@ -1168,6 +1179,12 @@ def settings_dashboard(request):
     # -----------------------------------------------------------------
 
     if request.method == "POST":
+        for key, label in SERVICE_LINKS.items():
+            try:
+                validate_service_url(request.POST.get(key, "").strip())
+            except ValidationError:
+                messages.error(request, f"Enter a valid HTTP or HTTPS URL for {label}, without embedded credentials.")
+                return redirect("admin_tools_settings")
 
         existing_settings = {
             obj.key: obj
@@ -1237,6 +1254,8 @@ def settings_dashboard(request):
                 )
 
         clear_setting_cache()
+        for key in SERVICE_LINKS:
+            clear_setting_cache(key)
 
         messages.success(
             request,

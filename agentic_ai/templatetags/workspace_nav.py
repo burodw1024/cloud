@@ -30,6 +30,6 @@ def admin_navigation(context):
         for route, label, permissions in ADMIN_LINKS if user.has_perms(permissions)
     ]
     if user.is_superuser:
-        links.append({'label': 'Report service access', 'url': reverse('agentic_ai:service_access'),
+        links.append({'label': 'App and messaging grants', 'url': reverse('agentic_ai:service_access'),
                       'current': current == 'agentic_ai:service_access'})
     return links
