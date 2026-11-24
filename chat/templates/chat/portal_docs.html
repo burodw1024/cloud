@@ -18,4 +18,34 @@
       <p>Select your account icon to see your name, designation and mobile number, or to log out. Contact your administrator if a profile field or app grant needs updating.</p>
     </section>
   </div>
+  <section class="portal-section" aria-labelledby="architecture-review">
+    <h2 id="architecture-review">Architecture and ISO practices</h2>
+    <p>The repository shows several practices that support ISO alignment. Formal conformance and certification would require an assessment of the complete architecture documentation, production controls, and organizational records.</p>
+
+    <h3>How requests flow</h3>
+    <ol>
+      <li>Users sign in through Django and select Policy AI or Agentic AI from the app menu.</li>
+      <li>Policy AI checks the user's app permission before sending authorized questions to the configured policy search service.</li>
+      <li>Agentic AI checks tool permissions, data scope, and any required approval before calling the configured gateway or application tools.</li>
+      <li>Reporting uses role and delivery permissions to control publishing or sharing. Delivery also requires a configured provider and approved recipient.</li>
+    </ol>
+
+    <h3>Practices and evidence to verify</h3>
+    <ul>
+      <li><strong>Architecture description.</strong> The repo documents individual integrations and deployment procedures. The review still needs a consolidated set of views covering system boundaries, data flows, deployment, stakeholders, and significant design decisions.</li>
+      <li><strong>Identity and least privilege.</strong> App grants, tool permissions, branch-level access, and audited changes are implemented. Verify how production owners review role membership and remove access when employees change roles or leave.</li>
+      <li><strong>Secrets and production configuration.</strong> The production settings load secrets from the environment. Verify the deployed settings, transport security at each connection, and records of credential rotation.</li>
+      <li><strong>Data protection.</strong> Report access and delivery recipients are restricted. Document which personal and business data reaches databases, logs, AI providers, and delivery providers, then record its retention and deletion requirements.</li>
+      <li><strong>Audit and incident response.</strong> The app records access changes and report activity. Verify who can read the logs, how long they are retained, who responds to alerts, and when the response process was exercised.</li>
+      <li><strong>Recovery and change control.</strong> The repo includes a SQLite backup recovery runbook and deployment procedures. Verify restore drill results, recovery targets, and release approvals for the deployed environment.</li>
+      <li><strong>AI governance.</strong> Tool authorization and approval checks provide oversight for sensitive actions. Record AI system owners, intended uses, and risks. Verify evaluation evidence for policy-answer accuracy, unauthorized data disclosure, and the effects of model or prompt changes.</li>
+    </ul>
+
+    <h3>ISO references</h3>
+    <ul class="portal-links">
+      <li><a href="https://www.iso.org/standard/74393.html">ISO/IEC/IEEE 42010:2022 · Architecture description</a></li>
+      <li><a href="https://www.iso.org/standard/27001">ISO/IEC 27001:2022 · Information security management</a></li>
+      <li><a href="https://www.iso.org/standard/42001">ISO/IEC 42001:2023 · AI management</a></li>
+    </ul>
+  </section>
 {% endblock %}
