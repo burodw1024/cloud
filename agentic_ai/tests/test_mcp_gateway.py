@@ -6,9 +6,10 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from asgiref.sync import async_to_sync
 from django.contrib.auth.models import Group, User
+from django.core.cache import cache
 from django.test import TestCase, SimpleTestCase
 from jsonschema import ValidationError
-from mcp.types import Tool
+from mcp.types import Tool, ToolAnnotations
 
 from agentic_ai import mcp_gateway as gateway
 from agentic_ai.models import AgentTool, AgentApprovalRequest, AgentRunLog
@@ -130,6 +131,59 @@ class RoleTests(TestCase):
         self.assertEqual(gateway._authorized_names(self.user), set())
 
 
+class RepeatAnswerTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.tool = AgentTool.objects.create(name="find-buro-training-locations", allowed_roles=["manager"])
+        managers = Group.objects.create(name="manager")
+        self.user = User.objects.create_user("first")
+        self.other = User.objects.create_user("second")
+        self.user.groups.add(managers)
+        self.other.groups.add(managers)
+        self.enterContext(patch.object(gateway, "load_config", return_value={"url": "https://gateway.example/mcp"}))
+
+    def run_query(self, user=None, question="Where is Cumilla?"):
+        return gateway.run_mcp_query(user or self.user, question)
+
+    def response(self, config, *args, cacheable=True, ok=True):
+        config["state"]["_cacheable_answer"] = cacheable
+        return {"ok": ok, "answer": "Cumilla", "tool": self.tool.name, "tool_executed": True}
+
+    def test_same_user_reuses_answer_without_running_the_model_or_tool(self):
+        with patch.object(gateway, "_bounded_run", new=AsyncMock(side_effect=self.response)) as run:
+            first = self.run_query()
+            second = self.run_query()
+            third = self.run_query(self.other)
+            self.run_query(question="Where is Sylhet?")
+        self.assertEqual(run.await_count, 3)
+        self.assertNotIn("cached", first)
+        self.assertTrue(second["cached"])
+        self.assertFalse(second["tool_executed"])
+        self.assertEqual(first["answer"], second["answer"])
+        self.assertNotEqual(first["request_id"], second["request_id"])
+        self.assertNotIn("cached", third)
+        self.assertEqual(AgentRunLog.objects.filter(user=self.user).count(), 3)
+        self.assertTrue(AgentRunLog.objects.filter(tool_output_summary__contains="cached=True").exists())
+
+    def test_current_approval_requirement_prevents_reuse(self):
+        with patch.object(gateway, "_bounded_run", new=AsyncMock(side_effect=self.response)) as run:
+            self.run_query()
+            self.tool.requires_approval = True
+            self.tool.save()
+            self.assertNotIn("cached", self.run_query())
+        self.assertEqual(run.await_count, 2)
+
+    def test_unmarked_and_failed_answers_are_not_reused(self):
+        for options in ({"cacheable": False}, {"ok": False}):
+            with patch.object(gateway, "_bounded_run", new=AsyncMock(
+                side_effect=lambda *args: self.response(*args, **options)
+            )) as run:
+                self.run_query()
+                self.assertNotIn("cached", self.run_query())
+            self.assertEqual(run.await_count, 2)
+
+
 class GatewayExecutionTests(SimpleTestCase):
     def setUp(self):
         self.config = {"url": "https://gateway.example/mcp", "token": "", "timeout": 1}
@@ -174,6 +228,18 @@ class GatewayExecutionTests(SimpleTestCase):
                                              {"ok": False, "approval_required": True})
         self.assertTrue(result["approval_required"])
         session.call_tool.assert_not_awaited()
+
+    def test_only_successful_explicitly_read_only_tools_mark_answers_cacheable(self):
+        for annotations, error, cacheable in (
+            (ToolAnnotations(readOnlyHint=True), False, True),
+            (ToolAnnotations(readOnlyHint=True, destructiveHint=True), False, False),
+            (ToolAnnotations(readOnlyHint=True), True, False),
+            (None, False, False),
+        ):
+            with self.subTest(annotations=annotations, error=error):
+                tool = TOOL.model_copy(update={"annotations": annotations})
+                self.run_gateway([tool], (TOOL.name, ARGS), error=error)
+                self.assertEqual(self.config["state"]["_cacheable_answer"], cacheable)
 
     def test_mcp_tool_error_is_not_success(self):
         result, _, _ = self.run_gateway([TOOL], (TOOL.name, ARGS), error=True)

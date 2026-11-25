@@ -1,6 +1,7 @@
 """Bounded, role-filtered MCP discovery and project-model tool selection."""
 import asyncio
 from contextlib import AsyncExitStack
+import hashlib
 import json
 import logging
 import math
@@ -16,6 +17,7 @@ from jsonschema import FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 from jsonschema.validators import validator_for
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.utils import timezone
 
 from chat.dynamic_config import get_setting, get_llm_model
@@ -28,6 +30,7 @@ NO_TOOLS = (
     "No MCP tools are enabled for your roles. Ask an administrator to "
     "register the server's exact tool names with allowed roles in Agent Tools."
 )
+REPEAT_ANSWER_TTL = 300
 MAX_QUERY_CHARS = 16000
 MAX_SCHEMA_BYTES = 65536
 MAX_CATALOG_BYTES = 262144
@@ -631,6 +634,10 @@ async def _run(config, user, query, allowed_names):
                 raise GatewayError("report_presentation_failed", "The tool completed, but its report could not be safely formatted. No unfiltered data was returned. Check the audit log before retrying.") from exc
             return {"ok": True, "tool": name, "plan": plan, "tool_executed": True, **presentation}
         # END_AGENTIC_REPORT_PROJECTION
+        annotations = original_tools[name].annotations
+        state["_cacheable_answer"] = not result.isError and not loan_grant and bool(
+            annotations and annotations.readOnlyHint is True and annotations.destructiveHint is not True
+        )
         texts = [item.text for item in result.content if item.type == "text"]
         answer = "\n".join(texts) or json.dumps(raw.get("structuredContent", raw), ensure_ascii=False)
         return {"ok": not result.isError, "tool": name, "plan": plan,
@@ -660,10 +667,36 @@ def _failure(exc, state=None):
     return "gateway_error", "MCP selection or execution failed. Check the server log using the request ID.", 502
 
 
+def _repeat_answer_key(user, query, config, allowed):
+    identity = [config.get(field) for field in ("url", "token", "provider", "model", "model_url", "model_key")]
+    fingerprint = json.dumps([user.pk, query, identity, sorted(allowed)], ensure_ascii=False)
+    return "agentic:repeat-answer:v1:" + hashlib.sha256(fingerprint.encode()).hexdigest()
+
+
+def _cached_repeat_answer(key, user, allowed):
+    from .loan_access import protected_tools
+
+    try:
+        result = cache.get(key)
+        if not result:
+            return None
+        name = result["tool"]
+        if name not in allowed or name in protected_tools():
+            return None
+        record = AgentTool.objects.select_related("module").filter(name=name, is_active=True).first()
+        if (record and not record.requires_approval and not record.requires_loan_scope
+                and record.loan_access_mode == "SIGNED" and _allowed(record, user)):
+            return result
+    except Exception:
+        logger.warning("Repeat answer cache lookup unavailable")
+    return None
+
+
 def run_mcp_query(user=None, query="", session_id=None, scheduled=False):
     request_id = uuid.uuid4().hex
     started = time.monotonic()
     state, audit = {}, None
+    repeat_key = None
     meter = []
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY_CHARS:
         return {"ok": False, "code": "invalid_query", "http_status": 400, "request_id": request_id,
@@ -688,8 +721,14 @@ def run_mcp_query(user=None, query="", session_id=None, scheduled=False):
         else:
             with stage(state, 'configuration'):
                 config = load_config()
-            config.update(state=state, audit_id=audit.pk, usage_meter=meter, scheduled=scheduled)
-            result = async_to_sync(_bounded_run)(config, user, query, allowed)
+            if not scheduled:
+                repeat_key = _repeat_answer_key(user, query, config, allowed)
+            cached = _cached_repeat_answer(repeat_key, user, allowed) if repeat_key else None
+            if cached is not None:
+                result = {**cached, "cached": True, "tool_executed": False}
+            else:
+                config.update(state=state, audit_id=audit.pk, usage_meter=meter, scheduled=scheduled)
+                result = async_to_sync(_bounded_run)(config, user, query, allowed)
     except Exception as exc:
         code, answer, status = _failure(exc, state)
         logger.warning("MCP request failed request_id=%s code=%s exception_type=%s", request_id, code, type(exc).__name__)
@@ -698,6 +737,8 @@ def run_mcp_query(user=None, query="", session_id=None, scheduled=False):
         result.pop("completed", None)
         if state.get("dispatched") and not state.get("completed"):
             result.update(outcome_unknown=True, answer=answer + " Execution may have started. Check the backend before retrying.")
+    cacheable = repeat_key and state.get("_cacheable_answer") and result.get("ok")
+    answer_to_cache = dict(result) if cacheable else None
     from .usage_meter import parse_prices, summarize_usage
     try:
         prices = parse_prices(get_setting("MCP_MODEL_PRICING", "{}"))
@@ -720,7 +761,7 @@ def run_mcp_query(user=None, query="", session_id=None, scheduled=False):
             usage_summary=result["usage"],
             selected_tool=result.get("tool"), tool_input=result.get("plan", {}).get("params", {}),
             final_answer=str(result["answer"])[:5000],
-            tool_output_summary=f"duration_ms={result['duration_ms']}; dispatched={bool(state.get('dispatched'))}; completed={bool(state.get('completed'))}",
+            tool_output_summary=f"duration_ms={result['duration_ms']}; cached={bool(result.get('cached'))}; dispatched={bool(state.get('dispatched'))}; completed={bool(state.get('completed'))}",
             status=result.get("status", "success" if result["ok"] else "failed"),
             risk_level="high" if result.get("approval_required") else "medium",
             error_message=f"request_id={request_id}; code={result.get('code', 'ok')}; scope_check={state.get('scope_failure', '')}",
@@ -728,4 +769,9 @@ def run_mcp_query(user=None, query="", session_id=None, scheduled=False):
     except Exception:
         logger.error("MCP audit finalization failed request_id=%s", request_id)
         result["audit_incomplete"] = True
+    if answer_to_cache and result.get("ok") and not result.get("audit_incomplete"):
+        try:
+            cache.set(repeat_key, answer_to_cache, REPEAT_ANSWER_TTL)
+        except Exception:
+            logger.warning("Repeat answer cache storage unavailable")
     return result

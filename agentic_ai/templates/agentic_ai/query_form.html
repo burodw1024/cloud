@@ -320,6 +320,7 @@
             if (report?.rows) info.push(report.rows.length+' displayed'+(report.truncated?' · More records available':''));
             if (report?.scope) info.push(report.scope);
             if (report?.order) info.push(report.order);
+            if (body.cached) info.push('Cached answer');
             if (body.duration_ms != null) info.push((body.duration_ms/1000).toFixed(1)+'s');
             if (body.request_id) info.push('Request '+body.request_id);
             details.textContent = info.join(' · ');
