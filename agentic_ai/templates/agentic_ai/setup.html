@@ -113,8 +113,13 @@ document.getElementById('save-directory').addEventListener('click',async()=>{
 document.getElementById('check-directory').addEventListener('click',()=>action({action:'check_directory'}));
 
 document.getElementById('save-summary').addEventListener('click',()=>action({action:'save_summary',base:document.getElementById('summary-base').value,model:document.getElementById('summary-model').value}));
-let catalog=[], catalogLoaded=false, busy=false, refreshing=false, modelChecked=0, settingsVersion=0;
-function refreshButtons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);document.getElementById('save-tools').disabled=busy||catalog.length===0;}
+let catalog=[], catalogLoaded=false, busy=false, refreshing=false, findingTools=false;
+let modelChecked=0, settingsVersion=0, gatewayRefreshId=0;
+function refreshButtons(){
+ document.querySelectorAll('button').forEach(b=>b.disabled=busy);
+ document.getElementById('discover').disabled=busy||findingTools;
+ document.getElementById('save-tools').disabled=busy||findingTools||catalog.length===0;
+}
 async function requestSetup(payload){
  const response=await fetch(location.pathname,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify(payload)});
  if(!(response.headers.get('content-type')||'').includes('application/json'))throw new Error('Refresh the page and sign in with an administrator account.');
@@ -166,9 +171,13 @@ async function checkModel(version=settingsVersion,background=false){
  }finally{if(version===settingsVersion)modelChecked=Date.now();}
 }
 async function refreshGateway(version,loadCatalog){
+ if(!loadCatalog&&findingTools)return;
+ const requestId=++gatewayRefreshId;
+ const isCurrent=()=>version===settingsVersion&&requestId===gatewayRefreshId;
  try{
-  const body=await requestSetup({action:'discover',background:!loadCatalog});
-  if(version!==settingsVersion)return;
+  // Use the setup probe deadline for discovery, independent of long-running tool calls.
+  const body=await requestSetup({action:'discover',background:true});
+  if(!isCurrent())return;
   showHealth('gateway',body.gateway_enabled?'Up':'Inactive',
    body.gateway_enabled?'Connected and enabled.':'Reachable. Tool execution is paused.');
   if(loadCatalog||!catalogLoaded){renderTools(body.tools,body.roles);catalogLoaded=true;refreshButtons();}
@@ -181,8 +190,10 @@ async function refreshGateway(version,loadCatalog){
   const missing=document.getElementById('missing-tools');
   missing.hidden=!body.missing.length;
   missing.textContent=body.missing.length?'Enabled tools missing from the gateway: '+body.missing.join(', '):'';
+  if(loadCatalog)statusBox.textContent=body.message;
  }catch(error){
-  if(version!==settingsVersion)return;
+  if(!isCurrent())return;
+  if(loadCatalog)statusBox.textContent=error.message||'Tool discovery failed.';
   showHealth('gateway',checkFailure(error),error.message);
   for(const entry of catalog){entry.badge.textContent='Unknown';entry.badge.dataset.state='Unknown';}
   if(!catalogLoaded)document.getElementById('tool-list').textContent='Tool discovery will retry automatically.';
@@ -267,7 +278,18 @@ document.getElementById('save-connection').onclick=async()=>{
   await refreshHealth(true);
  }
 };
-document.getElementById('discover').onclick=()=>refreshGateway(settingsVersion,true);
+document.getElementById('discover').onclick=async()=>{
+ if(busy||findingTools)return;
+ findingTools=true;
+ refreshButtons();
+ statusBox.textContent='Looking for tools on the saved gateway…';
+ try{
+  await refreshGateway(settingsVersion,true);
+ }finally{
+  findingTools=false;
+  refreshButtons();
+ }
+};
 document.getElementById('check-model').onclick=()=>checkModel().catch(()=>{});
 document.getElementById('save-tools').onclick=async()=>{
  const tools=catalog.map(t=>({name:t.name,enabled:t.enabled.checked,requires_approval:t.approval.checked,requires_loan_scope:t.loanScope.checked,loan_access_mode:t.mode.value,fixed_branch_codes:t.branches.value.split(',').map(s=>s.trim()).filter(Boolean),display_name:t.metadata.display_name.value,category:t.metadata.category.value,example_question:t.metadata.example_question.value,roles:t.choices.filter(c=>c.input.checked).map(c=>c.role)}));
