@@ -95,26 +95,6 @@
         expandButton.textContent = expanded ? 'Collapse table' : 'Expand table';
     });
     const usagePanel=document.getElementById('request-usage');
-    function trainingLocationReport(body) {
-        if (!body.ok || body.tool !== 'find-buro-training-locations') return null;
-        let payload = body.raw?.structuredContent;
-        if (!Array.isArray(payload?.locations)) {
-            try { payload = JSON.parse(body.answer); }
-            catch { return null; }
-        }
-        const rows = payload?.locations;
-        if (!Array.isArray(rows) || payload.count !== rows.length || !rows.every(row =>
-            typeof row?.name === 'string' && Number.isFinite(row.latitude) && Number.isFinite(row.longitude)
-        )) return null;
-        const summary = rows.length ? rows.length + (rows.length === 1 ? ' location found.' : ' locations found.')
-            : 'No matching training locations found.';
-        return {
-            columns: ['Location', 'Latitude', 'Longitude'],
-            rows: rows.map(row => ({Location: row.name, Latitude: row.latitude, Longitude: row.longitude})),
-            summary
-        };
-    }
-
     function renderUsage(usage,replayed) {
         usagePanel.hidden=false;
         const message=document.getElementById('usage-context');
@@ -280,18 +260,19 @@
             const body = await response.json();
             window.BuroReportShare?.setResult({whatsapp: body.whatsapp_result_id, other: body.share_result_id});
             renderUsage(body.usage,body.replayed);
-            const locations = trainingLocationReport(body);
-            const answer = locations?.summary ?? body.answer ?? body.error ?? 'No response was returned.';
-            copyText = locations?.rows.length
-                ? [locations.columns.join('\t'), ...locations.rows.map(row => locations.columns.map(column => row[column]).join('\t'))].join('\n')
+            const report = body.raw?.structuredContent;
+            const locations = body.tool === 'find-buro-training-locations' && Array.isArray(report?.rows)
+                && report.columns?.[0] === 'Location';
+            const answer = body.answer ?? body.error ?? 'No response was returned.';
+            copyText = locations && report.rows.length
+                ? [report.columns.join('\t'), ...report.rows.map(row => report.columns.map(column => row[column]).join('\t'))].join('\n')
                 : typeof answer === 'string' ? answer : JSON.stringify(answer,null,2);
-            result.textContent = locations?.summary ?? copyText;
+            result.textContent = locations ? answer : copyText;
             if (body.ok && ['loan_question_help', 'business_question_help'].includes(body.kind) && window.BuroLoanQuestionHelp) {
                 window.BuroLoanQuestionHelp.render(loanSuggestions, body.question_groups, form.elements.message);
                 // Keep the introduction visible; the numbered examples are clickable below.
                 if (body.question_groups?.length) result.textContent = copyText.split('\n\n')[0];
             }
-            const report = locations?.rows.length ? locations : body.raw?.structuredContent;
             if (body.ok && report && Array.isArray(report.rows) && window.BuroReportChart) {
                 const metrics = window.BuroReportChart.available(report);
                 chartReport = report; chartMetric.replaceChildren();
@@ -301,7 +282,7 @@
                 chartButton.hidden = !metrics.length;
             }
             summaryToken = body.ok ? body.summary_token || null : null; summaryButton.hidden = !summaryToken;
-            if (body.ok && report && Array.isArray(report.columns) && report.columns.length && Array.isArray(report.rows)) {
+            if (body.ok && report && (!locations || report.rows.length) && Array.isArray(report.columns) && report.columns.length && Array.isArray(report.rows)) {
                 const table = document.createElement('table');
                 const caption = document.createElement('caption'); caption.textContent = 'Returned report values'; caption.hidden = true; table.append(caption);
                 const head = table.createTHead().insertRow();
@@ -330,7 +311,7 @@
                     });
                 });
                 tableWrap.append(table); tableWrap.hidden = false; toolbar.hidden = false;
-                if (!locations) window.BuroReportTemplates?.show(report,body);
+                window.BuroReportTemplates?.show(report,body);
                 requestAnimationFrame(updateTableHint);
                 searchCount.textContent = report.rows.length + ' displayed rows';
                 result.textContent = body.summary || (typeof answer === 'string' ? answer.split('\n')[0] : 'Report returned.');

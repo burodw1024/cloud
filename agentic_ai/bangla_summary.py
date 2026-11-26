@@ -19,6 +19,8 @@ from .savings_presentation import SAVINGS_MEASURES
 
 logger = logging.getLogger(__name__)
 TTL = 1800
+TRAINING_LOCATION_TOOL = "find-buro-training-locations"
+TRAINING_LOCATION_COLUMNS = ("Location", "Latitude", "Longitude")
 SAFE_COLUMNS = {
     'RANK', 'RANK_NO', 'BRANCHCODE', 'ZONECODE', 'AREACODE', 'DIVISIONCODE',
     'PRODUCTNAME', 'ENTITY_CODE', 'LOAN_COUNT', 'DUEAMOUNT', 'OUTSTANDINGP',
@@ -56,13 +58,54 @@ Markdown চিহ্ন বা নম্বরযুক্ত তালিক�
 
 
 
+def training_location_report(result):
+    raw = result.get('raw')
+    payload = raw.get('structuredContent') if isinstance(raw, dict) else None
+    if not isinstance(payload, dict) or not isinstance(payload.get('locations'), list):
+        answer = result.get('answer')
+        if not isinstance(answer, str):
+            return None
+        try:
+            payload = json.loads(answer)
+        except ValueError:
+            return None
+    if not isinstance(payload, dict):
+        return None
+    locations = payload.get('locations')
+    if (not isinstance(locations, list) or type(payload.get('count')) is not int
+            or payload['count'] != len(locations)):
+        return None
+    rows = []
+    for location in locations:
+        if not isinstance(location, dict) or not isinstance(location.get('name'), str):
+            return None
+        lat, lon = location.get('latitude'), location.get('longitude')
+        if (type(lat) not in (int, float) or not -90 <= lat <= 90
+                or type(lon) not in (int, float) or not -180 <= lon <= 180):
+            return None
+        rows.append(dict(zip(TRAINING_LOCATION_COLUMNS, (location['name'], lat, lon))))
+    count = len(rows)
+    answer = f'{count} location{"s" if count != 1 else ""} found.' if count else 'No matching training locations found.'
+    return {**result, 'answer': answer, 'raw': {'structuredContent': {
+        'columns': list(TRAINING_LOCATION_COLUMNS), 'rows': rows, 'row_count': count,
+    }}}
+
+
 def remember_report(user, result):
+    training_locations = (result.get('tool') == TRAINING_LOCATION_TOOL
+                          and result.get('plan', {}).get('intent') == 'mcp_tool_call')
+    if training_locations and result.get('ok'):
+        normalized = training_location_report(result)
+        if normalized is None:
+            return result
+        result = normalized
     report = result.get('raw', {}).get('structuredContent')
     if (not result.get('ok') or result.get('kind') == 'clarification'
             or not result.get('tool') or not isinstance(report, dict)
             or not isinstance(report.get('rows'), list) or not report['rows']):
         return result
-    columns = [c for c in report.get('columns', []) if c in SAFE_COLUMNS]
+    allowed_columns = TRAINING_LOCATION_COLUMNS if training_locations else SAFE_COLUMNS
+    columns = [c for c in report.get('columns', []) if c in allowed_columns]
     if report.get('level') in {'MEMBER', 'EMPLOYEE'}:
         columns = [c for c in columns if c != 'ENTITY_CODE']
     if not columns:

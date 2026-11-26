@@ -14,7 +14,7 @@ from agentic_ai import dashboard_studio as studio
 from agentic_ai import superset_publisher as publisher
 from agentic_ai.bangla_summary import remember_report
 from agentic_ai.report_catalog import CATALOG
-from agentic_ai.models import DashboardExport
+from agentic_ai.models import AgentTool, DashboardExport
 
 
 REPORT = {'columns': ['BRANCHCODE', 'GS_BALANCE', 'CS_BALANCE'],
@@ -212,6 +212,56 @@ class StudioTests(TestCase):
         with patch.object(studio, '_can_replay_result', return_value=False):
             self.assertEqual(self.post(payload).status_code, 403)
         publish.assert_called_once()
+
+    @patch('agentic_ai.api.execute_query')
+    @patch.object(studio, 'publish')
+    def test_training_locations_support_guided_preview_and_private_publish(self, publish, execute):
+        from agentic_ai.api import _can_replay_result
+        tool = AgentTool.objects.create(name='find-buro-training-locations', allowed_roles=['admin'])
+        location = {'name': 'Cumilla Training Centre', 'latitude': 23.46, 'longitude': 91.18,
+                    'internal_note': 'not a report field'}
+        payload = {'count': 1, 'locations': [location]}
+        execute.return_value = {
+            'ok': True, 'tool': tool.name, 'plan': {'intent': 'mcp_tool_call'},
+            'answer': json.dumps(payload), 'raw': {},
+        }
+        query = {'message': 'Find BURO training locations near Cumilla'}
+        report = {'Location': location['name'], 'Latitude': 23.46, 'Longitude': 91.18}
+
+        def complete(export, snapshot, config, authorize):
+            self.assertTrue(authorize())
+            self.assertEqual(snapshot['rows'], [report])
+            self.assertEqual(export.specification['charts'], ['Source table'])
+            export.status = 'ready'
+            export.dashboard_id = 50
+            export.save()
+
+        publish.side_effect = complete
+        with patch.object(studio, '_can_replay_result', wraps=_can_replay_result):
+            result = self.client.post('/agentic/api/query/', query).json()
+            self.assertEqual(result['raw']['structuredContent']['rows'], [report])
+            self.assertIsNotNone(result.get('report_run_id'))
+            token = result['summary_token']
+            self.assertEqual(self.client.session['dashboard_report_token'], token)
+            with patch('agentic_ai.reporting_config.workspace_settings', return_value={}):
+                self.assertContains(self.client.get('/agentic/analytics/'), token)
+
+            preview = self.post({'action': 'preview', 'title': 'Training locations',
+                                 'template': 'satellite', 'report_token': token})
+            self.assertEqual(preview.status_code, 200, preview.content)
+            quick = self.post({'action': 'quick_publish', 'report_token': token})
+            self.assertEqual(quick.status_code, 200, quick.content)
+            publish.assert_called_once()
+
+            tool.is_active = False
+            tool.save(update_fields=['is_active'])
+            self.assertEqual(self.post({'action': 'quick_publish', 'report_token': token}).status_code, 403)
+
+        execute.return_value['raw'] = {'structuredContent': {'count': 0, 'locations': []}}
+        empty = self.client.post('/agentic/api/query/', query).json()
+        self.assertEqual(empty['answer'], 'No matching training locations found.')
+        self.assertNotIn('summary_token', empty)
+        self.assertIsNone(self.client.session['dashboard_report_token'])
 
     @patch('agentic_ai.api.execute_query')
     @patch.object(studio, 'publish')
