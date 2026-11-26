@@ -1,6 +1,18 @@
 {% extends "chat/portal_base.html" %}
+{% load static %}
 {% block content %}
-  <h1>Choose an assistant</h1>
+  {% if not user.is_authenticated %}
+    <section class="portal-hero" aria-labelledby="portal-hero-title">
+      <div>
+        <h1 id="portal-hero-title">Less routine work.<br><em>More room for good work.</em></h1>
+        <p>BURO Insight AI brings policy answers, data analysis, and reports into one workspace. Our goal is to help teams handle 50–60% of repetitive tasks as the platform grows more capable with day-to-day use.</p>
+        <a class="portal-hero-cta" href="{% url 'login' %}">Sign in to BURO Insight AI <span aria-hidden="true">→</span></a>
+      </div>
+      <img src="{% static 'chat/insight-login.webp' %}" width="960" height="640" alt="" fetchpriority="high">
+    </section>
+  {% endif %}
+  {% if user.is_authenticated %}<h1>Choose an assistant</h1>
+  {% else %}<h2>Choose an assistant</h2>{% endif %}
   <div class="portal-grid">
     {% if not user.is_authenticated or perms.openai_policy.use_policy_ai %}
       <a class="portal-card" href="{% url 'openai_policy:chat' %}">
