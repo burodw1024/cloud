@@ -13,6 +13,24 @@ class PortalTests(TestCase):
         cache.clear()
         self.addCleanup(cache.clear)
 
+    def test_prelogin_pages_keep_sign_in_and_return_to_workspace(self):
+        User.objects.create_user('employee', password='test-password')
+        client = Client(enforce_csrf_checks=True)
+        portal = client.get(reverse('portal'))
+        self.assertContains(portal, 'Less routine work.')
+        self.assertContains(portal, 'insight-login.webp')
+
+        login = reverse('login')
+        workspace = reverse('agentic_ai:query_page')
+        response = client.get(login, {'next': workspace})
+        self.assertContains(response, 'for="id_username"')
+        self.assertContains(response, f'name="next" value="{workspace}"')
+        credentials = {'username': 'employee', 'password': 'test-password', 'next': workspace}
+        self.assertEqual(client.post(login, credentials).status_code, 403)
+        credentials['csrfmiddlewaretoken'] = client.cookies['csrftoken'].value
+        self.assertRedirects(client.post(login, credentials), workspace, fetch_redirect_response=False)
+        self.assertNotContains(client.get(reverse('portal')), 'id="portal-hero-title"')
+
     def test_account_menu_and_csrf_protected_logout(self):
         user = User.objects.create_user('employee', first_name='Django', last_name='Name')
         EmployeeDirectoryEntry.objects.create(
