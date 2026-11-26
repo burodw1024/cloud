@@ -1,4 +1,5 @@
 from io import BytesIO
+from unittest.mock import patch
 
 from django.contrib.auth.models import Permission, User
 from django.core.cache import cache
@@ -45,6 +46,32 @@ class PowerBIExportTests(TestCase):
         page = self.client.get(reverse('agentic_ai:report_run', args=[self.run.pk]))
         self.assertContains(page, 'Download Power BI workbook')
         self.assertContains(page, 'https://powerbi.internal/reports')
+
+    @patch('agentic_ai.api.execute_query')
+    def test_training_location_result_exposes_powerbi_workbook(self, execute):
+        tool = AgentTool.objects.create(name='find-buro-training-locations', allowed_roles=['staff'])
+        execute.return_value = {
+            'ok': True, 'tool': tool.name, 'plan': {'intent': 'mcp_tool_call'},
+            'raw': {'structuredContent': {'count': 1, 'locations': [{
+                'name': 'Cumilla Training Centre', 'latitude': 23.46, 'longitude': 91.18,
+            }]}},
+        }
+        page = self.client.get(reverse('agentic_ai:query_page'))
+        self.assertContains(page, 'Download Power BI workbook')
+        query = self.client.post(reverse('agentic_ai:agentic_query_api'),
+                                 {'message': 'Find BURO training locations near Cumilla'})
+        self.assertEqual(query.status_code, 200, query.content)
+        url = reverse('agentic_ai:powerbi_export', args=[query.json()['report_run_id']])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        book = load_workbook(BytesIO(b''.join(response.streaming_content)))
+        self.assertEqual(list(book['ReportData'].values), [
+            ('Location', 'Latitude', 'Longitude'), ('Cumilla Training Centre', 23.46, 91.18),
+        ])
+        self.config.configuration['POWERBI_MODE'] = 'disabled'
+        self.config.save(update_fields=['configuration'])
+        self.assertNotContains(self.client.get(reverse('agentic_ai:query_page')), 'Download Power BI workbook')
+        self.assertEqual(self.client.get(url).status_code, 403)
 
     def test_permission_ownership_expiry_and_revocation(self):
         other = User.objects.create_user('powerbi-other')
